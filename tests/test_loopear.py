@@ -10,6 +10,19 @@ import torch
 import torch.nn.functional as F
 from aiohttp.test_utils import TestClient, TestServer
 
+from loopear.data import (
+    PILOT_CORPUS_SOURCES,
+    assert_disjoint_groups,
+    downsample_binary_targets,
+    downsample_overlap_targets,
+    parse_hms_seconds,
+    rasterize_intervals_50hz,
+    rasterize_overlap_50hz,
+    rasterize_soft_labels_50hz,
+    rasterize_starss_frames_50hz,
+    upsample_frame_preds,
+    validate_manifest,
+)
 from loopear.demo import create_app
 from loopear.encoder import (
     D_E,
@@ -18,6 +31,7 @@ from loopear.encoder import (
     SR,
     T_E_MAX,
     ShardedFeatureCache,
+    load_mono_audio,
     load_usad2_extractor,
     random_crop_window,
     save_npz_atomic,
@@ -37,7 +51,9 @@ from loopear.losses import (
     MultiTaskHeads,
     compute_cross_chapter_eer,
     masked_mean_pool,
+    multidepth_event_loss,
     multidepth_loss,
+    multidepth_overlap_loss,
     set_seed,
 )
 from loopear.models import (
@@ -581,3 +597,111 @@ def test_stream_and_demo_http_endpoints(usad2_encoder):
             assert st_after["mean_ms"] > 0.0
 
     asyncio.run(_run_http())
+
+
+def test_data_rasterization_downsampling_and_upsampling():
+    assert abs(parse_hms_seconds("01:02:03.5") - 3723.5) < 1e-6
+    assert abs(parse_hms_seconds("02:10.25") - 130.25) < 1e-6
+
+    y_iv = rasterize_intervals_50hz(
+        [(0.10, 0.30, 1), (0.20, 0.40, 3)], start_s=0.0, n_frames=25, n_classes=5
+    )
+    assert y_iv.shape == (25, 5)
+    assert y_iv[6, 1] == 1.0 and y_iv[0, 1] == 0.0
+    assert y_iv[12, 1] == 1.0 and y_iv[12, 3] == 1.0
+
+    y_st = rasterize_starss_frames_50hz(
+        [(1, 0), (1, 4), (3, 7)], start_s=0.0, n_frames=25, n_classes=13
+    )
+    assert y_st.shape == (25, 13)
+    assert y_st[5:10, 0].sum() == 5.0
+    assert y_st[5:10, 4].sum() == 5.0
+    assert y_st[15:20, 7].sum() == 5.0
+
+    y_ovl = rasterize_overlap_50hz(
+        [(0.0, 0.40, "P1"), (0.20, 0.60, "P2"), (0.24, 0.36, "P3")],
+        start_s=0.0,
+        n_frames=40,
+    )
+    assert y_ovl.shape == (40,)
+    assert int(y_ovl[2]) == 1
+    assert int(y_ovl[14]) == 2
+    assert int(y_ovl[24]) == 1
+    assert int(y_ovl[35]) == 0
+
+    y_soft = rasterize_soft_labels_50hz(
+        [(0.0, 1.0, 2, 0.75)], start_s=0.0, n_frames=50, n_classes=11
+    )
+    assert np.allclose(y_soft[:, 2], 0.75)
+
+    for stride in (4, 8):
+        tz = math.ceil(40 / stride)
+        ds_bin = downsample_binary_targets(y_iv, 25, stride, tz)
+        assert ds_bin.shape == (tz, 5)
+        assert ds_bin[:, 1].max() == 1.0
+        ds_ovl = downsample_overlap_targets(y_ovl, 40, stride, tz)
+        assert ds_ovl.shape == (tz,)
+        assert set(ds_ovl.tolist()).issubset({0, 1, 2})
+        up = upsample_frame_preds(ds_bin, stride, 25)
+        assert up.shape == (25, 5)
+
+
+def test_data_manifest_validation_channel_select_and_stage1_heads(tmp_path: Path):
+    assert_zero_pretraining_overlap(PILOT_CORPUS_SOURCES)
+    assert_disjoint_groups(["r1", "r2"], ["r3", "r4"], label="rooms")
+
+    good_manifest = {
+        "corpus": "starss23",
+        "join_coverage": 1.0,
+        "items": [
+            {"id": "a", "split": "train", "group_id": "room1", "duration_s": 10.0, "sha256": "abc"},
+            {"id": "b", "split": "val", "group_id": "room2", "duration_s": 8.0, "sha256": "def"},
+        ],
+    }
+    summary = validate_manifest(good_manifest)
+    assert summary["n_items"] == 2
+
+    bad_leak = dict(good_manifest, corpus="librispeech")
+    with pytest.raises(AssertionError):
+        validate_manifest(bad_leak)
+
+    bad_cov = dict(good_manifest, join_coverage=0.80)
+    with pytest.raises(AssertionError):
+        validate_manifest(bad_cov)
+
+    bad_grp = dict(
+        good_manifest,
+        items=[
+            {"id": "a", "split": "train", "group_id": "room1", "duration_s": 10.0, "sha256": "abc"},
+            {"id": "b", "split": "val", "group_id": "room1", "duration_s": 8.0, "sha256": "def"},
+        ],
+    )
+    with pytest.raises(AssertionError):
+        validate_manifest(bad_grp)
+
+    foa_path = tmp_path / "foa.wav"
+    ch0 = _sine_wave(440.0, 1.0, amp=0.4)
+    ch_zero = np.zeros_like(ch0)
+    foa_wav = np.stack([ch0, -ch0, ch_zero, ch_zero], axis=1)
+    sf.write(str(foa_path), foa_wav, SR, subtype="FLOAT")
+    mono_ch0 = load_mono_audio(foa_path, target_sr=SR, channel=0)
+    mono_avg = load_mono_audio(foa_path, target_sr=SR, channel=None)
+    assert np.allclose(mono_ch0, ch0, atol=1e-5)
+    assert float(np.abs(mono_avg).max()) < 1e-5
+
+    set_seed(7)
+    model = build_arm("E", stride=4, max_k=4)
+    heads = MultiTaskHeads(d=model.out_dim, n_ev=15, n_spk=20, n_starss=13, n_ovl=3)
+    e = torch.randn(2, 64, D_E)
+    lens = torch.tensor([64, 48], dtype=torch.long)
+    states, pad = model.forward_states(e, lens, depths=(1, 2, 4))
+    y_st = torch.randint(0, 2, (2, pad.shape[1], 13)).float()
+    y_st_c = y_st.max(dim=1).values
+    y_ovl = torch.randint(0, 3, (2, pad.shape[1]))
+    loss = multidepth_event_loss(
+        states, pad, heads, y_st, y_st_c, head_name="starss"
+    ) + multidepth_overlap_loss(states, pad, heads, y_ovl)
+    assert torch.isfinite(loss)
+    loss.backward()
+    assert heads.starss_head is not None and heads.starss_head.weight.grad is not None
+    assert heads.ovl_head is not None and heads.ovl_head.weight.grad is not None

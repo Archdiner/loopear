@@ -1,0 +1,32 @@
+{
+  "config": {
+    "arm_name": "D",
+    "arm_type": "D",
+    "batch_size": 16,
+    "datasets": [
+      "starss23",
+      "realdesed",
+      "dipco",
+      "ami_sdm"
+    ],
+    "epochs": 10,
+    "head_kwargs": {
+      "d": 384,
+      "d_spk": 192,
+      "n_ev": 15,
+      "n_ovl": 3,
+      "n_spk": 80,
+      "n_starss": 13
+    },
+    "lr": 0.0003,
+    "refiner_kwargs": {
+      "max_k": 4,
+      "stride": 8
+    },
+    "seed": 42,
+    "steps_per_epoch": 28
+  },
+  "config_sha256": "10f0901fe124b289bff404dee9f24cb88197a4c6eb5d46c14e84ae8fdc541565",
+  "created_utc": "2026-11-25T20:08:08.567235+00:00",
+  "run_id": "stage1_pilot_D_s42"
+}

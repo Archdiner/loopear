@@ -32,13 +32,19 @@ class MultiTaskHeads(nn.Module):
         n_ev: int = 15,
         d_spk: int = 192,
         n_spk: int = 120,
+        n_starss: int = 0,
+        n_ovl: int = 0,
     ):
         super().__init__()
         self.d = d
         self.n_ev = n_ev
         self.d_spk = d_spk
         self.n_spk = n_spk
+        self.n_starss = n_starss
+        self.n_ovl = n_ovl
         self.ev_head = nn.Linear(d, n_ev)
+        self.starss_head = nn.Linear(d, n_starss) if n_starss > 0 else None
+        self.ovl_head = nn.Linear(d, n_ovl) if n_ovl > 0 else None
         self.spk_attn = nn.Sequential(
             nn.Linear(d, 128),
             nn.Tanh(),
@@ -51,6 +57,16 @@ class MultiTaskHeads(nn.Module):
 
     def event_logits(self, z: torch.Tensor) -> torch.Tensor:
         return self.ev_head(z)
+
+    def starss_logits(self, z: torch.Tensor) -> torch.Tensor:
+        if self.starss_head is None:
+            raise RuntimeError("starss_head is not enabled (n_starss=0)")
+        return self.starss_head(z)
+
+    def overlap_logits(self, z: torch.Tensor) -> torch.Tensor:
+        if self.ovl_head is None:
+            raise RuntimeError("ovl_head is not enabled (n_ovl=0)")
+        return self.ovl_head(z)
 
     def speaker_embed(self, z: torch.Tensor, pad: torch.Tensor) -> torch.Tensor:
         scores = self.spk_attn(z).squeeze(-1).masked_fill(pad, -1e9)
@@ -90,13 +106,16 @@ def multidepth_event_loss(
     y_clip: torch.Tensor,
     pos_weight: torch.Tensor | None = None,
     clip_weight: float = 0.5,
+    head_name: str = "ev",
 ) -> torch.Tensor:
     valid = (~pad).unsqueeze(-1).float()
     denom = valid.sum().clamp(min=1.0)
     wk = 1.0 / float(len(states))
     total = torch.zeros((), device=pad.device, dtype=torch.float32)
     for z in states.values():
-        logits = heads.event_logits(z)
+        logits = (
+            heads.starss_logits(z) if head_name == "starss" else heads.event_logits(z)
+        )
         frame_bce = (
             F.binary_cross_entropy_with_logits(
                 logits, y_frame, pos_weight=pos_weight, reduction="none"
@@ -106,6 +125,29 @@ def multidepth_event_loss(
         clip_logits = masked_max_pool(logits, pad)
         clip_bce = F.binary_cross_entropy_with_logits(clip_logits, y_clip)
         total = total + wk * (frame_bce + clip_weight * clip_bce)
+    return total
+
+
+def multidepth_overlap_loss(
+    states: dict[int, torch.Tensor],
+    pad: torch.Tensor,
+    heads: MultiTaskHeads,
+    y_ovl: torch.Tensor,
+    class_weight: torch.Tensor | None = None,
+) -> torch.Tensor:
+    valid = (~pad).float()
+    denom = valid.sum().clamp(min=1.0)
+    wk = 1.0 / float(len(states))
+    total = torch.zeros((), device=pad.device, dtype=torch.float32)
+    for z in states.values():
+        logits = heads.overlap_logits(z)
+        ce = F.cross_entropy(
+            logits.reshape(-1, logits.shape[-1]),
+            y_ovl.reshape(-1).long(),
+            weight=class_weight,
+            reduction="none",
+        ).reshape_as(valid)
+        total = total + wk * ((ce * valid).sum() / denom)
     return total
 
 

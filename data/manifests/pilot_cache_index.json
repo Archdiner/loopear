@@ -1,0 +1,292 @@
+{
+  "caches": {
+    "ami_sdm": {
+      "train": {
+        "audio_hours": 1.11,
+        "cache_dir": "cache/stage1_pilot/0edcc565ec7ace14",
+        "extract_s_per_h": 49.0,
+        "extract_wall_s": 54.39,
+        "n_windows": 951
+      },
+      "val": {
+        "audio_hours": 0.1428,
+        "cache_dir": "cache/stage1_pilot/9212949ddd6db913",
+        "extract_s_per_h": 47.68,
+        "extract_wall_s": 6.81,
+        "n_windows": 128
+      }
+    },
+    "crema_d": {
+      "probe_eval": {
+        "audio_hours": 0.4571,
+        "cache_dir": "cache/stage1_pilot/effe48216b4bd4cd",
+        "extract_s_per_h": 29.68,
+        "extract_wall_s": 13.57,
+        "n_windows": 720
+      },
+      "probe_train": {
+        "audio_hours": 0.9368,
+        "cache_dir": "cache/stage1_pilot/662ee4a5a41300a2",
+        "extract_s_per_h": 30.24,
+        "extract_wall_s": 28.33,
+        "n_windows": 1464
+      }
+    },
+    "dipco": {
+      "train": {
+        "audio_hours": 1.25,
+        "cache_dir": "cache/stage1_pilot/4469aafd471b1d9f",
+        "extract_s_per_h": 42.56,
+        "extract_wall_s": 53.2,
+        "n_windows": 450
+      },
+      "val": {
+        "audio_hours": 0.75,
+        "cache_dir": "cache/stage1_pilot/b17db01209fa4415",
+        "extract_s_per_h": 40.88,
+        "extract_wall_s": 30.66,
+        "n_windows": 270
+      }
+    },
+    "maestro_real": {
+      "probe_eval": {
+        "audio_hours": 0.25,
+        "cache_dir": "cache/stage1_pilot/dcf2f0b91482ce2d",
+        "extract_s_per_h": 43.71,
+        "extract_wall_s": 10.93,
+        "n_windows": 90
+      },
+      "probe_train": {
+        "audio_hours": 0.5,
+        "cache_dir": "cache/stage1_pilot/622eefc245feb2ca",
+        "extract_s_per_h": 46.79,
+        "extract_wall_s": 23.39,
+        "n_windows": 180
+      }
+    },
+    "realdesed": {
+      "train": {
+        "audio_hours": 0.7977,
+        "cache_dir": "cache/stage1_pilot/7e28a82ec0b4b9f7",
+        "extract_s_per_h": 54.14,
+        "extract_wall_s": 43.19,
+        "n_windows": 349
+      },
+      "val": {
+        "audio_hours": 0.37,
+        "cache_dir": "cache/stage1_pilot/f8c333cc47471b02",
+        "extract_s_per_h": 53.99,
+        "extract_wall_s": 19.97,
+        "n_windows": 159
+      }
+    },
+    "starss23": {
+      "train": {
+        "audio_hours": 1.1505,
+        "cache_dir": "cache/stage1_pilot/0704722efdb067e0",
+        "extract_s_per_h": 46.51,
+        "extract_wall_s": 53.51,
+        "n_windows": 423
+      },
+      "val": {
+        "audio_hours": 0.6059,
+        "cache_dir": "cache/stage1_pilot/bbf04fc0ffd2253d",
+        "extract_s_per_h": 43.27,
+        "extract_wall_s": 26.22,
+        "n_windows": 224
+      }
+    },
+    "vocalset": {
+      "probe_eval": {
+        "audio_hours": 0.2301,
+        "cache_dir": "cache/stage1_pilot/68fbc3d498945668",
+        "extract_s_per_h": 66.69,
+        "extract_wall_s": 15.35,
+        "n_windows": 125
+      },
+      "probe_train": {
+        "audio_hours": 0.5627,
+        "cache_dir": "cache/stage1_pilot/1410779d5360131e",
+        "extract_s_per_h": 68.14,
+        "extract_wall_s": 38.34,
+        "n_windows": 307
+      }
+    }
+  },
+  "datasets": {
+    "ami_sdm": {
+      "corpus": "ami_sdm",
+      "download_wall_s": 0.01,
+      "join_coverage": 1.0,
+      "license": "CC-BY-4.0",
+      "n_items": 1079,
+      "source": "HF edinburghcstr/ami (sdm)",
+      "split_axis": "speaker_and_meeting_disjoint",
+      "split_clips": {
+        "train": 951,
+        "val": 128
+      },
+      "split_groups": {
+        "train": 80,
+        "val": 8
+      },
+      "split_hours": {
+        "train": 1.11,
+        "val": 0.1428
+      },
+      "task": "farfield_meeting_speaker_id",
+      "total_hours": 1.2528
+    },
+    "crema_d": {
+      "corpus": "crema_d",
+      "download_wall_s": 7.91,
+      "join_coverage": 1.0,
+      "license": "ODbL-1.0 / DbCL-1.0",
+      "n_items": 2184,
+      "source": "HF myleslinder/crema-d (CheyneyComputerScience/CREMA-D)",
+      "split_axis": "actor_disjoint (61 probe_train / 30 probe_eval)",
+      "split_clips": {
+        "probe_eval": 720,
+        "probe_train": 1464
+      },
+      "split_groups": {
+        "probe_eval": 30,
+        "probe_train": 61
+      },
+      "split_hours": {
+        "probe_eval": 0.4571,
+        "probe_train": 0.9368
+      },
+      "task": "transfer_emotion_6cls_and_unseen_speaker_eer",
+      "total_hours": 1.3938
+    },
+    "dipco": {
+      "corpus": "dipco",
+      "download_wall_s": 0.0,
+      "join_coverage": 1.0,
+      "license": "CDLA-Permissive-1.0",
+      "n_items": 10,
+      "source": "Zenodo 8122551 / HF huckiyang/DiPCo",
+      "split_axis": "session_and_speaker_disjoint (dev train / eval val)",
+      "split_clips": {
+        "train": 5,
+        "val": 5
+      },
+      "split_groups": {
+        "train": 5,
+        "val": 5
+      },
+      "split_hours": {
+        "train": 1.25,
+        "val": 0.75
+      },
+      "task": "farfield_overlapped_speech_3cls",
+      "total_hours": 2.0
+    },
+    "maestro_real": {
+      "corpus": "maestro_real",
+      "download_wall_s": 190.84,
+      "join_coverage": 1.0,
+      "license": "Non-Commercial Academic (Tampere University)",
+      "n_items": 15,
+      "source": "Zenodo 7244360 (development_audio & development_annotation)",
+      "split_axis": "recording_disjoint (2 probe_train / 1 probe_eval per scene)",
+      "split_clips": {
+        "probe_eval": 5,
+        "probe_train": 10
+      },
+      "split_groups": {
+        "probe_eval": 5,
+        "probe_train": 10
+      },
+      "split_hours": {
+        "probe_eval": 0.25,
+        "probe_train": 0.5
+      },
+      "task": "transfer_continuous_scene_soft_events_11cls",
+      "total_hours": 0.75
+    },
+    "realdesed": {
+      "corpus": "realdesed",
+      "download_wall_s": 0.0,
+      "join_coverage": 1.0,
+      "license": "CC0 / CC-BY-4.0",
+      "n_items": 180,
+      "source": "Zenodo 20056072 (train.zip & validation.zip only; test.zip sealed)",
+      "split_axis": "collector_disjoint (official train vs validation; test sealed)",
+      "split_clips": {
+        "train": 120,
+        "val": 60
+      },
+      "split_groups": {
+        "train": 120,
+        "val": 60
+      },
+      "split_hours": {
+        "train": 0.7977,
+        "val": 0.37
+      },
+      "task": "domestic_polyphonic_events_15cls",
+      "total_hours": 1.1676
+    },
+    "starss23": {
+      "corpus": "starss23",
+      "download_wall_s": 0.0,
+      "join_coverage": 1.0,
+      "license": "MIT",
+      "n_items": 38,
+      "source": "Zenodo 7880637 / HF labhamlet/STARSS23",
+      "split_axis": "room_disjoint (fold3 train / fold4 val)",
+      "split_clips": {
+        "train": 24,
+        "val": 14
+      },
+      "split_groups": {
+        "train": 9,
+        "val": 7
+      },
+      "split_hours": {
+        "train": 1.1505,
+        "val": 0.6059
+      },
+      "task": "polyphonic_speech_events_13cls",
+      "total_hours": 1.7564
+    },
+    "vocalset": {
+      "corpus": "vocalset",
+      "download_wall_s": 208.17,
+      "join_coverage": 1.0,
+      "license": "CC-BY-4.0",
+      "n_items": 360,
+      "source": "Zenodo 1442513 (VocalSet11.zip)",
+      "split_axis": "singer_disjoint (14 probe_train / 6 probe_eval)",
+      "split_clips": {
+        "probe_eval": 108,
+        "probe_train": 252
+      },
+      "split_groups": {
+        "probe_eval": 6,
+        "probe_train": 14
+      },
+      "split_hours": {
+        "probe_eval": 0.2301,
+        "probe_train": 0.5627
+      },
+      "task": "transfer_vocal_technique_10cls",
+      "total_hours": 0.7928
+    }
+  },
+  "download_total_wall_s": 406.94,
+  "encoder_invariants": {
+    "max_abs_diff_sil_tone": 0.7851055264472961,
+    "num_layers": 12,
+    "shape": [
+      1,
+      99,
+      384
+    ]
+  },
+  "extract_throughput_s_per_h": 45.85,
+  "extract_total_audio_hours": 9.1135,
+  "extract_total_wall_s": 417.86
+}

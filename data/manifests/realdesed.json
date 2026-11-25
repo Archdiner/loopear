@@ -1,0 +1,6207 @@
+{
+  "classes": [
+    "bell_ringing",
+    "coffee_machine",
+    "cutlery_dishes",
+    "door_open_close",
+    "footsteps",
+    "keyboard_typing",
+    "keychain",
+    "light_switch",
+    "microwave",
+    "phone_ringing",
+    "running_water",
+    "toilet_flushing",
+    "vacuum_cleaner",
+    "wardrobe_drawer_open_close",
+    "window_open_close"
+  ],
+  "corpus": "realdesed",
+  "items": [
+    {
+      "audio_path": "data/raw/realdesed/train/000064_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 16.6023,
+      "group_id": "train_000064",
+      "id": "rd_train_000064",
+      "intervals": [
+        [
+          1.1762,
+          2.9367,
+          0
+        ],
+        [
+          7.0007,
+          8.7665,
+          3
+        ],
+        [
+          9.7312,
+          11.5336,
+          3
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "a4502b18a4ff398653a59f2b0e1f354b4f87161a5996b05c5a24768c9d9b5317",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000081_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 30.848,
+      "group_id": "train_000081",
+      "id": "rd_train_000081",
+      "intervals": [
+        [
+          29.305,
+          30.1368,
+          2
+        ],
+        [
+          16.2497,
+          27.8223,
+          10
+        ],
+        [
+          0.0121,
+          17.3708,
+          1
+        ]
+      ],
+      "recording_environment": "kitchen;living_room",
+      "sha256": "b93cf89eaea0255fd41e99b0690ce68b1c878600b6d15499e03f27c61fd0eb47",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000009_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 39.2709,
+      "group_id": "train_000009",
+      "id": "rd_train_000009",
+      "intervals": [
+        [
+          26.7265,
+          27.3965,
+          2
+        ],
+        [
+          35.4368,
+          36.3674,
+          2
+        ],
+        [
+          11.3934,
+          14.2566,
+          9
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "e246d5cc7af6fc46d1571f1c879d257fc6f744bab34d043b6a340b67ce65e494",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000002_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 30.144,
+      "group_id": "train_000002",
+      "id": "rd_train_000002",
+      "intervals": [
+        [
+          24.9508,
+          25.9875,
+          6
+        ],
+        [
+          27.29,
+          28.2203,
+          6
+        ],
+        [
+          1.3006,
+          2.8573,
+          3
+        ],
+        [
+          3.313,
+          5.4396,
+          3
+        ],
+        [
+          24.5152,
+          26.1449,
+          3
+        ],
+        [
+          28.1406,
+          28.9646,
+          3
+        ],
+        [
+          5.8477,
+          24.2,
+          4
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "b1cc8e6a0789280fe51df17dd040c9524c5cf8b59cb49841f3c774a0311bdd86",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000004_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 25.9627,
+      "group_id": "train_000004",
+      "id": "rd_train_000004",
+      "intervals": [
+        [
+          0.0572,
+          3.3083,
+          4
+        ],
+        [
+          3.9722,
+          5.3459,
+          4
+        ],
+        [
+          20.8915,
+          25.8367,
+          4
+        ],
+        [
+          5.3917,
+          11.4817,
+          3
+        ],
+        [
+          14.458,
+          17.5717,
+          3
+        ],
+        [
+          3.3541,
+          3.9265,
+          7
+        ],
+        [
+          11.5046,
+          14.4352,
+          6
+        ],
+        [
+          17.6633,
+          18.7394,
+          6
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "8041c61fefbd378b72570a71fe7262d6fa778c0b2e45d28aa58e1ed109b97187",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000001_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 31.2107,
+      "group_id": "train_000001",
+      "id": "rd_train_000001",
+      "intervals": [
+        [
+          9.1238,
+          13.8747,
+          9
+        ],
+        [
+          14.8805,
+          17.8093,
+          9
+        ],
+        [
+          0.0,
+          31.2107,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "56d9a0d7d30380246945f1b9b92164e654459ee3c918bff455bfa0bd6e316733",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000124_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 20.9267,
+      "group_id": "train_000124",
+      "id": "rd_train_000124",
+      "intervals": [
+        [
+          0.0,
+          20.9267,
+          6
+        ],
+        [
+          14.514,
+          20.5164,
+          4
+        ],
+        [
+          4.4827,
+          13.7981,
+          3
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "bac4cc1b17271700a6e783bbff662d16ad4736aa33be02e7662bcfda188299cc",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000003_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 33.8134,
+      "group_id": "train_000003",
+      "id": "rd_train_000003",
+      "intervals": [
+        [
+          4.5832,
+          4.9678,
+          7
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "056fd25960c7c4c6ab5e7dc90b481168f79a7b0e7bb7abdebe06197c774763df",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000012_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 19.22,
+      "group_id": "train_000012",
+      "id": "rd_train_000012",
+      "intervals": [
+        [
+          8.2948,
+          11.7924,
+          10
+        ],
+        [
+          14.1653,
+          15.7076,
+          10
+        ],
+        [
+          3.9635,
+          4.8982,
+          2
+        ],
+        [
+          1.7924,
+          2.6694,
+          8
+        ],
+        [
+          5.8225,
+          6.3813,
+          8
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "34bff16b3f69f8aab453865ee53c6f1cf962f5107086b2c5e6b8898a17a8af29",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000060_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 24.172,
+      "group_id": "train_000060",
+      "id": "rd_train_000060",
+      "intervals": [
+        [
+          0.0229,
+          24.172,
+          9
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "242e61ac9b271f17f1b8c55acf5ac44915d2ad0b412d514ce33809cb168a3c4f",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000008_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 31.168,
+      "group_id": "train_000008",
+      "id": "rd_train_000008",
+      "intervals": [
+        [
+          0.1035,
+          13.0765,
+          10
+        ],
+        [
+          17.0343,
+          18.1337,
+          10
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "47bc9b61cb3779e616e3d02add519b49e9ca8b7bae62beef1e77562a4b37bd4c",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000017_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 29.8867,
+      "group_id": "train_000017",
+      "id": "rd_train_000017",
+      "intervals": [
+        [
+          8.1799,
+          11.2252,
+          4
+        ],
+        [
+          20.1841,
+          24.7979,
+          4
+        ],
+        [
+          1.7398,
+          8.8152,
+          11
+        ],
+        [
+          25.3187,
+          25.9044,
+          7
+        ],
+        [
+          11.3283,
+          18.449,
+          10
+        ],
+        [
+          26.9096,
+          28.3286,
+          3
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "d71cc50e3c0d8a40b18104a8f8ce58628ef97fb602d17551118b2d45ca70c07b",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000018_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 19.988,
+      "group_id": "train_000018",
+      "id": "rd_train_000018",
+      "intervals": [
+        [
+          7.8172,
+          16.7299,
+          9
+        ],
+        [
+          2.1328,
+          12.6961,
+          12
+        ],
+        [
+          12.4376,
+          18.7999,
+          4
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "923b6c2bad1c977377056700bf70218597589a0c0a3f9596d36c2e39baed0c4a",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000005_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 32.448,
+      "group_id": "train_000005",
+      "id": "rd_train_000005",
+      "intervals": [
+        [
+          3.0836,
+          4.0291,
+          13
+        ],
+        [
+          5.6302,
+          6.6241,
+          13
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "16896e8f7c0fe44a1c853cca87ba2b876348c9b66dea1d8a5545696c9ef33e72",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000049_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 27.8614,
+      "group_id": "train_000049",
+      "id": "rd_train_000049",
+      "intervals": [
+        [
+          8.0218,
+          10.3313,
+          4
+        ],
+        [
+          12.0757,
+          27.8613,
+          12
+        ],
+        [
+          2.9851,
+          5.5668,
+          14
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "794056e802ec8592eaab093d784f9b76a5542a80e8088e824c90301ed244aa3d",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000144_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Mohamed Abdallah Afifi Shahin",
+      "duration_s": 16.2987,
+      "group_id": "train_000144",
+      "id": "rd_train_000144",
+      "intervals": [
+        [
+          4.4378,
+          9.1213,
+          0
+        ],
+        [
+          10.2262,
+          14.114,
+          4
+        ],
+        [
+          13.5463,
+          16.2987,
+          6
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "952df5bca60d5be4bdf7e0ad5475f54697e03fe5145cb0dce0200f19f16c1767",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000108_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Acile Chahboun",
+      "duration_s": 23.808,
+      "group_id": "train_000108",
+      "id": "rd_train_000108",
+      "intervals": [
+        [
+          9.3817,
+          23.808,
+          1
+        ],
+        [
+          2.5761,
+          15.9086,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "ece448fa2c50dbfa00c1e541754d9634477e9d96ac0f290d626a5a4f54e47f9d",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000051_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.0987,
+      "group_id": "train_000051",
+      "id": "rd_train_000051",
+      "intervals": [
+        [
+          2.8938,
+          3.5738,
+          8
+        ],
+        [
+          6.0648,
+          6.9385,
+          8
+        ],
+        [
+          7.4515,
+          21.0987,
+          8
+        ],
+        [
+          10.4818,
+          17.3124,
+          10
+        ],
+        [
+          4.5106,
+          5.6744,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "64860139d95923b976844afdcbc384e16315056795e04b493c61991a899509e6",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000047_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.3974,
+      "group_id": "train_000047",
+      "id": "rd_train_000047",
+      "intervals": [
+        [
+          3.004,
+          5.5512,
+          4
+        ],
+        [
+          6.8801,
+          10.6616,
+          4
+        ],
+        [
+          16.8311,
+          19.9633,
+          4
+        ],
+        [
+          1.9629,
+          3.4767,
+          3
+        ],
+        [
+          5.4305,
+          7.1702,
+          3
+        ],
+        [
+          12.8991,
+          16.8067,
+          6
+        ],
+        [
+          10.6616,
+          12.8045,
+          7
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "61cc73f9865cec983d4d65fc15a8db20ba3c8216b68f6b96db55e13a703f23e1",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000007_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 30.1227,
+      "group_id": "train_000007",
+      "id": "rd_train_000007",
+      "intervals": [
+        [
+          21.8268,
+          30.0633,
+          11
+        ],
+        [
+          0.0867,
+          3.007,
+          4
+        ],
+        [
+          8.1487,
+          16.4364,
+          10
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "343469ca42a557f306a10ef808e6d28afd9410aa0c412d1dc0253033551d196a",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000016_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.3534,
+      "group_id": "train_000016",
+      "id": "rd_train_000016",
+      "intervals": [
+        [
+          11.1851,
+          11.9759,
+          9
+        ],
+        [
+          1.7127,
+          6.4088,
+          5
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "073dbf0225595ef38f4a0ba891e121590978290a727f1bbafbdb8ef5032ee2cd",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000183_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ajay Thazhathuveettil Shaju",
+      "duration_s": 16.2334,
+      "group_id": "train_000183",
+      "id": "rd_train_000183",
+      "intervals": [
+        [
+          11.4052,
+          11.8236,
+          4
+        ],
+        [
+          12.2419,
+          12.6603,
+          4
+        ],
+        [
+          12.9114,
+          13.267,
+          4
+        ],
+        [
+          13.6017,
+          13.9992,
+          4
+        ],
+        [
+          0.5899,
+          5.5256,
+          6
+        ],
+        [
+          8.9899,
+          9.8153,
+          6
+        ],
+        [
+          9.9827,
+          10.2353,
+          7
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "288eaae774df334389467ac902220350627c285d0dfdbcc5a129f3fd856837fc",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000006_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 36.9305,
+      "group_id": "train_000006",
+      "id": "rd_train_000006",
+      "intervals": [
+        [
+          0.546,
+          1.2625,
+          13
+        ],
+        [
+          3.794,
+          4.0871,
+          2
+        ],
+        [
+          29.1069,
+          34.7735,
+          2
+        ],
+        [
+          24.102,
+          28.8241,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "eb428f990aa87c8358a3b332d64e47f8644c9ab8098c9782f623e10cdfdebcce",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000063_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 17.8562,
+      "group_id": "train_000063",
+      "id": "rd_train_000063",
+      "intervals": [
+        [
+          0.2755,
+          5.0302,
+          8
+        ],
+        [
+          7.4086,
+          8.4321,
+          8
+        ],
+        [
+          14.5101,
+          16.2579,
+          8
+        ],
+        [
+          5.645,
+          7.1881,
+          2
+        ],
+        [
+          8.3691,
+          10.8097,
+          2
+        ],
+        [
+          12.1494,
+          14.5776,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "3def288e4deee0b96a5074705bf83eb0d96c897410d9529c039716e0bfbbbe44",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000107_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Acile Chahboun",
+      "duration_s": 21.1627,
+      "group_id": "train_000107",
+      "id": "rd_train_000107",
+      "intervals": [
+        [
+          4.4116,
+          20.3968,
+          5
+        ],
+        [
+          0.9235,
+          20.4651,
+          9
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "3b8a7953e6db4e9e4ebecef1e269becc87e1c51e4bc9828ff79cfb128199356d",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000059_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 20.9212,
+      "group_id": "train_000059",
+      "id": "rd_train_000059",
+      "intervals": [
+        [
+          6.614,
+          7.7739,
+          2
+        ],
+        [
+          9.4484,
+          10.23,
+          2
+        ],
+        [
+          13.6615,
+          16.4473,
+          2
+        ],
+        [
+          2.3179,
+          20.1159,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "630ce2512977d6694af257f814d0d2c7b2b7ec399cbdde65422a1e25cd750942",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000052_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 31.04,
+      "group_id": "train_000052",
+      "id": "rd_train_000052",
+      "intervals": [
+        [
+          12.7785,
+          14.2335,
+          4
+        ],
+        [
+          16.5525,
+          21.4478,
+          4
+        ],
+        [
+          15.0109,
+          16.1496,
+          3
+        ],
+        [
+          14.6247,
+          15.0023,
+          9
+        ],
+        [
+          21.912,
+          27.728,
+          10
+        ],
+        [
+          2.4471,
+          12.0377,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "5f4f649abe1b0ee4fc52a010c15bb89d44b4e3cd6782626d2c8988a726bc9cd7",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000066_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 18.9011,
+      "group_id": "train_000066",
+      "id": "rd_train_000066",
+      "intervals": [
+        [
+          0.064,
+          18.901,
+          12
+        ],
+        [
+          5.1789,
+          5.8346,
+          3
+        ],
+        [
+          8.2815,
+          9.1367,
+          3
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "845efad29e95238f243811a9c200952a3c83b20301054dcc2b3fa77032d0a99d",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000013_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.524,
+      "group_id": "train_000013",
+      "id": "rd_train_000013",
+      "intervals": [
+        [
+          2.52,
+          4.3801,
+          6
+        ],
+        [
+          5.587,
+          9.9164,
+          6
+        ],
+        [
+          6.2549,
+          9.3207,
+          4
+        ],
+        [
+          18.7363,
+          19.2368,
+          4
+        ],
+        [
+          10.6311,
+          11.7092,
+          3
+        ],
+        [
+          12.9308,
+          17.0212,
+          3
+        ],
+        [
+          19.599,
+          20.9272,
+          3
+        ],
+        [
+          1.2499,
+          2.2613,
+          13
+        ],
+        [
+          4.51,
+          5.481,
+          13
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "bb0294e7d61f49bc31821b32178837d65f36a458cb1ba4757e06741b068f1d58",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000106_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Acile Chahboun",
+      "duration_s": 20.9494,
+      "group_id": "train_000106",
+      "id": "rd_train_000106",
+      "intervals": [
+        [
+          1.703,
+          8.0918,
+          4
+        ],
+        [
+          18.2732,
+          20.9493,
+          4
+        ],
+        [
+          8.179,
+          9.461,
+          14
+        ],
+        [
+          15.2727,
+          15.8404,
+          14
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "a80adedccb8057fb037fa21371bdb63b0c976af2a2c121f295c62804c044f1ea",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000157_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Seif Eddine Bengana",
+      "duration_s": 25.6813,
+      "group_id": "train_000157",
+      "id": "rd_train_000157",
+      "intervals": [
+        [
+          0.8573,
+          23.2015,
+          12
+        ],
+        [
+          17.3133,
+          18.106,
+          0
+        ],
+        [
+          20.2744,
+          25.3944,
+          0
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "ca23c7e00c1810c75ad54a143eeb58589a0b8e31cbbc2f7f5789e0d506b30832",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000110_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Adam Kopj\u00e1k",
+      "duration_s": 29.5454,
+      "group_id": "train_000110",
+      "id": "rd_train_000110",
+      "intervals": [
+        [
+          0.8598,
+          1.1724,
+          1
+        ],
+        [
+          7.686,
+          10.8385,
+          1
+        ],
+        [
+          15.0332,
+          28.9982,
+          1
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "fb9af94f76933692e7e91c062b3cd431a2b90cc5a57aa329b59e57b037c232b0",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000076_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 25.8134,
+      "group_id": "train_000076",
+      "id": "rd_train_000076",
+      "intervals": [
+        [
+          0.0,
+          25.4995,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "851fc55910972ee6d4ddef18032927bb15852516be02cc80007c936f2f6af2a5",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000057_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 25.7974,
+      "group_id": "train_000057",
+      "id": "rd_train_000057",
+      "intervals": [
+        [
+          1.966,
+          3.8292,
+          3
+        ],
+        [
+          9.4784,
+          25.5197,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "6dce5502b67a7d2029a548a911e8ce5ea6597343d85abda4aaac585a22c73ae7",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000014_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 18.708,
+      "group_id": "train_000014",
+      "id": "rd_train_000014",
+      "intervals": [
+        [
+          1.9263,
+          5.1433,
+          4
+        ],
+        [
+          9.8407,
+          12.0205,
+          4
+        ],
+        [
+          6.8217,
+          9.1706,
+          14
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "fc41613ba10126b1224a56a2a3230294b25a8f9e0bb1e723d4d187e2873453e3",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000050_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 29.9094,
+      "group_id": "train_000050",
+      "id": "rd_train_000050",
+      "intervals": [
+        [
+          2.1516,
+          28.9994,
+          5
+        ],
+        [
+          15.4142,
+          23.0046,
+          9
+        ],
+        [
+          26.963,
+          29.9093,
+          9
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "43a8d6ebeef07f09b519ee26f5f545d62e9543fe124238d36112b5eacae4bb5d",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000246_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.268,
+      "group_id": "train_000246",
+      "id": "rd_train_000246",
+      "intervals": [
+        [
+          1.1578,
+          4.5644,
+          4
+        ],
+        [
+          15.604,
+          16.0729,
+          4
+        ],
+        [
+          16.5994,
+          20.8179,
+          4
+        ],
+        [
+          2.7195,
+          2.9633,
+          6
+        ],
+        [
+          3.4509,
+          3.826,
+          6
+        ],
+        [
+          4.8388,
+          7.7987,
+          6
+        ],
+        [
+          8.2146,
+          9.1711,
+          6
+        ],
+        [
+          10.8778,
+          11.3654,
+          6
+        ],
+        [
+          11.7968,
+          12.5282,
+          6
+        ],
+        [
+          13.3722,
+          13.5785,
+          6
+        ],
+        [
+          14.31,
+          14.8726,
+          6
+        ],
+        [
+          9.3587,
+          11.383,
+          3
+        ],
+        [
+          12.3219,
+          13.0346,
+          3
+        ],
+        [
+          13.9724,
+          14.2912,
+          3
+        ],
+        [
+          15.3227,
+          16.1104,
+          3
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "140b03cbabbd0146b6ecf3e05b61ebe5a66be4a19fa7cdb78351a36ef2a5f5d2",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000010_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 32.8734,
+      "group_id": "train_000010",
+      "id": "rd_train_000010",
+      "intervals": [
+        [
+          6.9216,
+          7.5273,
+          7
+        ],
+        [
+          21.416,
+          26.4092,
+          9
+        ],
+        [
+          13.4385,
+          21.5319,
+          5
+        ],
+        [
+          8.2502,
+          12.8643,
+          4
+        ],
+        [
+          26.634,
+          32.8733,
+          4
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "8a150f0542b524e5d14b9f2480ff7632e959b58f3c1ae0f4513f69fe41605254",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000103_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Acile Chahboun",
+      "duration_s": 22.784,
+      "group_id": "train_000103",
+      "id": "rd_train_000103",
+      "intervals": [
+        [
+          8.6153,
+          21.9135,
+          8
+        ],
+        [
+          1.1107,
+          3.63,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "5cc7ffafbba433ad2da2e28a675c42d4785c4e1a5fa1aefc5b4477b3b48e3173",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000115_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Adam Kopj\u00e1k",
+      "duration_s": 16.0627,
+      "group_id": "train_000115",
+      "id": "rd_train_000115",
+      "intervals": [
+        [
+          0.0,
+          16.0627,
+          5
+        ],
+        [
+          0.0,
+          16.0627,
+          9
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "237f3d8b688843f40145dc604a864217b32a1422ad457a5694acbc7b599c658b",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000061_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 17.9955,
+      "group_id": "train_000061",
+      "id": "rd_train_000061",
+      "intervals": [
+        [
+          5.2917,
+          12.3731,
+          10
+        ],
+        [
+          1.5074,
+          6.1051,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "f94ba9cb610c469b1ddfe606c5cd0293ddf1d9692dbec2d6b1edbb201ceef6c5",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000120_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.4387,
+      "group_id": "train_000120",
+      "id": "rd_train_000120",
+      "intervals": [
+        [
+          5.492,
+          5.6622,
+          7
+        ],
+        [
+          8.4696,
+          9.1313,
+          7
+        ],
+        [
+          1.0492,
+          6.494,
+          11
+        ],
+        [
+          12.3357,
+          20.2193,
+          10
+        ],
+        [
+          3.3557,
+          4.2632,
+          3
+        ]
+      ],
+      "recording_environment": "toilet;bathroom",
+      "sha256": "bb4006b9461f7b82589e7d2d4d9ad0cb82cded91d7feb224a523c9b78ac0a6b2",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000075_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 27.5627,
+      "group_id": "train_000075",
+      "id": "rd_train_000075",
+      "intervals": [
+        [
+          12.8602,
+          15.4157,
+          5
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "5516b421631bdda9f68c58c40b1cf73f27d18152ec3120874b670292a7949b51",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000019_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 19.8174,
+      "group_id": "train_000019",
+      "id": "rd_train_000019",
+      "intervals": [
+        [
+          2.7611,
+          4.7507,
+          2
+        ],
+        [
+          7.8029,
+          8.8997,
+          2
+        ],
+        [
+          9.9873,
+          13.424,
+          2
+        ],
+        [
+          14.5921,
+          16.9251,
+          2
+        ],
+        [
+          17.7115,
+          18.8911,
+          2
+        ],
+        [
+          5.9941,
+          9.0759,
+          4
+        ],
+        [
+          9.5138,
+          14.2526,
+          10
+        ],
+        [
+          1.718,
+          5.727,
+          13
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "e31ed9bde9c12970c0152aad5c9763342a259811d18416779bb7f9b2b8b87c7a",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000114_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Adam Kopj\u00e1k",
+      "duration_s": 16.5747,
+      "group_id": "train_000114",
+      "id": "rd_train_000114",
+      "intervals": [
+        [
+          13.096,
+          13.4614,
+          3
+        ],
+        [
+          14.543,
+          15.1569,
+          3
+        ],
+        [
+          9.7489,
+          13.6368,
+          6
+        ],
+        [
+          6.1972,
+          13.6302,
+          4
+        ],
+        [
+          2.0755,
+          6.0404,
+          14
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "e6416166a49df2d94972d434af76b0c72d338095eba2703470a83c078cc245ae",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000240_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 22.5021,
+      "group_id": "train_000240",
+      "id": "rd_train_000240",
+      "intervals": [
+        [
+          2.3228,
+          3.2809,
+          0
+        ],
+        [
+          3.7455,
+          9.6976,
+          3
+        ],
+        [
+          11.7669,
+          12.1638,
+          4
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "5b60affbd4d9e493f93a052b1bdcf4d62ee6ba338979f427507f33d8d9157126",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000152_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Seif Eddine Bengana",
+      "duration_s": 34.7076,
+      "group_id": "train_000152",
+      "id": "rd_train_000152",
+      "intervals": [
+        [
+          19.0514,
+          20.1646,
+          2
+        ],
+        [
+          22.7724,
+          34.7076,
+          2
+        ],
+        [
+          21.3415,
+          21.8739,
+          13
+        ],
+        [
+          0.0153,
+          34.7076,
+          1
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "d3ed239ec3daba463a2540194f43ff5d688b56046cd9569c534edfaa754061db",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000113_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Adam Kopj\u00e1k",
+      "duration_s": 21.012,
+      "group_id": "train_000113",
+      "id": "rd_train_000113",
+      "intervals": [
+        [
+          1.1303,
+          2.5663,
+          8
+        ],
+        [
+          3.1499,
+          20.558,
+          8
+        ],
+        [
+          12.6646,
+          17.2413,
+          2
+        ],
+        [
+          10.4226,
+          17.1116,
+          10
+        ],
+        [
+          17.1302,
+          20.9935,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "53ec08d05c03ad611f6bda6872b6d137e270a93d6a6f55a0b139f095229dea37",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000102_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Acile Chahboun",
+      "duration_s": 21.0134,
+      "group_id": "train_000102",
+      "id": "rd_train_000102",
+      "intervals": [
+        [
+          0.0,
+          0.5649,
+          3
+        ],
+        [
+          2.1273,
+          2.3424,
+          3
+        ],
+        [
+          14.855,
+          21.0133,
+          5
+        ],
+        [
+          3.2677,
+          3.5842,
+          7
+        ],
+        [
+          4.4364,
+          13.6648,
+          4
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "e90a5e037d74a9b911857d30d72bccbc6e2cd41502bab7ae1bb21fdd114adff2",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000015_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 28.0094,
+      "group_id": "train_000015",
+      "id": "rd_train_000015",
+      "intervals": [
+        [
+          3.5752,
+          6.0433,
+          6
+        ],
+        [
+          19.88,
+          22.1679,
+          6
+        ],
+        [
+          8.3888,
+          12.7853,
+          3
+        ],
+        [
+          17.4009,
+          21.748,
+          3
+        ],
+        [
+          2.0187,
+          4.792,
+          4
+        ],
+        [
+          14.0203,
+          16.6563,
+          4
+        ],
+        [
+          22.4149,
+          27.0213,
+          4
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "9f16b731f5d3978e916016d5de71417b4193aade2a9979750b2d9c37ac56e0d7",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000056_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 20.9707,
+      "group_id": "train_000056",
+      "id": "rd_train_000056",
+      "intervals": [
+        [
+          8.1945,
+          12.3948,
+          0
+        ],
+        [
+          12.4874,
+          16.3789,
+          0
+        ],
+        [
+          13.3229,
+          17.6452,
+          4
+        ],
+        [
+          0.462,
+          12.3213,
+          5
+        ],
+        [
+          17.4742,
+          19.7144,
+          3
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "614fedd162877f14352c892cba2427c0eda2358b4badef0793fdf52fae48fe64",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000257_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 22.9747,
+      "group_id": "train_000257",
+      "id": "rd_train_000257",
+      "intervals": [
+        [
+          2.0702,
+          19.1683,
+          4
+        ],
+        [
+          20.4903,
+          21.1969,
+          4
+        ],
+        [
+          3.2934,
+          12.4508,
+          6
+        ],
+        [
+          13.0372,
+          18.1655,
+          6
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "fda1047f182a66d5b04b60d809f3353350fdd639d91426f58d9ee925cd0018ae",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000011_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 24.5107,
+      "group_id": "train_000011",
+      "id": "rd_train_000011",
+      "intervals": [
+        [
+          2.1091,
+          2.3795,
+          7
+        ],
+        [
+          7.5542,
+          9.8891,
+          13
+        ],
+        [
+          20.0473,
+          21.7332,
+          13
+        ],
+        [
+          3.3673,
+          7.4894,
+          4
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "1ae47da3d4c262c8e7d8bdf9cb8e2fb5e8b51bb24234dc50a46a2145abe24048",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000243_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 30.08,
+      "group_id": "train_000243",
+      "id": "rd_train_000243",
+      "intervals": [
+        [
+          2.4934,
+          3.0504,
+          2
+        ],
+        [
+          5.1725,
+          6.0744,
+          2
+        ],
+        [
+          23.369,
+          24.1383,
+          2
+        ],
+        [
+          24.9606,
+          27.3744,
+          2
+        ],
+        [
+          1.061,
+          1.4059,
+          8
+        ],
+        [
+          7.1619,
+          8.4086,
+          8
+        ],
+        [
+          9.7614,
+          20.9552,
+          8
+        ],
+        [
+          21.5388,
+          21.9632,
+          8
+        ],
+        [
+          28.5415,
+          29.3903,
+          8
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "0729021ca059a2231947c7113acf30a13182a43b6f8466ae83d484ea38a0262f",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000151_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Mohamed Abdallah Afifi Shahin",
+      "duration_s": 16.7254,
+      "group_id": "train_000151",
+      "id": "rd_train_000151",
+      "intervals": [
+        [
+          1.079,
+          16.7253,
+          9
+        ],
+        [
+          7.6777,
+          8.9245,
+          3
+        ],
+        [
+          12.8149,
+          13.8777,
+          3
+        ],
+        [
+          0.5186,
+          16.7253,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "1f8fb55478b5cbd29ff58c9f19b475396715dced2f8bb3771e382617f2e26424",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000065_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 18.4134,
+      "group_id": "train_000065",
+      "id": "rd_train_000065",
+      "intervals": [
+        [
+          5.2529,
+          18.4134,
+          9
+        ],
+        [
+          5.3503,
+          15.2552,
+          2
+        ],
+        [
+          1.3071,
+          18.4134,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "110824471918ab554d86a98f3ec00b93cc786f908ca9be0317af6aa4e3c80fc3",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000146_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Mohamed Abdallah Afifi Shahin",
+      "duration_s": 16.0427,
+      "group_id": "train_000146",
+      "id": "rd_train_000146",
+      "intervals": [
+        [
+          11.5086,
+          14.2245,
+          3
+        ],
+        [
+          2.5099,
+          8.4086,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "4c100504ebb796839204009060fe08125ae57b9e7466ac4e4568e110ebc2e0b9",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000206_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alara Sude Nar",
+      "duration_s": 21.568,
+      "group_id": "train_000206",
+      "id": "rd_train_000206",
+      "intervals": [
+        [
+          8.5338,
+          9.3838,
+          9
+        ],
+        [
+          13.6711,
+          14.3682,
+          9
+        ],
+        [
+          0.6467,
+          21.568,
+          12
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "aecee0d9d38aeddefc9399d98a4db3f13c0bf06f80a6f622ab1b51d4390122f8",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000053_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 19.648,
+      "group_id": "train_000053",
+      "id": "rd_train_000053",
+      "intervals": [
+        [
+          6.6294,
+          9.96,
+          13
+        ],
+        [
+          11.0644,
+          14.1741,
+          13
+        ],
+        [
+          1.4356,
+          4.0,
+          4
+        ],
+        [
+          4.527,
+          6.63,
+          4
+        ],
+        [
+          9.651,
+          12.6218,
+          4
+        ],
+        [
+          14.0629,
+          16.335,
+          4
+        ],
+        [
+          16.737,
+          19.648,
+          4
+        ],
+        [
+          0.1252,
+          0.7726,
+          7
+        ],
+        [
+          4.001,
+          4.5268,
+          7
+        ],
+        [
+          16.1633,
+          16.9952,
+          7
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "70ee301fa33e117e6d6b716ea543aff0ecb929601404f68bd1ee39e17394c136",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000148_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Mohamed Abdallah Afifi Shahin",
+      "duration_s": 18.6454,
+      "group_id": "train_000148",
+      "id": "rd_train_000148",
+      "intervals": [
+        [
+          12.3645,
+          14.5685,
+          14
+        ],
+        [
+          16.2154,
+          18.2864,
+          14
+        ],
+        [
+          0.9336,
+          12.4182,
+          4
+        ],
+        [
+          7.1737,
+          18.6453,
+          9
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "3e4f5eece28441057356269ea658a25506a179ee06daf605e3aeb270c91795f6",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000262_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 17.428,
+      "group_id": "train_000262",
+      "id": "rd_train_000262",
+      "intervals": [
+        [
+          0.0,
+          17.428,
+          10
+        ],
+        [
+          8.6086,
+          17.428,
+          0
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "04e203f9e2cbd9a1563fde68ca38d5f9f6145b6292d2adb1cba874c17cbc1712",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000265_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 31.3174,
+      "group_id": "train_000265",
+      "id": "rd_train_000265",
+      "intervals": [
+        [
+          1.3886,
+          24.1184,
+          1
+        ],
+        [
+          8.558,
+          9.7782,
+          3
+        ],
+        [
+          14.0487,
+          14.7605,
+          3
+        ],
+        [
+          19.6411,
+          20.7088,
+          3
+        ],
+        [
+          17.7092,
+          18.8277,
+          2
+        ],
+        [
+          14.1507,
+          14.7338,
+          8
+        ],
+        [
+          19.9698,
+          20.491,
+          8
+        ],
+        [
+          21.1155,
+          31.3173,
+          8
+        ]
+      ],
+      "recording_environment": "living_room;kitchen",
+      "sha256": "e37e72a75ea065cb0f9c86f7e9216553cd9f23a12b2b2ba17b853d60479e6066",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000145_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Mohamed Abdallah Afifi Shahin",
+      "duration_s": 18.88,
+      "group_id": "train_000145",
+      "id": "rd_train_000145",
+      "intervals": [
+        [
+          7.8532,
+          18.5786,
+          2
+        ],
+        [
+          0.9498,
+          7.83,
+          4
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "a2952ec3e841bf273993fdfa1de8d8f8209b2d30850f5dba67f2b7e8f4e7e46b",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000105_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Acile Chahboun",
+      "duration_s": 21.184,
+      "group_id": "train_000105",
+      "id": "rd_train_000105",
+      "intervals": [
+        [
+          0.0,
+          5.4096,
+          4
+        ],
+        [
+          18.2978,
+          21.184,
+          4
+        ],
+        [
+          10.5827,
+          12.0771,
+          3
+        ],
+        [
+          14.7627,
+          15.656,
+          3
+        ],
+        [
+          5.0627,
+          10.5144,
+          6
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "7bbc650265761405415db722f8e861743757c21cf8fff72bddcefec01f6b6698",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000054_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 16.7467,
+      "group_id": "train_000054",
+      "id": "rd_train_000054",
+      "intervals": [
+        [
+          9.1894,
+          10.1695,
+          3
+        ],
+        [
+          13.0659,
+          14.1157,
+          3
+        ],
+        [
+          4.8174,
+          13.0551,
+          4
+        ],
+        [
+          13.9229,
+          16.7467,
+          4
+        ],
+        [
+          1.4885,
+          4.4722,
+          9
+        ]
+      ],
+      "recording_environment": "bedroom/hallway",
+      "sha256": "a006a8d8242597b9354f18e366c9d1bcf9cb293c1d6ebc9207fac7ef55aa3cbe",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000078_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 25.5147,
+      "group_id": "train_000078",
+      "id": "rd_train_000078",
+      "intervals": [
+        [
+          0.0,
+          16.1973,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "d2067e35173c9e57a5fb61ea54c6642719a140a8d483a12f3180a1cee110b076",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000267_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 22.1014,
+      "group_id": "train_000267",
+      "id": "rd_train_000267",
+      "intervals": [
+        [
+          1.1756,
+          3.6993,
+          6
+        ],
+        [
+          8.2636,
+          8.7262,
+          6
+        ],
+        [
+          15.153,
+          16.8047,
+          6
+        ],
+        [
+          20.3375,
+          20.6552,
+          6
+        ],
+        [
+          3.8953,
+          4.6693,
+          3
+        ],
+        [
+          6.7629,
+          8.3974,
+          3
+        ],
+        [
+          9.049,
+          14.0378,
+          3
+        ],
+        [
+          4.658,
+          18.7907,
+          10
+        ]
+      ],
+      "recording_environment": "living_room;bathroom",
+      "sha256": "058efcc27990693fe8618dea667aa94eab6361001e0b81c0451982ab81a2b9bf",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000048_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 16.1707,
+      "group_id": "train_000048",
+      "id": "rd_train_000048",
+      "intervals": [
+        [
+          9.7248,
+          10.8751,
+          5
+        ],
+        [
+          11.994,
+          16.1707,
+          5
+        ],
+        [
+          2.152,
+          4.2749,
+          4
+        ],
+        [
+          1.585,
+          1.7254,
+          7
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "ae105c2d7932521d34382b02a4963419dc071518d37fc4ebe5800ce6c75fb9f3",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000245_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 25.792,
+      "group_id": "train_000245",
+      "id": "rd_train_000245",
+      "intervals": [
+        [
+          0.0,
+          24.5894,
+          8
+        ],
+        [
+          8.6712,
+          16.5195,
+          2
+        ],
+        [
+          18.1044,
+          20.3171,
+          2
+        ],
+        [
+          7.1521,
+          21.2032,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "bc036f23c0a12ae77c6a6cc01a6db321690514476f6208a60bb78126a25c0fb8",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000259_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 20.0734,
+      "group_id": "train_000259",
+      "id": "rd_train_000259",
+      "intervals": [
+        [
+          11.5384,
+          18.0584,
+          9
+        ],
+        [
+          1.5207,
+          18.0584,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "59e4e8eb0c06879d237a173296c8212a20073ca191b19db06ebb4a5c28398d7f",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000079_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.4187,
+      "group_id": "train_000079",
+      "id": "rd_train_000079",
+      "intervals": [
+        [
+          19.468,
+          21.3148,
+          6
+        ],
+        [
+          2.3234,
+          12.924,
+          10
+        ],
+        [
+          15.4407,
+          17.1784,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen;living_room",
+      "sha256": "edabf7642143c3ca1f3595231b4834260c72f1963e24a854869446fcf271f201",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000155_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Seif Eddine Bengana",
+      "duration_s": 34.2263,
+      "group_id": "train_000155",
+      "id": "rd_train_000155",
+      "intervals": [
+        [
+          5.2667,
+          12.643,
+          11
+        ],
+        [
+          17.5149,
+          24.7038,
+          10
+        ]
+      ],
+      "recording_environment": "toilet",
+      "sha256": "1598be3d9f20e7d78e164328ae54dd6d1c0e1c987e9333b4627ee6d659edf90e",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000252_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 30.1427,
+      "group_id": "train_000252",
+      "id": "rd_train_000252",
+      "intervals": [
+        [
+          3.4901,
+          30.1427,
+          12
+        ],
+        [
+          1.3684,
+          3.4766,
+          4
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "6c4f7d3dbedce54f6d203965f5d01891b1148be9706cae699fb110887873478c",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000062_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 24.8222,
+      "group_id": "train_000062",
+      "id": "rd_train_000062",
+      "intervals": [
+        [
+          3.408,
+          5.0264,
+          13
+        ],
+        [
+          6.5791,
+          7.1478,
+          13
+        ],
+        [
+          8.7442,
+          9.3566,
+          13
+        ],
+        [
+          10.4282,
+          11.303,
+          13
+        ],
+        [
+          12.6808,
+          14.1023,
+          13
+        ],
+        [
+          14.6053,
+          15.6113,
+          13
+        ],
+        [
+          16.1799,
+          16.9673,
+          13
+        ],
+        [
+          19.0449,
+          20.029,
+          14
+        ],
+        [
+          22.7846,
+          23.9218,
+          14
+        ],
+        [
+          1.2429,
+          3.8236,
+          4
+        ],
+        [
+          9.2254,
+          10.1876,
+          4
+        ],
+        [
+          17.011,
+          18.9793,
+          4
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "2759d6e3059f18a8e7d03a5297ebde4275715163ca864d954ddb074b8e3b502f",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000420_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Amelia Anna Kimaro",
+      "duration_s": 18.752,
+      "group_id": "train_000420",
+      "id": "rd_train_000420",
+      "intervals": [
+        [
+          3.795,
+          12.8073,
+          4
+        ],
+        [
+          1.48,
+          3.4974,
+          14
+        ],
+        [
+          6.9204,
+          8.1441,
+          9
+        ],
+        [
+          11.2694,
+          12.1623,
+          9
+        ],
+        [
+          16.2964,
+          18.752,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "c81689cf4ce4c44fd837110f32bd66851cd4486a2788a74237624e19fea49837",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000294_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alex Guritenco",
+      "duration_s": 15.892,
+      "group_id": "train_000294",
+      "id": "rd_train_000294",
+      "intervals": [
+        [
+          6.4583,
+          9.5392,
+          6
+        ],
+        [
+          13.055,
+          13.8295,
+          6
+        ],
+        [
+          0.9331,
+          1.9193,
+          0
+        ],
+        [
+          3.5031,
+          4.5289,
+          0
+        ],
+        [
+          9.5234,
+          14.5764,
+          4
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "f77ffd72935726a8f8341e9d0b6948fe5162aea478e2e12432339f150a15221d",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000369_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 32.914,
+      "group_id": "train_000369",
+      "id": "rd_train_000369",
+      "intervals": [
+        [
+          1.1985,
+          1.9857,
+          1
+        ],
+        [
+          4.0771,
+          5.7759,
+          1
+        ],
+        [
+          6.8548,
+          9.6675,
+          1
+        ],
+        [
+          11.4996,
+          25.1743,
+          1
+        ],
+        [
+          15.2041,
+          17.3602,
+          2
+        ],
+        [
+          25.2927,
+          27.308,
+          2
+        ],
+        [
+          28.2846,
+          28.6329,
+          2
+        ],
+        [
+          29.3875,
+          32.3372,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "66791bb8315026503bc9d70b54655b36ec7e16cef187c8ae0edc2c07dec2bec9",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000150_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Mohamed Abdallah Afifi Shahin",
+      "duration_s": 17.1094,
+      "group_id": "train_000150",
+      "id": "rd_train_000150",
+      "intervals": [
+        [
+          0.4328,
+          17.1093,
+          4
+        ],
+        [
+          0.0,
+          17.1018,
+          2
+        ],
+        [
+          0.7615,
+          17.0641,
+          6
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "2d315e15659f04686baae536584dcc8904b0d973f416f8fdce2807838b9f5c14",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000132_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Adam Zebilah",
+      "duration_s": 22.4627,
+      "group_id": "train_000132",
+      "id": "rd_train_000132",
+      "intervals": [
+        [
+          1.5625,
+          2.5105,
+          3
+        ],
+        [
+          4.2317,
+          8.2646,
+          3
+        ],
+        [
+          13.7933,
+          21.5989,
+          13
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "0aaedb2ba5137f52c1d07ab21976714a39dd9a6857ad511d842b47ef5c938cd6",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000055_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 24.7254,
+      "group_id": "train_000055",
+      "id": "rd_train_000055",
+      "intervals": [
+        [
+          5.7405,
+          8.6424,
+          2
+        ],
+        [
+          16.9303,
+          17.6364,
+          2
+        ],
+        [
+          19.2976,
+          20.0397,
+          2
+        ],
+        [
+          21.4727,
+          23.6218,
+          2
+        ],
+        [
+          0.0,
+          15.9769,
+          8
+        ],
+        [
+          1.7941,
+          5.4953,
+          4
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "dc2848cc87cc90bd43a7ac9c7e1490a0ce43d9a1c348bd96cc94722d32311af2",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000082_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 20.1387,
+      "group_id": "train_000082",
+      "id": "rd_train_000082",
+      "intervals": [
+        [
+          9.6571,
+          14.839,
+          9
+        ],
+        [
+          17.1748,
+          20.1387,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "a7a8a60635f648ec0740af9dfaf9539255fe88002bee59e49a37be371acb0c1a",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000270_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 18.688,
+      "group_id": "train_000270",
+      "id": "rd_train_000270",
+      "intervals": [
+        [
+          6.011,
+          7.3851,
+          3
+        ],
+        [
+          12.3924,
+          13.8775,
+          3
+        ],
+        [
+          4.4242,
+          4.7889,
+          7
+        ],
+        [
+          0.9483,
+          4.1425,
+          6
+        ],
+        [
+          8.065,
+          8.9299,
+          6
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "81bfb3e4a2cdf76da7c78c1ae3851fdc6e04ffd24718df50444d6696722f1dee",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000121_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.3534,
+      "group_id": "train_000121",
+      "id": "rd_train_000121",
+      "intervals": [
+        [
+          0.524,
+          1.703,
+          7
+        ],
+        [
+          1.8077,
+          2.5044,
+          4
+        ],
+        [
+          3.2199,
+          4.0108,
+          2
+        ],
+        [
+          19.5456,
+          20.5248,
+          2
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "f316f97313feca1249f1d27361e3eac409be86d77ef163be40e364b78f897b7f",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000247_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 28.692,
+      "group_id": "train_000247",
+      "id": "rd_train_000247",
+      "intervals": [
+        [
+          1.2398,
+          1.7711,
+          8
+        ],
+        [
+          4.0483,
+          4.699,
+          8
+        ],
+        [
+          5.309,
+          25.7037,
+          8
+        ],
+        [
+          26.4908,
+          27.3257,
+          8
+        ],
+        [
+          8.4492,
+          22.7967,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "4e6c5820388e31ac30cdf9c005d52c0dc290cca47bcc863338671a17ae44e3c7",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000269_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 29.696,
+      "group_id": "train_000269",
+      "id": "rd_train_000269",
+      "intervals": [
+        [
+          4.7459,
+          10.0305,
+          5
+        ],
+        [
+          16.0644,
+          19.8837,
+          5
+        ],
+        [
+          23.4636,
+          24.5205,
+          5
+        ],
+        [
+          25.5092,
+          27.0094,
+          5
+        ],
+        [
+          2.3212,
+          4.0299,
+          9
+        ],
+        [
+          13.2165,
+          15.1105,
+          9
+        ],
+        [
+          22.8752,
+          24.6982,
+          9
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "f334e2723529038e7f2f8f6df12357a20478f2b3016a1c2e1acdda3c3df06dfa",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000101_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Acile Chahboun",
+      "duration_s": 21.6107,
+      "group_id": "train_000101",
+      "id": "rd_train_000101",
+      "intervals": [
+        [
+          1.0461,
+          21.6107,
+          10
+        ],
+        [
+          0.8537,
+          21.6107,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "2f2c877f3b0ed9a8b30cc04aedcaf83b5601f179221d4ad08dfcdb906b79d32a",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000179_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ajay Thazhathuveettil Shaju",
+      "duration_s": 20.9267,
+      "group_id": "train_000179",
+      "id": "rd_train_000179",
+      "intervals": [
+        [
+          8.8245,
+          17.8578,
+          10
+        ],
+        [
+          2.5943,
+          7.9338,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "355a485b7d795c5b84fdbb1f41ff98a77e723800e8f3e4b5c44aa9cb93861936",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000263_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 30.6547,
+      "group_id": "train_000263",
+      "id": "rd_train_000263",
+      "intervals": [
+        [
+          2.1356,
+          30.6547,
+          12
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "981a113bcf13708ccb87a5c8ada15a8b1571107d2ce3c9d3779a62362410973e",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000147_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Mohamed Abdallah Afifi Shahin",
+      "duration_s": 18.1334,
+      "group_id": "train_000147",
+      "id": "rd_train_000147",
+      "intervals": [
+        [
+          1.1353,
+          8.0638,
+          4
+        ],
+        [
+          16.7422,
+          18.1333,
+          4
+        ],
+        [
+          10.122,
+          12.7743,
+          6
+        ],
+        [
+          8.2097,
+          9.3152,
+          13
+        ],
+        [
+          13.8944,
+          14.9832,
+          13
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "f1d1fb5e8c31725f3db5c9ada1eab46263491f752f50fbede5c2ecd635d17e95",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000464_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ananda Pravin Dhamankar",
+      "duration_s": 37.0134,
+      "group_id": "train_000464",
+      "id": "rd_train_000464",
+      "intervals": [
+        [
+          0.2358,
+          1.6718,
+          14
+        ],
+        [
+          6.271,
+          7.0964,
+          14
+        ],
+        [
+          7.6856,
+          8.2985,
+          14
+        ],
+        [
+          8.9115,
+          9.6404,
+          14
+        ],
+        [
+          12.0706,
+          12.7778,
+          14
+        ],
+        [
+          28.1322,
+          28.7396,
+          14
+        ],
+        [
+          29.8464,
+          30.5184,
+          14
+        ],
+        [
+          32.9112,
+          33.4598,
+          14
+        ],
+        [
+          34.4615,
+          35.1505,
+          14
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "20ed1244c18a9835b29b6a69e2349a834088870866ad40d5b5b50e3a0eee34c2",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000323_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.6947,
+      "group_id": "train_000323",
+      "id": "rd_train_000323",
+      "intervals": [
+        [
+          3.2427,
+          7.8724,
+          4
+        ],
+        [
+          16.4623,
+          21.6536,
+          4
+        ],
+        [
+          8.0829,
+          9.6325,
+          3
+        ],
+        [
+          15.104,
+          15.8396,
+          3
+        ],
+        [
+          18.892,
+          19.7529,
+          6
+        ],
+        [
+          1.7888,
+          3.0131,
+          0
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "849485a83eb7cc5393f05cc6786b549e3442af3fe3ef4f47df40c56c27c99d9c",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000373_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alisa Lavrova",
+      "duration_s": 30.484,
+      "group_id": "train_000373",
+      "id": "rd_train_000373",
+      "intervals": [
+        [
+          2.7632,
+          5.051,
+          1
+        ],
+        [
+          7.5467,
+          22.4916,
+          1
+        ],
+        [
+          23.8583,
+          30.484,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "cfb4d8a5346c1520e342086abed50c883b80db03dfc72cdb97a2395ea84aa648",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000266_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 34.4747,
+      "group_id": "train_000266",
+      "id": "rd_train_000266",
+      "intervals": [
+        [
+          23.9695,
+          30.9726,
+          9
+        ],
+        [
+          1.2834,
+          33.9012,
+          10
+        ],
+        [
+          3.1389,
+          11.9866,
+          2
+        ]
+      ],
+      "recording_environment": "living_room;kitchen",
+      "sha256": "e284b5ce19c5272fef2fddb9b5d7a1431390d92388579c5bb518dfad130030fd",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000142_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Mohamed Abdallah Afifi Shahin",
+      "duration_s": 17.7707,
+      "group_id": "train_000142",
+      "id": "rd_train_000142",
+      "intervals": [
+        [
+          14.8678,
+          15.1551,
+          7
+        ],
+        [
+          3.1841,
+          4.51,
+          3
+        ],
+        [
+          7.6833,
+          14.6431,
+          4
+        ]
+      ],
+      "recording_environment": "hallway;living_room",
+      "sha256": "5a8073d0aff9a957917e5b6e878659d51dc8556b4c89e9c74173377d1b3466d5",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000058_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 18.8082,
+      "group_id": "train_000058",
+      "id": "rd_train_000058",
+      "intervals": [
+        [
+          0.9114,
+          1.9036,
+          4
+        ],
+        [
+          5.66,
+          17.0295,
+          4
+        ],
+        [
+          4.1642,
+          14.7297,
+          6
+        ],
+        [
+          2.8564,
+          4.1229,
+          3
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "b50fda9fc76c7e938733bbfc02283b07ee6e8bd3aa045e325c97e963bbe8f63d",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000109_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Adam Kopj\u00e1k",
+      "duration_s": 18.8787,
+      "group_id": "train_000109",
+      "id": "rd_train_000109",
+      "intervals": [
+        [
+          0.8823,
+          18.8787,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "1b0dd2035092e1c2f050d5d750295c2d8454a0fe6a18d3573a1f16312072cf52",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000291_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alex Guritenco",
+      "duration_s": 24.6814,
+      "group_id": "train_000291",
+      "id": "rd_train_000291",
+      "intervals": [
+        [
+          0.9178,
+          4.1244,
+          6
+        ],
+        [
+          7.7341,
+          8.4992,
+          6
+        ],
+        [
+          9.3589,
+          13.8969,
+          3
+        ],
+        [
+          21.2098,
+          23.9087,
+          3
+        ],
+        [
+          3.7327,
+          8.0856,
+          4
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "ef2b3675614d693636077d432580f3c41b79384eb02a8e433f64269036d44c7e",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000156_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Seif Eddine Bengana",
+      "duration_s": 35.6427,
+      "group_id": "train_000156",
+      "id": "rd_train_000156",
+      "intervals": [
+        [
+          14.9005,
+          17.2783,
+          8
+        ],
+        [
+          18.1357,
+          18.6664,
+          8
+        ],
+        [
+          20.5266,
+          30.384,
+          8
+        ],
+        [
+          34.2218,
+          35.6426,
+          8
+        ],
+        [
+          6.1323,
+          8.6143,
+          14
+        ],
+        [
+          0.7252,
+          1.6052,
+          4
+        ],
+        [
+          2.9478,
+          6.5713,
+          4
+        ],
+        [
+          8.4595,
+          14.7878,
+          4
+        ],
+        [
+          31.8538,
+          33.936,
+          2
+        ],
+        [
+          1.6302,
+          2.172,
+          7
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "15b4735b60ae931100d0dbbbfb401c74c25a4b7cb11432790adacefc9701f528",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000254_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 25.108,
+      "group_id": "train_000254",
+      "id": "rd_train_000254",
+      "intervals": [
+        [
+          4.9485,
+          22.4151,
+          10
+        ],
+        [
+          1.1956,
+          25.108,
+          8
+        ],
+        [
+          6.4984,
+          21.3062,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "53203c83dd87da774ea08be3fe11414cfa168bd986fddc022f6dffb442ee4663",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000372_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 13.6535,
+      "group_id": "train_000372",
+      "id": "rd_train_000372",
+      "intervals": [
+        [
+          4.2712,
+          5.9057,
+          4
+        ],
+        [
+          9.2408,
+          10.4207,
+          4
+        ],
+        [
+          6.0143,
+          7.0674,
+          3
+        ],
+        [
+          8.3019,
+          9.1204,
+          3
+        ],
+        [
+          1.4752,
+          4.5893,
+          9
+        ],
+        [
+          5.8284,
+          9.6885,
+          9
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "7ce2054e5b251f3ca9657997efc58fcf8185327779c5e661d9ec9cd28e5191dd",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000104_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Acile Chahboun",
+      "duration_s": 21.7387,
+      "group_id": "train_000104",
+      "id": "rd_train_000104",
+      "intervals": [
+        [
+          2.62,
+          21.0306,
+          10
+        ],
+        [
+          5.8418,
+          21.7387,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "a7a1e2f6fb093021e508f645a9b6a8037e658948b1ceba7d716d0b7d7475f041",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000208_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alara Sude Nar",
+      "duration_s": 19.712,
+      "group_id": "train_000208",
+      "id": "rd_train_000208",
+      "intervals": [
+        [
+          5.6939,
+          14.5705,
+          6
+        ],
+        [
+          2.0926,
+          2.7705,
+          3
+        ],
+        [
+          4.544,
+          5.1305,
+          3
+        ],
+        [
+          15.2292,
+          16.5483,
+          3
+        ],
+        [
+          17.4945,
+          18.7241,
+          3
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "3caae402c4f65a458fe4fe5dff398949eaa84d17da3269149b026e16fa169f7a",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000295_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alex Guritenco",
+      "duration_s": 27.3267,
+      "group_id": "train_000295",
+      "id": "rd_train_000295",
+      "intervals": [
+        [
+          6.1459,
+          6.647,
+          13
+        ],
+        [
+          7.4532,
+          8.372,
+          13
+        ],
+        [
+          9.6993,
+          10.7596,
+          13
+        ],
+        [
+          1.7318,
+          5.6268,
+          4
+        ],
+        [
+          11.7239,
+          14.2778,
+          4
+        ],
+        [
+          15.306,
+          26.8968,
+          12
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "4a2460ab87a6f56d247503f65c46445c0a1276860dcfb706cf8555d9cab0927a",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000158_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Seif Eddine Bengana",
+      "duration_s": 34.1355,
+      "group_id": "train_000158",
+      "id": "rd_train_000158",
+      "intervals": [
+        [
+          31.2889,
+          33.9398,
+          4
+        ],
+        [
+          1.7283,
+          2.393,
+          13
+        ],
+        [
+          29.5293,
+          30.3504,
+          13
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "c63a18aad865eabf14c373b14616dde06ade7e25f53155a7c207e17b31b878c4",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000474_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 20.5,
+      "group_id": "train_000474",
+      "id": "rd_train_000474",
+      "intervals": [
+        [
+          0.0,
+          4.5556,
+          14
+        ],
+        [
+          7.5127,
+          12.6077,
+          5
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "e4e9cae51891298a1b7fa1a4265c75df9aac11c8d0a3c8a85858aa4d3e15b27e",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000378_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alisa Lavrova",
+      "duration_s": 19.5614,
+      "group_id": "train_000378",
+      "id": "rd_train_000378",
+      "intervals": [
+        [
+          6.5943,
+          10.8969,
+          5
+        ],
+        [
+          13.32,
+          17.5535,
+          5
+        ],
+        [
+          10.8853,
+          13.5848,
+          0
+        ],
+        [
+          19.1991,
+          19.5613,
+          0
+        ],
+        [
+          0.4017,
+          2.4846,
+          2
+        ],
+        [
+          3.0487,
+          4.2712,
+          2
+        ],
+        [
+          5.1421,
+          6.6145,
+          2
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "58df7ed0fc5ef230d170104104bd07947767c1a44d4f1cbf0bfc210c13f0a337",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000381_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alisa Lavrova",
+      "duration_s": 30.228,
+      "group_id": "train_000381",
+      "id": "rd_train_000381",
+      "intervals": [
+        [
+          10.1644,
+          12.6097,
+          1
+        ],
+        [
+          14.8783,
+          30.228,
+          1
+        ],
+        [
+          0.0,
+          27.4691,
+          10
+        ],
+        [
+          6.2754,
+          30.228,
+          9
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "15a3fcee60505a92049376c2bd389f842a1fa0bf1aa759d51023cb7db7543347",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000319_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 26.9854,
+      "group_id": "train_000319",
+      "id": "rd_train_000319",
+      "intervals": [
+        [
+          2.2121,
+          22.928,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "0d4a772e0c54d6288af9cafa281dcd032ddeb4ed8a3eb4e9b766826f9dd0eb8a",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000149_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ahmed Mohamed Abdallah Afifi Shahin",
+      "duration_s": 21.0347,
+      "group_id": "train_000149",
+      "id": "rd_train_000149",
+      "intervals": [
+        [
+          0.7668,
+          9.3289,
+          4
+        ],
+        [
+          15.7185,
+          18.0854,
+          4
+        ],
+        [
+          18.3766,
+          18.7303,
+          7
+        ],
+        [
+          9.4055,
+          10.6101,
+          13
+        ],
+        [
+          12.2937,
+          13.7263,
+          13
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "e303715eed2ffb8f5c3d3aa36b9e6fbeb1ac1f81247a9cde879f6d181122d8e3",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000077_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 25.472,
+      "group_id": "train_000077",
+      "id": "rd_train_000077",
+      "intervals": [
+        [
+          0.6851,
+          8.6591,
+          4
+        ],
+        [
+          10.7032,
+          10.7751,
+          3
+        ],
+        [
+          12.006,
+          13.1873,
+          3
+        ],
+        [
+          14.387,
+          14.971,
+          3
+        ],
+        [
+          13.4885,
+          22.0241,
+          10
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "20af119dee0d5381f595f0b4c5ff505a8f5979002ff487ea7a8ee7550606be65",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000123_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 22.548,
+      "group_id": "train_000123",
+      "id": "rd_train_000123",
+      "intervals": [
+        [
+          16.4139,
+          21.056,
+          9
+        ],
+        [
+          0.9246,
+          6.9096,
+          5
+        ],
+        [
+          13.67,
+          18.598,
+          5
+        ],
+        [
+          9.7927,
+          12.0689,
+          14
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "43a27b6105a1062444e6fe69e9a04cf6106d7c35b3a75d2b887d1f5d3421c8ec",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000324_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.0974,
+      "group_id": "train_000324",
+      "id": "rd_train_000324",
+      "intervals": [
+        [
+          0.0279,
+          4.5871,
+          6
+        ],
+        [
+          4.9953,
+          6.3349,
+          6
+        ],
+        [
+          8.2059,
+          9.3673,
+          6
+        ],
+        [
+          13.8509,
+          14.0742,
+          7
+        ],
+        [
+          4.1953,
+          8.5859,
+          3
+        ],
+        [
+          11.3394,
+          11.9232,
+          3
+        ],
+        [
+          12.5878,
+          13.144,
+          3
+        ],
+        [
+          15.4681,
+          20.0276,
+          4
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "f66e16c6342e9ac2fe996c1f6165d96175503ab0da95eb83a841a33baa565abc",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000176_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ajay Thazhathuveettil Shaju",
+      "duration_s": 26.4926,
+      "group_id": "train_000176",
+      "id": "rd_train_000176",
+      "intervals": [
+        [
+          1.7718,
+          2.2601,
+          7
+        ],
+        [
+          4.7457,
+          6.7796,
+          2
+        ],
+        [
+          7.8184,
+          10.0402,
+          2
+        ],
+        [
+          10.8974,
+          11.7557,
+          2
+        ],
+        [
+          13.4579,
+          15.1024,
+          2
+        ],
+        [
+          15.9581,
+          26.4925,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "640b49f074830fc53a0279827ff86375022162ddc2b130a63fb647d0027337d3",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000261_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 33.556,
+      "group_id": "train_000261",
+      "id": "rd_train_000261",
+      "intervals": [
+        [
+          1.358,
+          26.3499,
+          8
+        ],
+        [
+          3.6841,
+          5.933,
+          2
+        ],
+        [
+          23.9667,
+          26.1139,
+          2
+        ],
+        [
+          28.764,
+          32.587,
+          3
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "0cf5dd531dea4b50bf32da912d36430430dfd750292b794dc9fb2a2e353f04bc",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000382_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alisa Lavrova",
+      "duration_s": 16.2334,
+      "group_id": "train_000382",
+      "id": "rd_train_000382",
+      "intervals": [
+        [
+          0.9019,
+          15.5239,
+          9
+        ],
+        [
+          15.6679,
+          15.9828,
+          9
+        ],
+        [
+          0.0072,
+          16.0114,
+          6
+        ],
+        [
+          0.0,
+          16.2333,
+          4
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "03867720866b527ad76fb4e2177564ea3e7170d5802abfad811c6cce86a4b557",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000116_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Adam Kopj\u00e1k",
+      "duration_s": 16.148,
+      "group_id": "train_000116",
+      "id": "rd_train_000116",
+      "intervals": [
+        [
+          5.3685,
+          8.131,
+          3
+        ],
+        [
+          9.5357,
+          13.3325,
+          3
+        ],
+        [
+          0.0,
+          16.148,
+          10
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "14ed24c291b409c925dddf3f6daf5ac3a1b58ff5386cf70efc8728c39a759ad5",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000253_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.0974,
+      "group_id": "train_000253",
+      "id": "rd_train_000253",
+      "intervals": [
+        [
+          9.4696,
+          21.0973,
+          10
+        ],
+        [
+          0.4808,
+          7.103,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "d68f730f8bfd2cd6d869c2ccaeb3d1a33127258166510752646b2cffd02cd224",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000370_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 26.2535,
+      "group_id": "train_000370",
+      "id": "rd_train_000370",
+      "intervals": [
+        [
+          5.2785,
+          8.3576,
+          4
+        ],
+        [
+          9.9828,
+          23.9036,
+          12
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "e17b5dc6e775a4388dad962c0c8b7aee9f2413efd550e9106888187b1e668a1c",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000182_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Ajay Thazhathuveettil Shaju",
+      "duration_s": 19.8174,
+      "group_id": "train_000182",
+      "id": "rd_train_000182",
+      "intervals": [
+        [
+          5.3526,
+          6.3373,
+          2
+        ],
+        [
+          7.0354,
+          7.6345,
+          2
+        ],
+        [
+          8.3049,
+          8.8438,
+          2
+        ],
+        [
+          9.309,
+          9.8906,
+          2
+        ],
+        [
+          11.0471,
+          11.5272,
+          2
+        ],
+        [
+          12.3909,
+          12.7461,
+          2
+        ],
+        [
+          13.2116,
+          13.6412,
+          2
+        ],
+        [
+          14.0725,
+          14.4452,
+          2
+        ],
+        [
+          15.8708,
+          16.2158,
+          2
+        ],
+        [
+          17.2378,
+          17.8432,
+          2
+        ],
+        [
+          0.8072,
+          2.1498,
+          13
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "6be22795b50d75f4673f95e44658e1b90c26d05cb8ea7e2625a2d0a350e97b71",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/train/000483_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Andre Navas Rivera",
+      "duration_s": 34.1734,
+      "group_id": "train_000483",
+      "id": "rd_train_000483",
+      "intervals": [
+        [
+          9.3248,
+          10.4826,
+          3
+        ],
+        [
+          12.4114,
+          14.5918,
+          3
+        ],
+        [
+          17.1496,
+          18.6591,
+          3
+        ],
+        [
+          6.4992,
+          8.6796,
+          4
+        ],
+        [
+          14.5499,
+          16.5625,
+          4
+        ],
+        [
+          19.4557,
+          34.1733,
+          4
+        ],
+        [
+          8.8473,
+          9.4308,
+          7
+        ]
+      ],
+      "recording_environment": "bedroom;hallway",
+      "sha256": "d608fefde693f35dd003805bfa1ede2ab45c568dccc9802dc5b17c022af382c8",
+      "split": "train",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000194_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akram Redjil",
+      "duration_s": 22.72,
+      "group_id": "val_000194",
+      "id": "rd_val_000194",
+      "intervals": [
+        [
+          0.0,
+          11.36,
+          0
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "0f433a848a980706d97b513a5ff492583da032d95660d9b6c5ff54c54c874efe",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000198_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akram Redjil",
+      "duration_s": 19.5414,
+      "group_id": "val_000198",
+      "id": "rd_val_000198",
+      "intervals": [
+        [
+          0.6865,
+          19.5413,
+          1
+        ],
+        [
+          0.0045,
+          19.5413,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "72f129e77adec0446cf3c3d1661b690275108a5a7a25537385594d43fea036ba",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000087_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 25.7742,
+      "group_id": "val_000087",
+      "id": "rd_val_000087",
+      "intervals": [
+        [
+          15.0135,
+          25.7741,
+          2
+        ],
+        [
+          0.7457,
+          15.0384,
+          4
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "a13a9b04b1bb201359abeb708a0a379b7cde2bd247899284ab8dd25b16bc1ee9",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000084_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 26.4476,
+      "group_id": "val_000084",
+      "id": "rd_val_000084",
+      "intervals": [
+        [
+          0.6297,
+          26.3776,
+          10
+        ],
+        [
+          16.4656,
+          17.5151,
+          4
+        ],
+        [
+          23.8651,
+          25.1415,
+          4
+        ],
+        [
+          18.3197,
+          22.0629,
+          3
+        ],
+        [
+          23.5524,
+          24.7461,
+          3
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "ce72ddc13b9ba0a03f484c69d167194c04b27a5ae38179920e24c97cd3aeaaac",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000068_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 24.768,
+      "group_id": "val_000068",
+      "id": "rd_val_000068",
+      "intervals": [
+        [
+          0.4587,
+          1.8893,
+          3
+        ],
+        [
+          3.6607,
+          4.9494,
+          3
+        ],
+        [
+          6.109,
+          11.3416,
+          3
+        ],
+        [
+          15.5642,
+          24.7594,
+          5
+        ],
+        [
+          7.1772,
+          12.3293,
+          4
+        ],
+        [
+          12.4451,
+          12.9775,
+          7
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "c44003ed58a214e926e1c6efdf2a6847b8a23d16e216c050092fb372a2c4c892",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000070_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 19.776,
+      "group_id": "val_000070",
+      "id": "rd_val_000070",
+      "intervals": [
+        [
+          0.2762,
+          5.7767,
+          5
+        ],
+        [
+          6.4408,
+          19.2878,
+          5
+        ],
+        [
+          6.6305,
+          19.2384,
+          9
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "934076bcb31e919afac40282d5347ac1f086b7b05b97e0b811002d67a56b837c",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000100_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Abrham Abebe",
+      "duration_s": 16.9042,
+      "group_id": "val_000100",
+      "id": "rd_val_000100",
+      "intervals": [
+        [
+          0.411,
+          16.3089,
+          6
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "62d70db247c0ecd80e06de7536e6b88e5aa437afcd869898fa215bb94833eeb5",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000097_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Abrham Abebe",
+      "duration_s": 26.1225,
+      "group_id": "val_000097",
+      "id": "rd_val_000097",
+      "intervals": [
+        [
+          0.4527,
+          2.3623,
+          4
+        ],
+        [
+          9.7181,
+          11.6749,
+          4
+        ],
+        [
+          2.8635,
+          3.2903,
+          7
+        ],
+        [
+          4.3663,
+          6.0167,
+          7
+        ],
+        [
+          12.3241,
+          23.0126,
+          14
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "349cfae2c7a171a770710783db22e190281961b08629fc58734ef29e8cb25040",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000165_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 22.5494,
+      "group_id": "val_000165",
+      "id": "rd_val_000165",
+      "intervals": [
+        [
+          9.2726,
+          20.1521,
+          8
+        ],
+        [
+          0.4478,
+          8.6223,
+          4
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "e465484ac15231f10c0d962d69b4ddbd8e76f5aa0213e5811bd566e878d9b1ba",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000073_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 15.7654,
+      "group_id": "val_000073",
+      "id": "rd_val_000073",
+      "intervals": [
+        [
+          0.0,
+          11.357,
+          9
+        ],
+        [
+          12.3433,
+          15.7653,
+          9
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "2262da4a8d23fe4c8924c4ec884a6ba069f74cf09b5569034fd3ffe676d97109",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000067_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 35.0,
+      "group_id": "val_000067",
+      "id": "rd_val_000067",
+      "intervals": [
+        [
+          17.6319,
+          35.0,
+          2
+        ],
+        [
+          0.0,
+          35.0,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "56d684a89f76c73fe62bb0393ba226ed75ab301e23a6c4a6bda1c8c045fd0075",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000069_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 31.8934,
+      "group_id": "val_000069",
+      "id": "rd_val_000069",
+      "intervals": [
+        [
+          0.8609,
+          31.8933,
+          11
+        ],
+        [
+          17.5556,
+          31.8652,
+          10
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "ec62c33f628985a50af7147f271b1b39190d731e4a35985145c9c0e3c1d2bd66",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000138_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Agampreet Singh",
+      "duration_s": 22.632,
+      "group_id": "val_000138",
+      "id": "rd_val_000138",
+      "intervals": [
+        [
+          2.3697,
+          3.2228,
+          13
+        ],
+        [
+          3.2972,
+          20.7065,
+          12
+        ],
+        [
+          0.7587,
+          1.6266,
+          7
+        ],
+        [
+          8.691,
+          9.4899,
+          3
+        ],
+        [
+          11.7052,
+          12.3638,
+          3
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "45be0cec74fc0e775bd72cb1c7dd6c6724590da4be722d21e38146aa392c6859",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000071_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 18.7947,
+      "group_id": "val_000071",
+      "id": "rd_val_000071",
+      "intervals": [
+        [
+          0.7955,
+          1.4424,
+          13
+        ],
+        [
+          3.696,
+          4.4086,
+          13
+        ],
+        [
+          9.1156,
+          14.3943,
+          4
+        ],
+        [
+          13.2634,
+          14.2078,
+          3
+        ],
+        [
+          14.8998,
+          15.5296,
+          3
+        ],
+        [
+          15.828,
+          16.9384,
+          3
+        ],
+        [
+          2.5689,
+          3.4473,
+          6
+        ],
+        [
+          4.6821,
+          12.1237,
+          6
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "654349cdae4885a402a18b61690bd0e2241d1c0f5c15a67675d45de9422dec6c",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000164_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.6747,
+      "group_id": "val_000164",
+      "id": "rd_val_000164",
+      "intervals": [
+        [
+          1.0905,
+          4.0192,
+          14
+        ],
+        [
+          19.7009,
+          21.4992,
+          14
+        ]
+      ],
+      "recording_environment": "study_room",
+      "sha256": "d7813e9e35390e6c5ff90bed93f2f798f531221d33f12d05ff7510f76f73fa70",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000195_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akram Redjil",
+      "duration_s": 28.3734,
+      "group_id": "val_000195",
+      "id": "rd_val_000195",
+      "intervals": [
+        [
+          4.9206,
+          21.3429,
+          12
+        ],
+        [
+          0.8423,
+          11.76,
+          0
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "6056f20ffc5ae7ad069ded9f8fadf9a2b1796162d47fc462e572b337b2ca0a55",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000218_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 34.92,
+      "group_id": "val_000218",
+      "id": "rd_val_000218",
+      "intervals": [
+        [
+          0.0,
+          14.6816,
+          1
+        ],
+        [
+          16.2853,
+          18.6908,
+          1
+        ],
+        [
+          21.313,
+          34.92,
+          1
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "ef2ee8a9d8cc3e901adb619b6e38d43547ad761ee5b1651138a1c9af07993ad5",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000091_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 19.3191,
+      "group_id": "val_000091",
+      "id": "rd_val_000091",
+      "intervals": [
+        [
+          6.7804,
+          18.7738,
+          10
+        ],
+        [
+          9.0796,
+          16.8147,
+          2
+        ],
+        [
+          0.6232,
+          17.8649,
+          4
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "7881bdbc10654c75223f77e84748d953916067b2f93f55a623101914c6ee21a1",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000090_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 28.4909,
+      "group_id": "val_000090",
+      "id": "rd_val_000090",
+      "intervals": [
+        [
+          18.6569,
+          20.4134,
+          3
+        ],
+        [
+          21.2916,
+          22.4557,
+          3
+        ],
+        [
+          24.6002,
+          28.3377,
+          3
+        ],
+        [
+          0.0,
+          18.7859,
+          6
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "00c508b3ebd1d17ada61878efd2b62465a240faca027a6106b1c0d04fe0f7c20",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000072_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 17.0454,
+      "group_id": "val_000072",
+      "id": "rd_val_000072",
+      "intervals": [
+        [
+          7.2976,
+          8.0266,
+          14
+        ],
+        [
+          8.906,
+          11.8988,
+          14
+        ],
+        [
+          13.6408,
+          15.7902,
+          14
+        ],
+        [
+          0.8878,
+          7.1022,
+          4
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "61bcb164cf4eeb33630a76763d847abed5148cfc4db9c4eca0402cc82e132f83",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000089_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 25.4723,
+      "group_id": "val_000089",
+      "id": "rd_val_000089",
+      "intervals": [
+        [
+          17.4645,
+          18.7224,
+          13
+        ],
+        [
+          18.9419,
+          19.9156,
+          13
+        ],
+        [
+          21.2788,
+          22.3694,
+          13
+        ],
+        [
+          23.417,
+          24.5505,
+          13
+        ],
+        [
+          0.0,
+          25.4723,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "09f1e43d258348b1fe59d1315eea534edeeb92ae69cbb9a9accb75b865ab1e50",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000135_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Agampreet Singh",
+      "duration_s": 15.936,
+      "group_id": "val_000135",
+      "id": "rd_val_000135",
+      "intervals": [
+        [
+          3.0712,
+          3.9298,
+          6
+        ],
+        [
+          8.467,
+          15.8306,
+          6
+        ],
+        [
+          14.1385,
+          15.849,
+          4
+        ],
+        [
+          0.4948,
+          8.2438,
+          3
+        ],
+        [
+          11.6364,
+          12.5021,
+          3
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "a048b7b2cd608fb99c0c32cd53148eec88c31b03b12fc6d79fbc3dec52e9e539",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000140_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Agampreet Singh",
+      "duration_s": 18.984,
+      "group_id": "val_000140",
+      "id": "rd_val_000140",
+      "intervals": [
+        [
+          1.0922,
+          1.2129,
+          4
+        ],
+        [
+          2.0101,
+          2.1516,
+          4
+        ],
+        [
+          8.911,
+          9.0126,
+          4
+        ],
+        [
+          15.1776,
+          15.4569,
+          4
+        ],
+        [
+          16.5173,
+          16.6552,
+          4
+        ],
+        [
+          17.0775,
+          17.2707,
+          4
+        ],
+        [
+          2.6434,
+          7.9279,
+          10
+        ],
+        [
+          12.4837,
+          12.8892,
+          13
+        ],
+        [
+          13.3849,
+          13.8054,
+          13
+        ],
+        [
+          0.3953,
+          0.5559,
+          7
+        ],
+        [
+          16.1713,
+          16.402,
+          7
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "1d465ae7e7475991dc312c936d723cdec7f57691fe51a70bbee2d76584fe50eb",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000167_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.2054,
+      "group_id": "val_000167",
+      "id": "rd_val_000167",
+      "intervals": [
+        [
+          0.0229,
+          13.5414,
+          8
+        ],
+        [
+          17.0795,
+          17.7194,
+          8
+        ],
+        [
+          1.1671,
+          10.5489,
+          2
+        ],
+        [
+          14.4865,
+          16.4457,
+          2
+        ],
+        [
+          18.4441,
+          20.4409,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "85ca73a1bf4e2c7e2598aa554c1b79be4839c99e5836c95edfbf7cce81a31d61",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000083_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 26.3779,
+      "group_id": "val_000083",
+      "id": "rd_val_000083",
+      "intervals": [
+        [
+          14.7726,
+          26.3779,
+          11
+        ],
+        [
+          9.34,
+          11.618,
+          4
+        ],
+        [
+          0.7029,
+          14.7959,
+          9
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "4d7dca41ba853250213a1084c498eefba2efa2a88768318093841cb800d21ada",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000098_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Abrham Abebe",
+      "duration_s": 24.5667,
+      "group_id": "val_000098",
+      "id": "rd_val_000098",
+      "intervals": [
+        [
+          6.2323,
+          24.5667,
+          10
+        ],
+        [
+          10.2686,
+          10.7746,
+          2
+        ],
+        [
+          13.2799,
+          13.6482,
+          2
+        ],
+        [
+          22.1011,
+          23.0069,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "0bfaa77244a9c2a320543f5ef36838b05ee144639c24d6539b1bc44c6857f2de",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000096_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Abrham Abebe",
+      "duration_s": 30.0931,
+      "group_id": "val_000096",
+      "id": "rd_val_000096",
+      "intervals": [
+        [
+          3.249,
+          6.356,
+          3
+        ],
+        [
+          7.065,
+          9.436,
+          3
+        ],
+        [
+          18.05,
+          30.0931,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "fdaa6f234a4e23e02ba685e714f3dcb4d7a431f8952c1fc5ecf88fc795821044",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000141_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Agampreet Singh",
+      "duration_s": 17.424,
+      "group_id": "val_000141",
+      "id": "rd_val_000141",
+      "intervals": [
+        [
+          0.2809,
+          17.424,
+          12
+        ],
+        [
+          0.9058,
+          1.5587,
+          3
+        ],
+        [
+          8.171,
+          8.8986,
+          3
+        ],
+        [
+          15.8074,
+          16.7981,
+          3
+        ],
+        [
+          3.7183,
+          17.424,
+          9
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "554266d56bf1ddedb7e9e4c99135f616643497dac9f8e8a414fa31d78757d826",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000074_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 21.0347,
+      "group_id": "val_000074",
+      "id": "rd_val_000074",
+      "intervals": [
+        [
+          4.4779,
+          6.6296,
+          13
+        ],
+        [
+          8.132,
+          10.8698,
+          13
+        ],
+        [
+          18.4824,
+          19.9849,
+          13
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "af562c02ebefd74b283568d332e869882574c2dfbc8bae4d1ea3abaf48cb76b6",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000189_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akhmadkhon Inomkhodjaev",
+      "duration_s": 16.2334,
+      "group_id": "val_000189",
+      "id": "rd_val_000189",
+      "intervals": [
+        [
+          0.0118,
+          7.4349,
+          4
+        ],
+        [
+          8.1024,
+          8.7036,
+          14
+        ],
+        [
+          14.401,
+          15.4177,
+          14
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "01560d5e71a84b091c991ab7939b933be66eb12ec52513bf8d8af4085c849bd7",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000351_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 17.4535,
+      "group_id": "val_000351",
+      "id": "rd_val_000351",
+      "intervals": [
+        [
+          0.0077,
+          17.4535,
+          0
+        ]
+      ],
+      "recording_environment": "church",
+      "sha256": "5a2059bbd8fe21c88a9b7266763c43f27608badd44244a14e6b29f19419c379b",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000226_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 24.816,
+      "group_id": "val_000226",
+      "id": "rd_val_000226",
+      "intervals": [
+        [
+          1.9114,
+          21.8871,
+          10
+        ],
+        [
+          0.8169,
+          24.4513,
+          1
+        ],
+        [
+          4.5286,
+          14.8497,
+          2
+        ],
+        [
+          16.5877,
+          20.7474,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "d6d44b99e67a52cb17baa622a6cd5e28b7648ad9ddbfba609724e062040227e5",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000162_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 20.672,
+      "group_id": "val_000162",
+      "id": "rd_val_000162",
+      "intervals": [
+        [
+          8.343,
+          20.672,
+          10
+        ],
+        [
+          0.7099,
+          7.107,
+          2
+        ],
+        [
+          9.3009,
+          19.8068,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "59a768e1a0e69d17701c1699c8275cafe1a4c86298472938775defeac7da9b80",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000133_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Agampreet Singh",
+      "duration_s": 31.704,
+      "group_id": "val_000133",
+      "id": "rd_val_000133",
+      "intervals": [
+        [
+          19.8864,
+          21.5791,
+          13
+        ],
+        [
+          23.8352,
+          25.6194,
+          13
+        ],
+        [
+          0.3075,
+          2.6077,
+          3
+        ],
+        [
+          6.9055,
+          8.2348,
+          3
+        ],
+        [
+          12.581,
+          14.9599,
+          3
+        ],
+        [
+          29.874,
+          31.704,
+          3
+        ],
+        [
+          2.0409,
+          6.8217,
+          4
+        ],
+        [
+          8.1077,
+          12.9444,
+          4
+        ],
+        [
+          14.3143,
+          20.2973,
+          4
+        ],
+        [
+          24.8264,
+          30.7255,
+          4
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "3a766accc8ac478d429f915ced3a86bb355e4e16c2a17b19747cf6d419cfaa9a",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000086_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 18.0651,
+      "group_id": "val_000086",
+      "id": "rd_val_000086",
+      "intervals": [
+        [
+          14.0905,
+          17.5554,
+          7
+        ],
+        [
+          0.677,
+          13.748,
+          4
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "e650568b0fe5b62b388b00fb2c5369a7f53401398b08c4a8c811b495304867d2",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000093_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Abrham Abebe",
+      "duration_s": 20.2943,
+      "group_id": "val_000093",
+      "id": "rd_val_000093",
+      "intervals": [
+        [
+          7.8567,
+          11.7685,
+          9
+        ],
+        [
+          13.0902,
+          16.8039,
+          9
+        ],
+        [
+          19.2986,
+          20.2942,
+          9
+        ],
+        [
+          0.0047,
+          20.2942,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "b7a258094b71b48d9e3fad5e25cf692bd10126d8a1617074b9c06a5478ce6877",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000139_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Agampreet Singh",
+      "duration_s": 16.464,
+      "group_id": "val_000139",
+      "id": "rd_val_000139",
+      "intervals": [
+        [
+          2.2387,
+          2.8909,
+          6
+        ],
+        [
+          8.0271,
+          10.3081,
+          6
+        ],
+        [
+          0.0,
+          4.6314,
+          3
+        ],
+        [
+          14.4795,
+          16.464,
+          3
+        ],
+        [
+          4.4717,
+          13.778,
+          9
+        ],
+        [
+          6.8008,
+          8.2078,
+          4
+        ],
+        [
+          11.9742,
+          14.2712,
+          4
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "8daedd85b3ae239e8c4cce5bca882324bf5d8f1582646b331f05b3427408e99f",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000166_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 17.5787,
+      "group_id": "val_000166",
+      "id": "rd_val_000166",
+      "intervals": [
+        [
+          1.2454,
+          1.7023,
+          7
+        ],
+        [
+          7.766,
+          16.1616,
+          5
+        ],
+        [
+          2.5624,
+          5.4922,
+          4
+        ]
+      ],
+      "recording_environment": "study_room",
+      "sha256": "3f361c4d48b59c35b2a74607d3ca13c395b1b031a8f49aac5a955c54abf4038b",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000187_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akhmadkhon Inomkhodjaev",
+      "duration_s": 15.2947,
+      "group_id": "val_000187",
+      "id": "rd_val_000187",
+      "intervals": [
+        [
+          0.828,
+          2.1381,
+          8
+        ],
+        [
+          6.5738,
+          7.3084,
+          8
+        ],
+        [
+          8.5143,
+          15.2947,
+          8
+        ],
+        [
+          4.3272,
+          5.644,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "6dfa7e3923321dd8c9051caa4c2544a1414ffcf40316aa41411df3d62e30e81b",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000085_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 26.1225,
+      "group_id": "val_000085",
+      "id": "rd_val_000085",
+      "intervals": [
+        [
+          0.1152,
+          26.1224,
+          9
+        ],
+        [
+          15.4569,
+          25.6848,
+          13
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "34647bfb4a6a76a68be20d975f1c37cef9733dfc2441b700b26cd8345089b641",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000137_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Agampreet Singh",
+      "duration_s": 28.944,
+      "group_id": "val_000137",
+      "id": "rd_val_000137",
+      "intervals": [
+        [
+          1.6973,
+          2.1312,
+          2
+        ],
+        [
+          15.812,
+          16.7564,
+          2
+        ],
+        [
+          17.7518,
+          23.6989,
+          2
+        ],
+        [
+          0.4722,
+          0.855,
+          8
+        ],
+        [
+          3.1267,
+          6.5213,
+          8
+        ],
+        [
+          7.7163,
+          8.9869,
+          8
+        ],
+        [
+          11.3403,
+          28.135,
+          8
+        ],
+        [
+          0.0,
+          15.5823,
+          10
+        ],
+        [
+          21.3762,
+          26.0981,
+          10
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "eb7d1cfad3e2ef289e7aadba2e997638488593e85b1a4913f20d5bba1b67d5c4",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000210_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 33.28,
+      "group_id": "val_000210",
+      "id": "rd_val_000210",
+      "intervals": [
+        [
+          22.4655,
+          23.7871,
+          9
+        ],
+        [
+          28.5844,
+          29.897,
+          9
+        ],
+        [
+          12.502,
+          16.6987,
+          10
+        ],
+        [
+          17.6525,
+          28.0855,
+          10
+        ],
+        [
+          2.5826,
+          5.825,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "1c188b30cb820cd8a25c594b82220454d23727ed923773d9f004a83869fca4f5",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000163_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 19.1574,
+      "group_id": "val_000163",
+      "id": "rd_val_000163",
+      "intervals": [
+        [
+          5.899,
+          16.078,
+          12
+        ],
+        [
+          0.7098,
+          3.3787,
+          4
+        ],
+        [
+          14.5353,
+          19.1573,
+          4
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "92c69b41183e6ac63700560eac9fbc5782bf67d7e35bfb43ca3239760cbae300",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000095_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Abrham Abebe",
+      "duration_s": 20.0853,
+      "group_id": "val_000095",
+      "id": "rd_val_000095",
+      "intervals": [
+        [
+          5.3342,
+          14.449,
+          2
+        ],
+        [
+          15.3214,
+          15.7356,
+          2
+        ],
+        [
+          1.223,
+          1.888,
+          13
+        ],
+        [
+          2.0702,
+          3.0309,
+          13
+        ],
+        [
+          3.607,
+          4.4974,
+          13
+        ],
+        [
+          16.2985,
+          17.2872,
+          13
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "d567895b4a1c8de2aeb310965212b1a0f4c7b8ca662bbac4744a86b7a1272225",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000493_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 17.6797,
+      "group_id": "val_000493",
+      "id": "rd_val_000493",
+      "intervals": [
+        [
+          0.8329,
+          3.0509,
+          4
+        ],
+        [
+          10.6734,
+          15.4325,
+          4
+        ],
+        [
+          16.259,
+          16.4448,
+          7
+        ],
+        [
+          3.2527,
+          5.8346,
+          14
+        ],
+        [
+          7.5921,
+          10.1755,
+          14
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "0e87f886a478f95685b1df052351dd6f3646060dd1eb50a7cf5c8490daee3f50",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000413_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 15.347,
+      "group_id": "val_000413",
+      "id": "rd_val_000413",
+      "intervals": [
+        [
+          8.8265,
+          9.6079,
+          3
+        ],
+        [
+          0.0367,
+          4.3639,
+          0
+        ],
+        [
+          6.2153,
+          10.2172,
+          0
+        ],
+        [
+          4.3084,
+          8.6544,
+          4
+        ]
+      ],
+      "recording_environment": "office;hallway",
+      "sha256": "12115fe1d2afef033bdf617d45f368cf3d039c6199dc7d5f91ae2a5e03ce4cb1",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000303_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Alexander Leitner",
+      "duration_s": 34.4534,
+      "group_id": "val_000303",
+      "id": "rd_val_000303",
+      "intervals": [
+        [
+          0.4201,
+          0.799,
+          1
+        ],
+        [
+          1.6406,
+          13.3074,
+          1
+        ],
+        [
+          13.4965,
+          20.8118,
+          1
+        ],
+        [
+          23.8207,
+          34.4533,
+          1
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "f36041641af1a130be5da23209e6b809278520a36d9a1518448f62386ac5804a",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000201_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akram Redjil",
+      "duration_s": 19.52,
+      "group_id": "val_000201",
+      "id": "rd_val_000201",
+      "intervals": [
+        [
+          0.8147,
+          1.7457,
+          2
+        ],
+        [
+          2.0177,
+          3.6501,
+          2
+        ],
+        [
+          3.7861,
+          4.5343,
+          2
+        ],
+        [
+          5.1464,
+          7.912,
+          2
+        ],
+        [
+          13.8532,
+          18.8785,
+          6
+        ]
+      ],
+      "recording_environment": "bedroom",
+      "sha256": "0b3f75f2e786b2d110e08aeda632219a079133d527e4e2a70d1652d1fc03d897",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000134_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Agampreet Singh",
+      "duration_s": 21.696,
+      "group_id": "val_000134",
+      "id": "rd_val_000134",
+      "intervals": [
+        [
+          5.9406,
+          6.3997,
+          7
+        ],
+        [
+          14.9327,
+          15.3345,
+          7
+        ],
+        [
+          0.6792,
+          2.0906,
+          3
+        ],
+        [
+          19.5054,
+          21.3612,
+          3
+        ],
+        [
+          2.0407,
+          5.6925,
+          4
+        ],
+        [
+          16.5851,
+          19.3748,
+          4
+        ],
+        [
+          7.6888,
+          17.2542,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "cd4cda83e3bb5aad4b760e75dde0be94d5141f1fb7c0dc06a9ba20c3e9f76b4d",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000088_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 26.4011,
+      "group_id": "val_000088",
+      "id": "rd_val_000088",
+      "intervals": [
+        [
+          0.5471,
+          11.8757,
+          4
+        ],
+        [
+          11.968,
+          26.1334,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "9ae7936f3c38cad9a45181ce7ff8728e942cf115271e84f3626f81081befa9b4",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000136_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Agampreet Singh",
+      "duration_s": 19.992,
+      "group_id": "val_000136",
+      "id": "rd_val_000136",
+      "intervals": [
+        [
+          0.3618,
+          13.5942,
+          5
+        ],
+        [
+          14.9869,
+          15.9037,
+          5
+        ],
+        [
+          16.7385,
+          17.4904,
+          5
+        ],
+        [
+          5.7138,
+          13.6474,
+          9
+        ],
+        [
+          14.8242,
+          15.8643,
+          9
+        ],
+        [
+          16.6215,
+          17.9748,
+          9
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "f8aad13671f29c27778ed7e9c4ef487f40388e15bbd975fc41560528f9f96093",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000223_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 16.08,
+      "group_id": "val_000223",
+      "id": "rd_val_000223",
+      "intervals": [
+        [
+          7.4806,
+          9.2734,
+          3
+        ],
+        [
+          11.3723,
+          14.0665,
+          3
+        ],
+        [
+          1.5024,
+          6.7761,
+          6
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "b555c3b166902552aec16c9a804cac6de834912a34d64ba228a7cacd055c28bd",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000186_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akhmadkhon Inomkhodjaev",
+      "duration_s": 20.4147,
+      "group_id": "val_000186",
+      "id": "rd_val_000186",
+      "intervals": [
+        [
+          9.4579,
+          11.6416,
+          9
+        ],
+        [
+          13.0869,
+          15.052,
+          9
+        ],
+        [
+          16.014,
+          18.0287,
+          9
+        ],
+        [
+          18.816,
+          19.8803,
+          9
+        ],
+        [
+          1.2201,
+          1.7597,
+          7
+        ],
+        [
+          3.2346,
+          18.8256,
+          5
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "13e331b7c14006b863fe2a9900fbf034aac5a9e7ca2fe3ee42cff7ae242b3571",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000216_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 22.528,
+      "group_id": "val_000216",
+      "id": "rd_val_000216",
+      "intervals": [
+        [
+          7.3504,
+          8.5424,
+          13
+        ],
+        [
+          10.4217,
+          11.7442,
+          13
+        ],
+        [
+          8.7133,
+          14.6909,
+          2
+        ],
+        [
+          16.2702,
+          17.1642,
+          2
+        ],
+        [
+          18.6641,
+          19.3494,
+          2
+        ],
+        [
+          3.0296,
+          22.5081,
+          8
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "6827f1ad39b425ef964e0a898bc0c0aad03bded6bcbd603f56ff68bf2027482e",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000191_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akhmadkhon Inomkhodjaev",
+      "duration_s": 13.844,
+      "group_id": "val_000191",
+      "id": "rd_val_000191",
+      "intervals": [
+        [
+          0.8784,
+          13.844,
+          9
+        ],
+        [
+          6.7647,
+          7.9141,
+          3
+        ],
+        [
+          8.6394,
+          10.5141,
+          3
+        ],
+        [
+          2.9235,
+          6.9749,
+          4
+        ],
+        [
+          10.8048,
+          13.8176,
+          4
+        ]
+      ],
+      "recording_environment": "living_room",
+      "sha256": "99499306e442e6c4f05f62c44db4aa6ecbffc6fcb231f14d58ed976ba0b10966",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000188_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akhmadkhon Inomkhodjaev",
+      "duration_s": 15.124,
+      "group_id": "val_000188",
+      "id": "rd_val_000188",
+      "intervals": [
+        [
+          1.9432,
+          14.1171,
+          10
+        ],
+        [
+          12.63,
+          13.2768,
+          3
+        ],
+        [
+          6.235,
+          9.3825,
+          11
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "577a41655bef3ca9e99bf70eed96be467d4ed1a758c24d48bd1ed33d3a439e2e",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000350_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 22.3335,
+      "group_id": "val_000350",
+      "id": "rd_val_000350",
+      "intervals": [
+        [
+          1.4574,
+          9.021,
+          11
+        ],
+        [
+          8.8231,
+          16.4854,
+          10
+        ]
+      ],
+      "recording_environment": "bathroom",
+      "sha256": "a19deb19bd6aa960e57e12752f955773b69cc158466a1dfcb2d9a8f106f5e268",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000217_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 18.368,
+      "group_id": "val_000217",
+      "id": "rd_val_000217",
+      "intervals": [
+        [
+          1.5145,
+          18.368,
+          12
+        ]
+      ],
+      "recording_environment": "office",
+      "sha256": "db507cbdbe6f6983107198f4dcb2a589fcf14694fb471accd88756e157765c80",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000184_16k.wav",
+      "clip_license": "CC-BY 4.0 (Attribution License), Author: Akhmadkhon Inomkhodjaev",
+      "duration_s": 18.452,
+      "group_id": "val_000184",
+      "id": "rd_val_000184",
+      "intervals": [
+        [
+          11.5772,
+          18.452,
+          10
+        ],
+        [
+          0.0,
+          2.7894,
+          13
+        ],
+        [
+          3.5543,
+          3.9803,
+          13
+        ],
+        [
+          9.5566,
+          9.898,
+          13
+        ],
+        [
+          5.1834,
+          5.6617,
+          2
+        ],
+        [
+          6.9398,
+          7.3141,
+          2
+        ]
+      ],
+      "recording_environment": "kitchen",
+      "sha256": "7efdf43af8787693dde62a4da77f8dcc0299b393cb219d61675bdeab170aa1df",
+      "split": "val",
+      "sr": 16000
+    },
+    {
+      "audio_path": "data/raw/realdesed/val/000647_16k.wav",
+      "clip_license": "CC0 (Public Domain Dedication)",
+      "duration_s": 23.8237,
+      "group_id": "val_000647",
+      "id": "rd_val_000647",
+      "intervals": [
+        [
+          1.9462,
+          3.0147,
+          14
+        ],
+        [
+          5.4442,
+          6.0104,
+          3
+        ],
+        [
+          8.6453,
+          9.4511,
+          3
+        ],
+        [
+          10.8719,
+          13.3055,
+          3
+        ],
+        [
+          16.5546,
+          23.3834,
+          3
+        ],
+        [
+          14.3173,
+          16.2229,
+          6
+        ],
+        [
+          17.3816,
+          23.8237,
+          6
+        ],
+        [
+          3.5506,
+          9.3285,
+          4
+        ],
+        [
+          12.8482,
+          12.9518,
+          4
+        ],
+        [
+          13.0878,
+          13.1967,
+          4
+        ]
+      ],
+      "recording_environment": "hallway",
+      "sha256": "5cc03ad21d8e729e343f988bccedffb85ac9e00b22c522a679b7a483615517e1",
+      "split": "val",
+      "sr": 16000
+    }
+  ],
+  "join_coverage": 1.0,
+  "license": "CC0 / CC-BY-4.0",
+  "source": "Zenodo 20056072 (train.zip & validation.zip only; test.zip sealed)",
+  "split_axis": "collector_disjoint (official train vs validation; test sealed)",
+  "task": "domestic_polyphonic_events_15cls"
+}

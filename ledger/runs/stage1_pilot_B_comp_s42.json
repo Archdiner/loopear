@@ -1,0 +1,31 @@
+{
+  "config": {
+    "arm_name": "B_comp",
+    "arm_type": "B_comp",
+    "batch_size": 16,
+    "datasets": [
+      "starss23",
+      "realdesed",
+      "dipco",
+      "ami_sdm"
+    ],
+    "epochs": 10,
+    "head_kwargs": {
+      "d": 320,
+      "d_spk": 192,
+      "n_ev": 15,
+      "n_ovl": 3,
+      "n_spk": 80,
+      "n_starss": 13
+    },
+    "lr": 0.0003,
+    "refiner_kwargs": {
+      "stride": 8
+    },
+    "seed": 42,
+    "steps_per_epoch": 28
+  },
+  "config_sha256": "1d1b4a3d9dffca95f99f5153a6fb445a286e5313ee125e7ddddb9443bce3fbf1",
+  "created_utc": "2026-11-25T20:01:02.247735+00:00",
+  "run_id": "stage1_pilot_B_comp_s42"
+}

@@ -125,11 +125,34 @@ def verify_extractor_invariants(
     }
 
 
-def load_mono_audio(path: Path | str, target_sr: int = SR) -> np.ndarray:
-    wav, sr = sf.read(str(path), dtype="float32", always_2d=True)
-    mono = wav.mean(axis=1)
-    if sr != target_sr:
-        tensor = torch.from_numpy(mono).unsqueeze(0)
+def load_mono_audio(
+    path: Path | str,
+    target_sr: int = SR,
+    channel: int | None = None,
+    start_s: float | None = None,
+    end_s: float | None = None,
+) -> np.ndarray:
+    info = sf.info(str(path))
+    sr = int(info.samplerate)
+    start_frame = 0 if start_s is None else max(0, int(round(start_s * sr)))
+    if end_s is None:
+        frames = -1
+    else:
+        end_frame = min(int(info.frames), int(round(end_s * sr)))
+        frames = max(0, end_frame - start_frame)
+    wav, sr = sf.read(
+        str(path),
+        start=start_frame,
+        frames=frames,
+        dtype="float32",
+        always_2d=True,
+    )
+    if channel is not None:
+        mono = wav[:, int(channel)]
+    else:
+        mono = wav.mean(axis=1)
+    if sr != target_sr and mono.size > 0:
+        tensor = torch.from_numpy(np.ascontiguousarray(mono)).unsqueeze(0)
         mono = (
             torchaudio.functional.resample(tensor, sr, target_sr)
             .squeeze(0)
@@ -151,15 +174,19 @@ def expand_recording_windows(
     min_n = int(round(min_win_s * sr))
     expanded: list[dict[str, Any]] = []
     for row in rows:
+        wav: np.ndarray | None = None
+        base_start_s = float(row.get("start_s", 0.0))
         if "wav" in row and row["wav"] is not None:
             wav = np.asarray(row["wav"], dtype=np.float32).reshape(-1)
             total_n = int(wav.shape[0])
         elif "duration_s" in row and row["duration_s"] is not None:
-            wav = None
             total_n = int(round(float(row["duration_s"]) * sr))
         elif "path" in row and row["path"] is not None:
-            wav = load_mono_audio(row["path"], target_sr=sr)
-            total_n = int(wav.shape[0])
+            info = sf.info(str(row["path"]))
+            file_dur = float(info.frames) / float(info.samplerate)
+            clip_end_s = float(row.get("end_s", file_dur))
+            clip_dur_s = max(0.0, min(file_dur, clip_end_s) - base_start_s)
+            total_n = int(round(clip_dur_s * sr))
         else:
             raise ValueError("Row must specify wav, duration_s, or path")
         if total_n < min_n:
@@ -177,14 +204,16 @@ def expand_recording_windows(
                 "source_id": str(row["id"]),
                 "start_sample": int(s0),
                 "end_sample": int(s1),
-                "start_s": float(s0) / float(sr),
-                "end_s": float(s1) / float(sr),
+                "start_s": base_start_s + float(s0) / float(sr),
+                "end_s": base_start_s + float(s1) / float(sr),
                 "meta": dict(row.get("meta", {})),
             }
             if wav is not None:
                 entry["wav"] = wav[s0:s1]
             elif "path" in row:
                 entry["path"] = str(row["path"])
+                if row.get("channel") is not None:
+                    entry["channel"] = int(row["channel"])
             expanded.append(entry)
     return expanded
 
@@ -291,6 +320,12 @@ class ShardedFeatureCache:
                 h.update(str(p).encode("utf-8"))
                 if p.exists():
                     h.update(str(p.stat().st_size).encode("utf-8"))
+                if row.get("channel") is not None:
+                    h.update(f"ch={row['channel']}".encode("utf-8"))
+                if row.get("start_s") is not None or row.get("end_s") is not None:
+                    h.update(
+                        f"span={row.get('start_s')}:{row.get('end_s')}".encode("utf-8")
+                    )
         return h.hexdigest()[:16]
 
     def extract_dataset(
@@ -345,9 +380,20 @@ class ShardedFeatureCache:
             )
             for b0 in range(0, len(sw), batch_size):
                 batch = sw[b0 : b0 + batch_size]
-                wav_list = [
-                    np.asarray(item["wav"], dtype=np.float32) for item in batch
-                ]
+                wav_list: list[np.ndarray] = []
+                for item in batch:
+                    if "wav" in item and item["wav"] is not None:
+                        wav_list.append(np.asarray(item["wav"], dtype=np.float32))
+                    else:
+                        wav_list.append(
+                            load_mono_audio(
+                                item["path"],
+                                target_sr=SR,
+                                channel=item.get("channel"),
+                                start_s=item["start_s"],
+                                end_s=item["end_s"],
+                            )
+                        )
                 lens = [int(w.shape[0]) for w in wav_list]
                 max_len = max(lens)
                 wav_tensor = torch.zeros(

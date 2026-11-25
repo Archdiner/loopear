@@ -1,0 +1,33 @@
+{
+  "config": {
+    "arm_name": "E_s8",
+    "arm_type": "E",
+    "batch_size": 16,
+    "datasets": [
+      "starss23",
+      "realdesed",
+      "dipco",
+      "ami_sdm"
+    ],
+    "epochs": 10,
+    "head_kwargs": {
+      "d": 384,
+      "d_spk": 192,
+      "n_ev": 15,
+      "n_ovl": 3,
+      "n_spk": 80,
+      "n_starss": 13
+    },
+    "lr": 0.0003,
+    "refiner_kwargs": {
+      "max_k": 4,
+      "pool_mode": "avg",
+      "stride": 8
+    },
+    "seed": 42,
+    "steps_per_epoch": 28
+  },
+  "config_sha256": "825605152134b55d69002ad417ae9341fe2f8fe6863694aaf11f444bc5947389",
+  "created_utc": "2026-11-25T20:11:49.038231+00:00",
+  "run_id": "stage1_pilot_E_s8_s42"
+}

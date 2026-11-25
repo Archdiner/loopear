@@ -1,0 +1,31 @@
+{
+  "config": {
+    "arm_name": "C_param",
+    "arm_type": "C_param",
+    "batch_size": 16,
+    "datasets": [
+      "starss23",
+      "realdesed",
+      "dipco",
+      "ami_sdm"
+    ],
+    "epochs": 10,
+    "head_kwargs": {
+      "d": 192,
+      "d_spk": 192,
+      "n_ev": 15,
+      "n_ovl": 3,
+      "n_spk": 80,
+      "n_starss": 13
+    },
+    "lr": 0.0003,
+    "refiner_kwargs": {
+      "stride": 8
+    },
+    "seed": 42,
+    "steps_per_epoch": 28
+  },
+  "config_sha256": "d59d3dec7c4d53e0e80d4891bd56327ffe427b02f8f9f08fe745f463eb2963d7",
+  "created_utc": "2026-11-25T20:05:34.122034+00:00",
+  "run_id": "stage1_pilot_C_param_s42"
+}

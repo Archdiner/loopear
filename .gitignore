@@ -6,6 +6,8 @@ __pycache__/
 dist/
 build/
 cache/
+data/raw/
+checkpoints/
 *.pt
 *.ckpt
 *.npz

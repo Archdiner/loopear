@@ -208,10 +208,28 @@ class LoopEarStream:
     ) -> "LoopEarStream":
         dev = torch.device(device)
         enc, _ = load_usad2_extractor(dev)
-        ref = LoopEarModel(d_e=D_E, d=384, h=6, d_ff=768, stride=8)
-        heads = MultiTaskHeads(d=ref.out_dim)
+        ref_kwargs: dict[str, Any] = {
+            "d_e": D_E,
+            "d": 384,
+            "h": 6,
+            "d_ff": 768,
+            "stride": 8,
+        }
+        head_kwargs: dict[str, Any] = {}
+        labels = DEFAULT_EVENT_LABELS
+        payload: dict[str, Any] | None = None
         if ckpt is not None:
             payload = torch.load(Path(ckpt), map_location=dev, weights_only=False)
+            if "refiner_kwargs" in payload:
+                ref_kwargs.update(payload["refiner_kwargs"])
+            if "head_kwargs" in payload:
+                head_kwargs.update(payload["head_kwargs"])
+            if "labels" in payload:
+                labels = tuple(payload["labels"])
+        ref = LoopEarModel(**ref_kwargs)
+        head_kwargs.setdefault("d", ref.out_dim)
+        heads = MultiTaskHeads(**head_kwargs)
+        if payload is not None:
             if "refiner" in payload:
                 ref.load_state_dict(payload["refiner"], strict=True)
             if "heads" in payload:
@@ -224,6 +242,7 @@ class LoopEarStream:
             win_s=win_s,
             step_s=step_s,
             device=dev,
+            labels=labels,
         )
 
     def set_depth(self, k: int) -> int:
