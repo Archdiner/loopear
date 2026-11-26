@@ -1,0 +1,90 @@
+{
+  "causal": {
+    "checked_frames": 9,
+    "max_abs_diff": 0.0,
+    "ok": true
+  },
+  "data": {
+    "cross_group_pairs": 22791,
+    "ok": true,
+    "train_hours": 4.3082
+  },
+  "gates": {
+    "causal": true,
+    "data": true,
+    "grads": true,
+    "params": true,
+    "rtf": true,
+    "sha256": true,
+    "smoke": true,
+    "teacher": true
+  },
+  "gpu_usd": 0.0,
+  "grads": {
+    "failed": [],
+    "ok": true
+  },
+  "ok": true,
+  "params": {
+    "inference_params": 1037952,
+    "ok": true,
+    "receptive_field_s": 1.185,
+    "teacher_proj_params": 49536
+  },
+  "payload_sha256": "ef578e92d70de8cf4b6aa774be8cf998fffc6cff1509af0aaf5c70537f5b4575",
+  "rtf": {
+    "ok": true,
+    "runs": [
+      {
+        "audio_s": 10.0,
+        "median_s": 0.023326924000230065,
+        "rtf": 0.0023326924000230064,
+        "threads": 1.0
+      },
+      {
+        "audio_s": 10.0,
+        "median_s": 0.014799996999954601,
+        "rtf": 0.00147999969999546,
+        "threads": 4.0
+      }
+    ]
+  },
+  "sha256": {
+    "bad": [],
+    "checked": 1307,
+    "ok": true
+  },
+  "smoke": {
+    "arm": "distill",
+    "finite": true,
+    "first_loss": 0.9343369007110596,
+    "last_loss": 0.5608736276626587,
+    "losses": [
+      0.9343369007110596,
+      0.8712241649627686,
+      0.7848659753799438,
+      0.7123464941978455,
+      0.6484838724136353,
+      0.6085910797119141,
+      0.5830367803573608,
+      0.5608736276626587
+    ],
+    "max_abs_param_move": 0.008047645911574364,
+    "ok": true,
+    "steps": 8
+  },
+  "student_frames_2s": 99,
+  "teacher": {
+    "constituent_abs_cosine": 0.4070035517215729,
+    "finite": true,
+    "frame_gap": 0,
+    "ok": true,
+    "real_pair_abs_cosine": 0.36270153522491455,
+    "real_pair_frame_gap": 0,
+    "silence_tone_cosine": 0.4070035517215729,
+    "student_frames": 99,
+    "teacher_frames": 99
+  },
+  "wall_s": 12.2,
+  "written_utc": "2026-11-26T03:53:19.445207+00:00"
+}

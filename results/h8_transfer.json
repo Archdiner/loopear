@@ -1,0 +1,49 @@
+{
+  "arms": [
+    {
+      "arm": "distill",
+      "composite": 0.5567,
+      "crema_acc": 0.5083,
+      "crema_shuffled_acc": 0.1528,
+      "maestro_macro_ap": 0.4395,
+      "maestro_shuffled_macro_ap": 0.1448,
+      "vocalset_acc": 0.7222,
+      "vocalset_shuffled_acc": 0.213
+    },
+    {
+      "arm": "mixture",
+      "composite": 0.5271,
+      "crema_acc": 0.5042,
+      "crema_shuffled_acc": 0.1417,
+      "maestro_macro_ap": 0.4381,
+      "maestro_shuffled_macro_ap": 0.1695,
+      "vocalset_acc": 0.6389,
+      "vocalset_shuffled_acc": 0.1852
+    },
+    {
+      "arm": "averaged",
+      "composite": 0.512,
+      "crema_acc": 0.4528,
+      "crema_shuffled_acc": 0.1431,
+      "maestro_macro_ap": 0.472,
+      "maestro_shuffled_macro_ap": 0.1529,
+      "vocalset_acc": 0.6111,
+      "vocalset_shuffled_acc": 0.1481
+    },
+    {
+      "arm": "align",
+      "composite": 0.4902,
+      "crema_acc": 0.4833,
+      "crema_shuffled_acc": 0.1792,
+      "maestro_macro_ap": 0.4224,
+      "maestro_shuffled_macro_ap": 0.1498,
+      "vocalset_acc": 0.5648,
+      "vocalset_shuffled_acc": 0.1574
+    }
+  ],
+  "gpu_usd": 0.0,
+  "payload_sha256": "5ac8b4ad414943a06fe37d8681f05f481ae990bd0d994a2af72010871b160625",
+  "used_to_choose_arm": false,
+  "wall_s": 620.8,
+  "written_utc": "2026-11-26T04:28:25.017804+00:00"
+}

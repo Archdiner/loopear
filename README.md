@@ -18,6 +18,7 @@ Standalone implementation of LoopEar: a compact (~27M total parameters) evidence
 - `scripts/train_pilot.py` and `scripts/eval_transfer.py`: Trains and evaluates the Stage 1 isolating arms, paired bootstrap 95% CIs, H6 oracle headroom, frozen transfer probes with shuffled-label controls, and real-audio `LoopEarStream` verification.
 - `scripts/prepare_stage2_taps.py` and `scripts/train_stage2.py`: Extract a 4-layer 50 Hz tap cache and train the fair multi-layer Stage 2 arms, onset diagnostics, learned halting Pareto curves, and adaptive streaming verification.
 - `scripts/train_stage3.py`: One-seed depth probe. Later steps are trained against a stop-grad `k=1` target with a penalty when their loss is worse, and the event head keeps a full-rate 50 Hz residual.
+- `loopear/tiny.py`: H8 causal ~1M frame encoder and the four matched distillation losses. `loopear/efficientat.py` loads EfficientAT `mn01`/`mn04`/`mn05` and the released S-SONDO MobileNet. `scripts/h8_gates.py`, `scripts/h8_baselines.py`, `scripts/h8_compare.py`, and `scripts/h8_transfer.py` are the CPU checks.
 
 ## Status
 
@@ -47,6 +48,14 @@ No separate research-registry file exists in this repository. These two lines ar
 `/cursor/stores/bc-01a213ed-7a8a-7981-b509-7012340964c4/docs/h5-h6-campaign-report.md`
 
 `realdesed_test` stays sealed. Checkpoints, caches, and the sealed split were kept. This closeout does not train a follow-on model.
+
+## H8
+
+A causal 50 Hz conv encoder, `loopear/tiny.py`, 1,037,952 inference parameters. Frozen `USAD2-Small` is a training teacher only. CPU, $0.00 GPU. Gates passed (`results/h8_gates.json`): 2 s audio is 99 frames for student and teacher, 10 s real-time factor is 0.00233 on 1 thread and 0.00148 on 4 threads, and an 8-step smoke loss falls from 0.934 to 0.561.
+
+Frozen linear probes on the dev set (`results/h8_baselines.json`, equal-weight STARSS macro-AP, RealDESED macro-AP, DiPCo macro-F1, AMI `1−EER`): `USAD2-Small` 0.5623, S-SONDO MobileNetV3 (2.97M, 500 ms hop) 0.5645, EfficientAT `mn05` 0.5356, `mn04` 0.5234, `mn01` 0.4683. `mn04`/`mn05`/`S-SONDO` are not native 50 Hz models.
+
+Matched 512-pair, 400-step comparison (`results/h8_comparison.json`): mixture 0.3337, averaged 0.3305, distill 0.33, align 0.3255. The arms do not separate. Alignment does not win on the composite, onset, or quiet-source retention. The student reaches AMI `1−EER` 0.61–0.65 and stays near 0.20–0.23 macro-AP on STARSS and RealDESED, below `mn04`. No recurrence, extra teacher, or mixture-of-experts was added. A later check on CREMA-D, VocalSet, and MAESTRO Real (`results/h8_transfer.json`, not used to choose) ranks distill 0.5567 above mixture 0.5271, averaged 0.512, and align 0.4902. Shuffled probes stay near chance.
 
 ## Quickstart
 
