@@ -48,6 +48,12 @@ No separate research-registry file exists in this repository. These two lines ar
 
 `realdesed_test` stays sealed. Checkpoints, caches, and the sealed split were kept. This closeout does not train a follow-on model.
 
+## H10 status
+
+Provisional only. A causal slot listener (`loopear/slots.py`, 561,729 parameters) and a paired variation loss were checked on constructed degenerates and on CPU cost. No confirmatory training. Cloud GPU spend `$0.00`. The measurement record is `results/h10_check.json`. `scripts/h10_check.py` regenerates it. The campaign writeup is outside the git tree:
+
+`/cursor/stores/bc-01a213ed-7a8a-7981-b509-7012340964c4/docs/h10-specification.md`
+
 ## Quickstart
 
 ```bash
