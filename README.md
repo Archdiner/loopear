@@ -80,3 +80,14 @@ After 1,000 steps of global contrastive loss plus masked latent discrimination (
 ```
 
 That command does not train. It scores frozen USAD2-Small and EfficientAT mn04_as with the same 2,716-parameter readout, the same 256/160 clips, and the same four STARSS23 files. USAD2-Small scores macro AP 0.312. EfficientAT mn04_as, AudioSet-pretrained and using its own 32 kHz frontend, scores 0.526. Shuffled labels for both sit near 0.16. On the STARSS23 frame grid both raw scores sit above global-only and match their shuffled-label controls, because the scored validation classes have no positive training frames. `results/loopear_d_baselines.json` holds those numbers. AudioSet audio is not downloaded.
+
+## LoopEar-P
+
+Same frontend and the same global contrastive loss as LoopEar-D. The encoder keeps 32 learned latents of width 96, with three input cross-attention blocks and three latent self-attention blocks. The deployed encoder has 685,728 parameters, 2,976 above LoopEar-D. The local masked loss remains in `loopear/d/objective.py` and this comparison leaves it off. CPU only. Cloud GPU spend `$0.00`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py
+.venv/bin/python scripts/eval_loopear_protocol.py
+```
+
+The training command is the existing 5.001-hour subset, 1,000 steps, batch 64, seed 42. It writes `results/loopear_p_encoder.safetensors` and `results/loopear_matched_h20_plan.json`. The 20-hour / 5,000-step commands in that plan were not launched. The eval command fits one readout on 1,680 development clips and 640 official validation clips, scores STARSS23 only where both sides have enough positives, runs a 4-example probe, and checks a 10-bin log-mel profile. `results/loopear_protocol.json` holds those numbers. The 160-clip scores above are a different probe.

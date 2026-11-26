@@ -95,6 +95,21 @@ LOCAL_HEAD_PARAMS: int = local_head_param_count()
 TRAIN_ONLY_PARAMS: int = PREDICTOR_PARAMS + GLOBAL_HEAD_PARAMS + LOCAL_HEAD_PARAMS
 STUDENT_PARAMS: int = ENCODER_PARAMS + TRAIN_ONLY_PARAMS
 TEACHER_PARAMS: int = ENCODER_PARAMS + LOCAL_HEAD_PARAMS
+N_LATENTS: int = 32
+P_CROSS_LAYERS: int = 3
+P_SELF_LAYERS: int = 3
+
+
+def perceiver_encoder_param_count() -> int:
+    blocks = (P_CROSS_LAYERS + P_SELF_LAYERS) * block_params(D_MODEL, FFN_RATIO)
+    final_ln = 2 * D_MODEL
+    patch = PATCH_DIM * D_MODEL + D_MODEL
+    pos = (GRID_T + GRID_F) * D_MODEL
+    latents = N_LATENTS * D_MODEL
+    return blocks + final_ln + patch + pos + latents
+
+
+PERCEIVER_ENCODER_PARAMS: int = perceiver_encoder_param_count()
 
 
 def warmup_steps(total_steps: int) -> int:
