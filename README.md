@@ -37,6 +37,17 @@ Standalone implementation of LoopEar: a compact (~27M total parameters) evidence
   - **Live `LoopEarStream(adaptive=True)`** on `checkpoints/stage2_best.pt` (`E_ml_res_s4`, seed 44, the best LoopEar arm by the average of dev and transfer, not the best overall arm): `reload_max_abs_diff = 0.0`. AMI cross-meeting same-speaker cosine `0.461` vs different-speaker `0.296`. CPU latency on 4 s DiPCo windows is `50.7 ms` adaptive, `50.0 ms` at `k=1`, and `54.8 ms` at `k=4` (the frozen encoder dominates). Quiet windows used `k=1/2/4` at `42% / 25% / 33%` (avg `2.25`); dense overlap used `58% / 42% / 0%` (avg `1.42`). A STARSS23 + RealDESED stream was `79% k=1`, `21% k=2`, `0% k=4` (`56.3 ms`/window, `RTF 0.056`). The learned policy does not spend more depth on overlapped audio.
 - **Stage 3 depth probe** (`results/stage3_depth_probe.json`, seed `42` only, 8 epochs, `$0.00` GPU, `A_ml` and `B_comp_ml` not retrained): one LoopEar (`stride 8`) with a stop-grad `k=1` target, `relu(loss_k - loss_k1)` on every task, and a full-rate 50 Hz residual into the STARSS and RealDESED heads. The pre-specified gate **passes**, narrowly. On the best `k=4` checkpoint (epoch 8, still rising): dev composite `k=4` `0.6287` vs `k=1` `0.6239` (`+0.48 pp`); onset event-F1 at `±100 ms` `0.0540` vs `0.0534` (`+0.06 pp`; STARSS `0.0651` vs `0.0656`, RealDESED `0.0429` vs `0.0412`); transfer composite `0.6400` vs `0.6381` (`+0.19 pp`). Shuffled probes stay near chance (CREMA-D emotion `0.201` vs chance `0.167`, VocalSet `0.148` vs `0.100`, MAESTRO `0.128`). Epoch 2 had `k=4` behind `k=1` by `0.94 pp` before the later epochs recovered. Absolute dev composite and onset remain below the frozen seed-42 baselines (`A_ml` dev `0.6342`, onset `0.122`; `B_comp_ml` dev `0.6660`, onset `0.195`). The later step can edge its own first pass under this loss. It does not match the 50 Hz baseline's timing.
 
+## Campaign closeout
+
+- **H5: CLOSED — NO ROBUST ARCHITECTURAL ADVANTAGE ESTABLISHED**
+- **H6: DEFERRED — INSUFFICIENT EVIDENCE OF USEFUL ADDITIONAL DEPTH**
+
+No separate research-registry file exists in this repository. These two lines are the registry record. The full closeout, including the pre-written criteria, the Stage 1 transfer win, the Stage 2 reversal, the Stage 3 within-model gate, and the reopen bar, is outside the git tree:
+
+`/cursor/stores/bc-01a213ed-7a8a-7981-b509-7012340964c4/docs/h5-h6-campaign-report.md`
+
+`realdesed_test` stays sealed. Checkpoints, caches, and the sealed split were kept. This closeout does not train a follow-on model.
+
 ## Quickstart
 
 ```bash
