@@ -1,0 +1,72 @@
+{
+  "dataset_clips": 7405,
+  "dataset_hours": 20.003473918346895,
+  "dataset_id_sha256": "13c22b307322c88c09710b953c706b9432f800c21ff90bed834bd4eed82bf017",
+  "equal_compute_extension": false,
+  "fsd50k_test_audio_read": false,
+  "gpu_usd": 0.0,
+  "lambda_local": 0.0,
+  "model": "loopear-d",
+  "objective": "global",
+  "payload_sha256": "c9ea6f9218051992b7e839df09fd6866dfdb51adc4c8d2be9fe6f98ff89fb221",
+  "run": {
+    "batch": 64,
+    "batch_recordings": 64,
+    "checkpoint": "checkpoints/loopear_d_h20_global_5000.pt",
+    "collapsed": false,
+    "cpu_s": 4387.022226,
+    "crop_presentations": 320000,
+    "diagnostics": {
+      "cls": {
+        "collapsed": false,
+        "dim": 96,
+        "effective_rank": 18.638063430786133,
+        "finite": true,
+        "n": 32,
+        "offdiag_cosine_mean": 0.509955883026123,
+        "singular_max": 19.93103790283203,
+        "singular_min": 2.085749656544067e-06,
+        "variance_mean": 0.43642953038215637,
+        "variance_min": 0.12762705981731415
+      },
+      "patch_mean": {
+        "collapsed": false,
+        "dim": 96,
+        "effective_rank": 17.198577880859375,
+        "finite": true,
+        "n": 32,
+        "offdiag_cosine_mean": 0.4173731505870819,
+        "singular_max": 14.778648376464844,
+        "singular_min": 1.2822300732295844e-06,
+        "variance_mean": 0.2379162758588791,
+        "variance_min": 0.02947627566754818
+      }
+    },
+    "encoder_l2_delta": 10.143799781799316,
+    "encoder_weights": "results/loopear_d_h20_global_5000_encoder.safetensors",
+    "log": "results/loopear_d_h20_global_5000.jsonl",
+    "loss_first": 4.074350357055664,
+    "loss_last": 0.7472406625747681,
+    "loss_min": 0.37403374910354614,
+    "negatives_per_anchor": 126,
+    "objective": "global",
+    "peak_rss_gb": 1.4426612854003906,
+    "presented_crop_hours": 179.11111111111111,
+    "sec_per_step": 0.21991281805379986,
+    "seed": 42,
+    "snapshots": [
+      "results/loopear_d_h20_global_5000_step1000_encoder.safetensors",
+      "results/loopear_d_h20_global_5000_step2000_encoder.safetensors",
+      "results/loopear_d_h20_global_5000_step3000_encoder.safetensors",
+      "results/loopear_d_h20_global_5000_step4000_encoder.safetensors"
+    ],
+    "steps": 5000,
+    "steps_requested": 5000,
+    "stopped_early": false,
+    "wall_s": 1099.5640902689993,
+    "weights_moved": true
+  },
+  "sealed_realdesed_test_read": false,
+  "task": "loopear_h20_train",
+  "written_utc": "2026-11-26T16:42:14.338489+00:00"
+}

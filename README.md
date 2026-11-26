@@ -65,7 +65,7 @@ python3 -m venv .venv
 
 ## LoopEar-D
 
-Separate from the frozen USAD2 stack above. `loopear/d` is a 682,752-parameter encoder trained from scratch on the official FSD50K training split. The deployed file is the encoder. The predictor, the projection heads, and the EMA teacher are training-only. This run used the nested 5.001-hour prefix (1,680 clips). The 20-hour prefix is in the manifest and was not trained. CPU only. Cloud GPU spend `$0.00`.
+Separate from the frozen USAD2 stack above. `loopear/d` is a 682,752-parameter encoder trained from scratch on the official FSD50K training split. The deployed file is the encoder. The predictor, the projection heads, and the EMA teacher are training-only. The 1,000-step comparison in this section used the nested 5.001-hour prefix (1,680 clips). A later matched run trains this encoder for 5,000 steps on the 20.003-hour prefix and writes `results/loopear_d_h20_global_5000_encoder.safetensors`. CPU only. Cloud GPU spend `$0.00`.
 
 ```bash
 .venv/bin/python scripts/prepare_loopear_d.py
@@ -90,4 +90,13 @@ Same frontend and the same global contrastive loss as LoopEar-D. The encoder kee
 .venv/bin/python scripts/eval_loopear_protocol.py
 ```
 
-The training command is the existing 5.001-hour subset, 1,000 steps, batch 64, seed 42. It writes `results/loopear_p_encoder.safetensors` and `results/loopear_matched_h20_plan.json`. The 20-hour / 5,000-step commands in that plan were not launched. The eval command fits one readout on 1,680 development clips and 640 official validation clips, scores STARSS23 only where both sides have enough positives, runs a 4-example probe, and checks a 10-bin log-mel profile. `results/loopear_protocol.json` holds those numbers. The 160-clip scores above are a different probe.
+The training command is the existing 5.001-hour subset, 1,000 steps, batch 64, seed 42. It writes `results/loopear_p_encoder.safetensors` and `results/loopear_matched_h20_plan.json`. That plan file still records the 20-hour runs as unlaunched. The runs that followed keep every 1,000-step file and write new ones:
+
+```bash
+.venv/bin/python scripts/cache_loopear_h20.py
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-d
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-p
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_p_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --report results/loopear_h20_protocol.json
+```
+
+The 5,000-step weights are `results/loopear_d_h20_global_5000_encoder.safetensors` and `results/loopear_p_h20_global_5000_encoder.safetensors`. `results/loopear_h20_protocol.json` holds that probe, including the coordinate readout. The 1,000-step eval command fits one readout on 1,680 development clips and 640 official validation clips, scores STARSS23 only where both sides have enough positives, runs a 4-example probe, and checks a 10-bin log-mel profile. `results/loopear_protocol.json` holds those 1,000-step numbers. The 160-clip scores above are a different probe.

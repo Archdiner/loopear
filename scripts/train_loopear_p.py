@@ -17,7 +17,7 @@ from loopear.d.diagnostics import (
     peak_rss_gb,
 )
 from loopear.d.frontend import crop_logmel, normalize_logmel
-from loopear.d.fsd import MelCache, assert_train_rows, items_for, load_manifest
+from loopear.d.fsd import MelCache, assert_train_rows, items_for, load_manifest, sha256_of_ids
 from loopear.d.objective import (
     broadcast_time_valid,
     global_ntxent,
@@ -202,6 +202,15 @@ def write_plan(measured_sec_per_step: float | None, report_path: Path) -> dict[s
     return plan
 
 
+def _snapshot_encoder(model, ckpt_path: Path, step: int) -> str:
+    path = Path("results") / f"{ckpt_path.stem}_step{int(step)}_encoder.safetensors"
+    if path.exists():
+        raise FileExistsError(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(model.encoder.state_dict(), str(path))
+    return str(path)
+
+
 def run_perceiver(
     cache: MelCache,
     steps: int,
@@ -212,6 +221,7 @@ def run_perceiver(
     weight_path: Path,
     run_id: str,
     config: dict[str, Any],
+    snapshot_every: int | None = None,
 ) -> dict[str, Any]:
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
@@ -253,6 +263,7 @@ def run_perceiver(
     t0 = time.perf_counter()
     cpu0 = cpu_seconds()
     rows = []
+    snapshots: list[str] = []
     stopped_collapse = False
     with log_path.open("w", encoding="utf-8") as handle:
         for step in range(int(steps)):
@@ -290,6 +301,9 @@ def run_perceiver(
                     stopped_collapse = True
             rows.append(stats)
             handle.write(json.dumps(stats, sort_keys=True) + "\n")
+            finished = step + 1
+            if snapshot_every and finished % int(snapshot_every) == 0 and finished < int(steps):
+                snapshots.append(_snapshot_encoder(model, ckpt_path, finished))
             if stopped_collapse:
                 print(f"perceiver collapsed at step {step}", flush=True)
                 break
@@ -312,6 +326,8 @@ def run_perceiver(
         },
         ckpt_path,
     )
+    if weight_path.exists():
+        raise FileExistsError(weight_path)
     weight_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(model.encoder.state_dict(), str(weight_path))
     losses = [row["loss"] for row in rows]
@@ -342,6 +358,7 @@ def run_perceiver(
         "profile_step": profile,
         "peak_rss_gb": peak_rss_gb(),
         "encoder_path": str(weight_path),
+        "snapshots": snapshots,
         "flops": analytic_perceiver_flops(1, 200),
         "flops_batch": analytic_perceiver_flops(batch, 200),
         "loopear_d_flops": analytic_encoder_flops(1, 201),
@@ -349,10 +366,16 @@ def run_perceiver(
 
 
 def _launch_prepared(which: str, seed: int) -> None:
+    if torch.cuda.is_available():
+        raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
+    torch.set_num_threads(4)
     trainer = _load_d_trainer()
     manifest = load_manifest(Path("data/manifests/fsd50k_loopear_d.json"))
     rows = items_for(manifest, "h20")
     assert_train_rows(rows)
+    digest = sha256_of_ids(rows)
+    if digest != "13c22b307322c88c09710b953c706b9432f800c21ff90bed834bd4eed82bf017":
+        raise SystemExit(f"h20 id sha {digest}")
     missing = [
         row
         for row in rows
@@ -363,6 +386,21 @@ def _launch_prepared(which: str, seed: int) -> None:
             f"{len(missing)} of {len(rows)} 20-hour clips have no mel cache; "
             "this program does not build that cache and does not start the run"
         )
+    if which == "loopear-p":
+        log_path = Path("results/loopear_p_h20_global_5000.jsonl")
+        ckpt_path = Path("checkpoints/loopear_p_h20_global_5000.pt")
+        weight_path = Path("results/loopear_p_h20_global_5000_encoder.safetensors")
+        report_path = Path("results/loopear_p_h20_train.json")
+    elif which == "loopear-d":
+        log_path = Path("results/loopear_d_h20_global_5000.jsonl")
+        ckpt_path = Path("checkpoints/loopear_d_h20_global_5000.pt")
+        weight_path = Path("results/loopear_d_h20_global_5000_encoder.safetensors")
+        report_path = Path("results/loopear_d_h20_train.json")
+    else:
+        raise SystemExit(f"unknown arm {which}")
+    occupied = [path for path in (log_path, ckpt_path, weight_path, report_path) if path.exists()]
+    if occupied:
+        raise SystemExit(f"refusing to overwrite {[str(path) for path in occupied]}")
     cache = trainer._cache(
         manifest,
         "h20",
@@ -370,30 +408,64 @@ def _launch_prepared(which: str, seed: int) -> None:
         Path("data/manifests/loopear_d_frontend.json"),
         None,
     )
+    ledger = SpendLedger(Path("ledger/loopear_h20_spend.jsonl"), cap_usd=0.0)
+    ledger.record(which, "cpu", 0.0, "no paid GPU")
+    config = {
+        "model": which,
+        "subset": "h20",
+        "steps": 5000,
+        "batch": 64,
+        "seed": seed,
+        "objective": "global",
+        "lambda_local": 0.0,
+        "snapshot_every": 1000,
+    }
     if which == "loopear-p":
-        run_perceiver(
+        trained = run_perceiver(
             cache,
             5000,
             64,
             seed,
-            Path("results/loopear_p_h20_global_5000.jsonl"),
-            Path("checkpoints/loopear_p_h20_global_5000.pt"),
-            Path("results/loopear_p_h20_global_5000_encoder.safetensors"),
+            log_path,
+            ckpt_path,
+            weight_path,
             "loopear_p_h20_global_5000",
-            {"model": "loopear-p", "subset": "h20", "steps": 5000, "batch": 64, "seed": seed, "objective": "global"},
+            config,
+            snapshot_every=1000,
         )
-        return
-    trainer.run_arm(
-        cache,
-        "global",
-        5000,
-        64,
-        seed,
-        Path("results/loopear_d_h20_global_5000.jsonl"),
-        Path("checkpoints/loopear_d_h20_global_5000.pt"),
-        "loopear_d_h20_global_5000",
-        {"model": "loopear-d", "subset": "h20", "steps": 5000, "batch": 64, "seed": seed, "objective": "global"},
-    )
+    else:
+        trained = trainer.run_arm(
+            cache,
+            "global",
+            5000,
+            64,
+            seed,
+            log_path,
+            ckpt_path,
+            "loopear_d_h20_global_5000",
+            config,
+            snapshot_every=1000,
+        )
+        trained["crop_presentations"] = int(trained["steps"]) * 64
+        trained["presented_crop_hours"] = hours(trained["crop_presentations"] * CROP_SECONDS)
+        trained["batch_recordings"] = 64
+        trained["negatives_per_anchor"] = 126
+    report = {
+        "task": "loopear_h20_train",
+        "model": which,
+        "gpu_usd": 0.0,
+        "dataset_clips": len(rows),
+        "dataset_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
+        "dataset_id_sha256": digest,
+        "lambda_local": 0.0,
+        "objective": "global",
+        "equal_compute_extension": False,
+        "run": trained,
+        "fsd50k_test_audio_read": False,
+        "sealed_realdesed_test_read": False,
+    }
+    write_result_json(report_path, report)
+    print(json.dumps({"wrote": str(report_path), "steps": trained.get("steps"), "gpu_usd": 0.0}))
 
 
 def main() -> None:

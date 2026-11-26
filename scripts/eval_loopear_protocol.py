@@ -1,3 +1,4 @@
+import argparse
 import importlib.util
 import json
 import os
@@ -17,13 +18,15 @@ from loopear.d.frontend import build_mel, load_frontend_config, normalize_logmel
 from loopear.d.fsd import audio_path, items_for, load_manifest, rank_eligible
 from loopear.d.loop import init_model
 from loopear.d.objective import broadcast_time_valid, patch_valid_from_frames
-from loopear.d.perceiver import LoopEarPEncoder
+from loopear.d.perceiver import LoopEarPEncoder, init_perceiver
 from loopear.d.probe import fit_linear_probe, fixed_project, logmel_stats, macro_average_precision
 from loopear.d.protocol import (
     clip_window_starts,
+    coordinate_pool,
     crop_energy_profile,
     event_window_starts,
     few_example_classes,
+    fourier_coordinates,
     mean_pearson,
     starss_keep,
     tag_class_names,
@@ -253,17 +256,19 @@ def _unseen_primary(train_rows: list[dict[str, Any]], val_rows: list[dict[str, A
 
 def _encode_fsd(rows, models, helpers, mean, std, mel_bank) -> dict[str, Any]:
     n = len(rows)
+    has_k1 = models.get("d_k1") is not None
     names = {
         "d_global_cls": D_MODEL,
         "d_global_patch": D_MODEL,
-        "d_k1_cls": D_MODEL,
-        "d_k1_patch": D_MODEL,
         "p_summary": D_MODEL,
         "p_latents": 32 * D_MODEL,
         "usad": None,
         "efficientat": None,
         "dsp": N_MELS * 2,
     }
+    if has_k1:
+        names["d_k1_cls"] = D_MODEL
+        names["d_k1_patch"] = D_MODEL
     sums = {key: None for key in names}
     counts = np.zeros(n, dtype=np.float64)
     center = {
@@ -274,6 +279,7 @@ def _encode_fsd(rows, models, helpers, mean, std, mel_bank) -> dict[str, Any]:
         "d_k1_cls": np.zeros((n, D_MODEL), dtype=np.float32),
         "p_summary": np.zeros((n, D_MODEL), dtype=np.float32),
         "p_latents": np.zeros((n, 32 * D_MODEL), dtype=np.float32),
+        "p_random": np.zeros((n, 32 * D_MODEL), dtype=np.float32),
         "usad_mean": None,
         "usad_local": None,
         "eat_mean": None,
@@ -309,19 +315,25 @@ def _encode_fsd(rows, models, helpers, mean, std, mel_bank) -> dict[str, Any]:
             return
         with torch.inference_mode():
             g_grid, g_cls = models["d_global"].encoder(mel, visible)
-            k_grid, k_cls = models["d_k1"].encoder(mel, visible)
+            k_grid = k_cls = None
+            if has_k1:
+                k_grid, k_cls = models["d_k1"].encoder(mel, visible)
             latents, summary = models["p"](mel, visible)
+            random_latents = None
+            if models.get("p_random") is not None:
+                random_latents, _random_summary = models["p_random"](mel, visible)
         g_patch = []
         k_patch = []
         for index in range(mel.shape[0]):
             g_tok = g_grid[index][visible[index]]
-            k_tok = k_grid[index][visible[index]]
             g_patch.append(g_tok.mean(dim=0) if g_tok.shape[0] else torch.zeros(D_MODEL))
-            k_patch.append(k_tok.mean(dim=0) if k_tok.shape[0] else torch.zeros(D_MODEL))
+            if has_k1:
+                k_tok = k_grid[index][visible[index]]
+                k_patch.append(k_tok.mean(dim=0) if k_tok.shape[0] else torch.zeros(D_MODEL))
         g_patch_t = torch.stack(g_patch)
-        k_patch_t = torch.stack(k_patch)
+        k_patch_t = torch.stack(k_patch) if has_k1 else None
         g_local = _time_bins(g_grid, visible)
-        k_local = _time_bins(k_grid, visible)
+        k_local = _time_bins(k_grid, visible) if has_k1 else None
         dsp = logmel_stats(mel, valid)
         waves = [item["wave"] for item in pending]
         u_means, u_frames = helpers._usad_forward(models["usad"], waves, with_frames=True)
@@ -340,12 +352,13 @@ def _encode_fsd(rows, models, helpers, mean, std, mel_bank) -> dict[str, Any]:
         packed = {
             "d_global_cls": g_cls,
             "d_global_patch": g_patch_t,
-            "d_k1_cls": k_cls,
-            "d_k1_patch": k_patch_t,
             "p_summary": summary,
             "p_latents": latents.reshape(latents.shape[0], -1),
             "dsp": dsp,
         }
+        if has_k1:
+            packed["d_k1_cls"] = k_cls
+            packed["d_k1_patch"] = k_patch_t
         for local, item in enumerate(pending):
             owner = int(item["owner"])
             counts[owner] += 1.0
@@ -357,11 +370,14 @@ def _encode_fsd(rows, models, helpers, mean, std, mel_bank) -> dict[str, Any]:
                 center["full"][owner] = True
                 center["profile"][owner] = crop_energy_profile(item["norm"]).numpy()
                 center["d_global_local"][owner] = g_local[local].detach().float().cpu().numpy()
-                center["d_k1_local"][owner] = k_local[local].detach().float().cpu().numpy()
                 center["d_global_cls"][owner] = g_cls[local].detach().float().cpu().numpy()
-                center["d_k1_cls"][owner] = k_cls[local].detach().float().cpu().numpy()
+                if has_k1:
+                    center["d_k1_local"][owner] = k_local[local].detach().float().cpu().numpy()
+                    center["d_k1_cls"][owner] = k_cls[local].detach().float().cpu().numpy()
                 center["p_summary"][owner] = summary[local].detach().float().cpu().numpy()
                 center["p_latents"][owner] = latents[local].reshape(-1).detach().float().cpu().numpy()
+                if random_latents is not None:
+                    center["p_random"][owner] = random_latents[local].reshape(-1).detach().float().cpu().numpy()
                 center["dsp"][owner] = dsp[local].detach().float().cpu().numpy()
                 if center["usad_mean"] is None:
                     center["usad_mean"] = np.zeros((n, usad_dim), dtype=np.float32)
@@ -436,7 +452,6 @@ def _fidelity_block(encoded: dict[str, Any], n_train: int) -> dict[str, Any]:
     }
     global_features = {
         "loopear_d_global_cls": encoded["center"]["d_global_cls"],
-        "loopear_d_k1_cls": encoded["center"]["d_k1_cls"],
         "loopear_p_summary": encoded["center"]["p_summary"],
         "loopear_p_latents": encoded["center"]["p_latents"],
         "usad2_small": encoded["center"]["usad_mean"],
@@ -445,10 +460,12 @@ def _fidelity_block(encoded: dict[str, Any], n_train: int) -> dict[str, Any]:
     }
     local_features = {
         "loopear_d_global_time": encoded["center"]["d_global_local"],
-        "loopear_d_k1_time": encoded["center"]["d_k1_local"],
         "usad2_small_time": encoded["center"]["usad_local"],
         "efficientat_mn04_as_time": encoded["center"]["eat_local"],
     }
+    if "d_k1_cls" in encoded["means"]:
+        global_features["loopear_d_k1_cls"] = encoded["center"]["d_k1_cls"]
+        local_features["loopear_d_k1_time"] = encoded["center"]["d_k1_local"]
     for name, matrix in global_features.items():
         x_train = fixed_project(torch.from_numpy(matrix[train_idx]), D_MODEL, SEED)
         x_val = fixed_project(torch.from_numpy(matrix[val_idx]), D_MODEL, SEED)
@@ -569,7 +586,9 @@ def _starss(models, helpers, mean, std, mel_bank) -> dict[str, Any]:
             wave = torch.from_numpy(np.ascontiguousarray(wav[sample : sample + CROP_SAMPLES]))
             with torch.inference_mode():
                 grid, cls = models["d_global"].encoder(norm.unsqueeze(0), visible)
-                k_grid, k_cls = models["d_k1"].encoder(norm.unsqueeze(0), visible)
+                k_grid = None
+                if models.get("d_k1") is not None:
+                    k_grid, _k_cls = models["d_k1"].encoder(norm.unsqueeze(0), visible)
                 _latents, summary = models["p"](norm.unsqueeze(0), visible)
             _u_means, u_frames = helpers._usad_forward(models["usad"], [wave], with_frames=True)
             _e_means, e_frames, _observed = helpers._eat_forward(
@@ -591,16 +610,16 @@ def _starss(models, helpers, mean, std, mel_bank) -> dict[str, Any]:
                 {
                     "d_global_time": grid[0].mean(dim=1).detach().float().cpu(),
                     "d_global_cls": cls[0].detach().float().cpu().unsqueeze(0).expand(GRID_T, D_MODEL).contiguous(),
-                    "d_k1_time": k_grid[0].mean(dim=1).detach().float().cpu(),
                     "p_summary": summary[0].detach().float().cpu().unsqueeze(0).expand(GRID_T, D_MODEL).contiguous(),
                     "usad": u_frames[0].detach().float().cpu(),
                     "efficientat": e_frames[0].detach().float().cpu(),
                     "dsp": dsp.detach().float().cpu(),
                     "y": labels,
                     "cls_anchor": cls[0].detach().float().cpu(),
-                    "k_cls_anchor": k_cls[0].detach().float().cpu(),
                 }
             )
+            if k_grid is not None:
+                windows[-1]["d_k1_time"] = k_grid[0].mean(dim=1).detach().float().cpu()
         clips.append({"id": row["id"], "split": row["split"], "group": row["group_id"], "windows": windows})
         print(f"starss {row['id']} windows {len(windows)}", flush=True)
     train_clips = [clip for clip in clips if clip["split"] == "train"]
@@ -624,15 +643,9 @@ def _starss(models, helpers, mean, std, mel_bank) -> dict[str, Any]:
     y_probe_train = None
     y_val = None
     per_model = {}
-    keys = (
-        "d_global_time",
-        "d_global_cls",
-        "d_k1_time",
-        "p_summary",
-        "usad",
-        "efficientat",
-        "dsp",
-    )
+    keys = ["d_global_time", "d_global_cls", "p_summary", "usad", "efficientat", "dsp"]
+    if models.get("d_k1") is not None:
+        keys.insert(2, "d_k1_time")
     window_labels = None
     for key in keys:
         x_train, y_train, files_tr, _train_windows = _collect(train_clips, key)
@@ -692,7 +705,86 @@ def _starss(models, helpers, mean, std, mel_bank) -> dict[str, Any]:
     }
 
 
+def _fit_per_bin(tokens_train: torch.Tensor, y_train: torch.Tensor, tokens_val: torch.Tensor, seed: int) -> tuple[np.ndarray, int]:
+    torch.manual_seed(seed)
+    weight = torch.nn.Parameter(torch.empty(int(tokens_train.shape[1]), int(tokens_train.shape[-1])))
+    torch.nn.init.xavier_uniform_(weight)
+    bias = torch.nn.Parameter(torch.zeros(int(tokens_train.shape[1])))
+    opt = torch.optim.AdamW([weight, bias], lr=PROBE_LR, weight_decay=0.0)
+    for _ in range(PROBE_STEPS):
+        opt.zero_grad(set_to_none=True)
+        pred = (tokens_train * weight).sum(dim=-1) + bias
+        loss = F.mse_loss(pred, y_train)
+        loss.backward()
+        opt.step()
+    with torch.no_grad():
+        pred = ((tokens_val * weight).sum(dim=-1) + bias).numpy()
+    return pred, int(weight.numel() + bias.numel())
+
+
+def _coordinate_block(encoded: dict[str, Any], n_train: int) -> dict[str, Any]:
+    full = encoded["center"]["full"]
+    train_idx = np.where(full[:n_train])[0]
+    val_idx = np.where(full[n_train:])[0] + n_train
+    target_train = torch.from_numpy(encoded["center"]["profile"][train_idx])
+    target_val = torch.from_numpy(encoded["center"]["profile"][val_idx])
+    coords = fourier_coordinates(PROFILE_BINS, D_MODEL)
+
+    def _from_latents(flat: np.ndarray) -> torch.Tensor:
+        latents = torch.from_numpy(flat).view(-1, 32, D_MODEL)
+        return coordinate_pool(latents, coords)
+
+    sources = {
+        "trained_perceiver": _from_latents(encoded["center"]["p_latents"]),
+        "random_init_perceiver": _from_latents(encoded["center"]["p_random"]),
+        "loopear_d_time_bins": torch.from_numpy(encoded["center"]["d_global_local"]),
+    }
+    out = {
+        "equal_compute_extension": False,
+        "trained_steps": None,
+        "question": "Can a frozen coordinate-conditioned readout recover the 10-bin log-mel profile from Perceiver latents?",
+        "coordinate": "fixed Fourier features of the bin index, then a parameter-free attention pool over the 32 latents",
+        "shared_linear_params": D_MODEL + 1,
+        "per_bin_linear_params": PROFILE_BINS * D_MODEL + PROFILE_BINS,
+        "random_init": "LoopEar-P encoder at seed 42 before any optimizer step",
+        "time_explicit_control": "the same two heads on LoopEar-D time bins, which already index time",
+        "models": {},
+    }
+    for name, tokens in sources.items():
+        train_tokens = tokens[train_idx]
+        val_tokens = tokens[val_idx]
+        shared = _fit_shared(train_tokens, target_train, val_tokens, SEED)
+        per_bin, per_params = _fit_per_bin(train_tokens, target_train, val_tokens, SEED)
+        out["models"][name] = {
+            "shared_linear": {"params": D_MODEL + 1, **mean_pearson(shared, target_val.numpy())},
+            "per_bin_linear": {"params": per_params, **mean_pearson(per_bin, target_val.numpy())},
+        }
+    trained = out["models"]["trained_perceiver"]["per_bin_linear"]["mean_r"]
+    random_r = out["models"]["random_init_perceiver"]["per_bin_linear"]["mean_r"]
+    explicit = out["models"]["loopear_d_time_bins"]["per_bin_linear"]["mean_r"]
+    shared_trained = out["models"]["trained_perceiver"]["shared_linear"]["mean_r"]
+    shared_explicit = out["models"]["loopear_d_time_bins"]["shared_linear"]["mean_r"]
+    out["reading"] = {
+        "shared_budget_matches_the_time_bin_head": True,
+        "per_bin_budget": PROFILE_BINS * D_MODEL + PROFILE_BINS,
+        "trained_minus_random_per_bin": None if trained is None or random_r is None else float(trained - random_r),
+        "explicit_minus_trained_per_bin": None if explicit is None or trained is None else float(explicit - trained),
+        "explicit_minus_trained_shared": None
+        if shared_explicit is None or shared_trained is None
+        else float(shared_explicit - shared_trained),
+    }
+    return out
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--d-global", default="results/loopear_d_cmp_global_encoder.safetensors")
+    parser.add_argument("--d-k1", default="results/loopear_d_k1_encoder.safetensors")
+    parser.add_argument("--p", default="results/loopear_p_encoder.safetensors")
+    parser.add_argument("--skip-k1", action="store_true")
+    parser.add_argument("--coordinate", action="store_true")
+    parser.add_argument("--report", default="results/loopear_protocol.json")
+    args = parser.parse_args()
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
     torch.set_num_threads(4)
@@ -719,13 +811,20 @@ def main() -> None:
     eat, eat_mel, eat_params = helpers._load_efficientat(code, ckpt)
     usad, _dtype = load_usad2_extractor("cpu")
     models = {
-        "d_global": _load_d(Path("results/loopear_d_cmp_global_encoder.safetensors")),
-        "d_k1": _load_d(Path("results/loopear_d_k1_encoder.safetensors")),
-        "p": _load_p(Path("results/loopear_p_encoder.safetensors")),
+        "d_global": _load_d(Path(args.d_global)),
+        "p": _load_p(Path(args.p)),
         "usad": usad,
         "eat": eat,
         "eat_mel": eat_mel,
     }
+    if not args.skip_k1:
+        models["d_k1"] = _load_d(Path(args.d_k1))
+    if args.coordinate:
+        random_model = init_perceiver(SEED)
+        random_model.eval()
+        for param in random_model.parameters():
+            param.requires_grad = False
+        models["p_random"] = random_model.encoder
     mel_bank = build_mel()
     rows = train_rows + val_rows
     print(f"encoding {len(train_rows)} development clips and {len(val_rows)} val clips", flush=True)
@@ -736,14 +835,15 @@ def main() -> None:
     tag_features = {
         "loopear_d_global_cls": encoded["means"]["d_global_cls"],
         "loopear_d_global_patch_mean": encoded["means"]["d_global_patch"],
-        "loopear_d_k1_cls": encoded["means"]["d_k1_cls"],
-        "loopear_d_k1_patch_mean": encoded["means"]["d_k1_patch"],
         "loopear_p_summary": encoded["means"]["p_summary"],
         "loopear_p_latents": encoded["means"]["p_latents"],
         "efficientat_mn04_as": encoded["means"]["efficientat"],
         "usad2_small": encoded["means"]["usad"],
         "dsp": encoded["means"]["dsp"],
     }
+    if "d_k1_cls" in encoded["means"]:
+        tag_features["loopear_d_k1_cls"] = encoded["means"]["d_k1_cls"]
+        tag_features["loopear_d_k1_patch_mean"] = encoded["means"]["d_k1_patch"]
     tag = {}
     n_train = len(train_rows)
     for name, matrix in tag_features.items():
@@ -764,6 +864,9 @@ def main() -> None:
     print("fidelity", {key: value.get("mean_r") for key, value in fidelity.items() if isinstance(value, dict)}, flush=True)
     few = _few_block(train_rows, val_rows, tag_features)
     print("few-example", few.get("status"), few.get("n_classes"), flush=True)
+    coordinate = _coordinate_block(encoded, n_train) if args.coordinate else None
+    if coordinate is not None:
+        print("coordinate", {name: row["per_bin_linear"]["mean_r"] for name, row in coordinate["models"].items()}, flush=True)
     full_val = [row for row in manifest["items"] if row["split"] == "val"]
     starss = _starss(models, helpers, mean, std, mel_bank)
     fmap_time = int(encoded["native"]["fmap_time"] or 0)
@@ -777,7 +880,15 @@ def main() -> None:
         "manifest_rewritten": False,
         "fsd50k_test_audio_read": False,
         "sealed_realdesed_test_read": False,
-        "h20_plan_launched": False,
+        "h20_plan_file_rewritten": False,
+        "h20_5000_step_runs_finished": Path(args.d_global).name == "loopear_d_h20_global_5000_encoder.safetensors",
+        "equal_compute_extension": False,
+        "encoders": {
+            "d_global": args.d_global,
+            "d_k1": None if args.skip_k1 else args.d_k1,
+            "p": args.p,
+            "coordinate_random_init": bool(args.coordinate),
+        },
         "development": {
             "clips": len(train_rows),
             "hours": 5.0007959164265126,
@@ -802,6 +913,7 @@ def main() -> None:
             "models": tag,
         },
         "acoustic_fidelity": fidelity,
+        "coordinate_readout": coordinate,
         "few_example": few,
         "unseen_primary_six_clip_rule": {
             "scored": False,
@@ -822,7 +934,10 @@ def main() -> None:
         "cpu_hours": hours(cpu_seconds() - t0),
         "peak_rss_gb": peak_rss_gb(),
     }
-    path = write_result_json(Path("results/loopear_protocol.json"), payload)
+    report_path = Path(args.report)
+    if report_path.exists():
+        raise SystemExit(f"refusing to overwrite {report_path}")
+    path = write_result_json(report_path, payload)
     print(json.dumps({"wrote": str(path), "gpu_usd": 0.0, "cpu_hours": payload["cpu_hours"]}))
 
 

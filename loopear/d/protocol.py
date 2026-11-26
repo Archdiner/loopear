@@ -1,8 +1,28 @@
+import math
 from collections import defaultdict
 from typing import Any
 
 import numpy as np
 import torch
+
+
+def fourier_coordinates(n_bins: int, dim: int) -> torch.Tensor:
+    if int(dim) % 2 != 0:
+        raise ValueError("coordinate dim must be even")
+    half = int(dim) // 2
+    position = torch.arange(int(n_bins), dtype=torch.float32).unsqueeze(1)
+    rate = torch.exp(-torch.arange(half, dtype=torch.float32) * (math.log(10000.0) / max(half, 1)))
+    angle = position * rate.unsqueeze(0)
+    return torch.cat([torch.sin(angle), torch.cos(angle)], dim=1)
+
+
+def coordinate_pool(latents: torch.Tensor, coords: torch.Tensor) -> torch.Tensor:
+    if latents.ndim != 3 or coords.ndim != 2 or latents.shape[-1] != coords.shape[-1]:
+        raise ValueError("latents must be [batch, latents, dim] and coords [bins, dim]")
+    scale = float(latents.shape[-1]) ** -0.5
+    scores = torch.matmul(latents, coords.transpose(0, 1)) * scale
+    weights = torch.softmax(scores, dim=1)
+    return torch.einsum("bmk,bmd->bkd", weights, latents)
 
 
 def clip_window_starts(n_frames: int, crop: int, max_windows: int) -> tuple[list[int], int]:

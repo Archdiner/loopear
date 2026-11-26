@@ -3,9 +3,11 @@ import torch
 
 from loopear.d.protocol import (
     clip_window_starts,
+    coordinate_pool,
     crop_energy_profile,
     event_window_starts,
     few_example_classes,
+    fourier_coordinates,
     mean_pearson,
     starss_keep,
     tag_class_names,
@@ -81,6 +83,21 @@ def test_starss_requires_positives_on_both_sides():
     assert keep.tolist() == [True, False]
     assert detail[1]["train_positive_files"] == 0
     assert detail[1]["scored"] is False
+
+
+def test_coordinate_pool_follows_a_matching_latent():
+    coords = fourier_coordinates(10, 96)
+    assert coords.shape == (10, 96)
+    assert torch.isfinite(coords).all()
+    assert not torch.allclose(coords[0], coords[1])
+    latents = torch.zeros(2, 4, 96)
+    latents[:, 0] = coords[3] * 20
+    pooled = coordinate_pool(latents, coords)
+    assert pooled.shape == (2, 10, 96)
+    assert torch.allclose(pooled[:, 3], coords[3].expand(2, 96) * 20, atol=1e-3)
+    flat = torch.ones(1, 4, 96)
+    uniform = coordinate_pool(flat, coords)
+    assert torch.allclose(uniform[0], torch.ones(10, 96), atol=1e-5)
 
 
 def test_event_windows_cover_the_class_and_stay_inside_the_file():

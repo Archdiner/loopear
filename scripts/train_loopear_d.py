@@ -79,6 +79,15 @@ def _collapsed(stats: dict[str, Any]) -> bool:
     return bool(stats["cls"]["collapsed"] or stats["patch_mean"]["collapsed"] or not stats["cls"]["finite"])
 
 
+def _snapshot_encoder(model, ckpt_path: Path, step: int) -> str:
+    path = Path("results") / f"{ckpt_path.stem}_step{int(step)}_encoder.safetensors"
+    if path.exists():
+        raise FileExistsError(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(model.encoder.state_dict(), str(path))
+    return str(path)
+
+
 def run_arm(
     cache: MelCache,
     objective: str,
@@ -90,6 +99,7 @@ def run_arm(
     run_id: str,
     config: dict[str, Any],
     deadline: datetime | None = None,
+    snapshot_every: int | None = None,
 ) -> dict[str, Any]:
     if objective == "random":
         model = init_model(seed)
@@ -111,6 +121,7 @@ def run_arm(
     t0 = time.perf_counter()
     cpu0 = cpu_seconds()
     rows = []
+    snapshots: list[str] = []
     stopped_early = False
     stopped_collapse = False
     with log_path.open("w", encoding="utf-8") as handle:
@@ -139,6 +150,9 @@ def run_arm(
                     stopped_collapse = True
             rows.append(stats)
             handle.write(json.dumps(stats, sort_keys=True) + "\n")
+            finished = step + 1
+            if snapshot_every and finished % int(snapshot_every) == 0 and finished < int(steps):
+                snapshots.append(_snapshot_encoder(model, ckpt_path, finished))
             if stopped_collapse:
                 print(f"{objective} collapsed at step {step}", flush=True)
                 break
@@ -169,6 +183,8 @@ def run_arm(
     ckpt_path.parent.mkdir(parents=True, exist_ok=True)
     save_checkpoint(str(ckpt_path), model, opt, done, int(steps), objective, config)
     weight_path = Path("results") / f"{ckpt_path.stem}_encoder.safetensors"
+    if weight_path.exists():
+        raise FileExistsError(weight_path)
     weight_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(model.encoder.state_dict(), str(weight_path))
     losses = [row["loss"] for row in rows]
@@ -192,6 +208,7 @@ def run_arm(
         "peak_rss_gb": peak_rss_gb(),
         "checkpoint": str(ckpt_path),
         "encoder_weights": str(weight_path),
+        "snapshots": snapshots,
         "log": str(log_path),
     }
 
