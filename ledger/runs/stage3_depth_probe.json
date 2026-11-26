@@ -1,0 +1,14 @@
+{
+  "config": {
+    "batch_size": 16,
+    "cloud_gpu_spend_usd": 0.0,
+    "epochs": 8,
+    "lr": 0.0008,
+    "seed": 42,
+    "stage": "stage3_depth_probe",
+    "steps_per_epoch": 28
+  },
+  "config_sha256": "b667e772a7ea92572d6cc4ceba05db7baffe48421795ae042ffd31488442712d",
+  "created_utc": "2026-11-26T02:46:14.199097+00:00",
+  "run_id": "stage3_depth_probe"
+}

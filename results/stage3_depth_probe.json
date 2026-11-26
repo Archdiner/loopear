@@ -1,0 +1,418 @@
+{
+  "fixed_baselines": {
+    "A_ml": {
+      "arm": "A_ml",
+      "checkpoint": "/tmp/stage2_ckpts/A_ml_s42.pt",
+      "checkpoint_sha256": "c4a91097c2c73d641c30b5f0e478c73c1109e0d4e536729fb8d3e341bc85001f",
+      "dev": {
+        "ami_1_minus_eer": 0.7302,
+        "composite": 0.6342,
+        "dipco_macro_f1": 0.6681,
+        "onset_f1_100ms": 0.1223,
+        "onset_f1_200ms": 0.1552,
+        "onset_f1_60ms": 0.1087,
+        "realdesed_macro_map": 0.5944,
+        "starss23_macro_map": 0.5442
+      },
+      "retrained": false,
+      "seed": 42,
+      "source": "results/stage2_multilayer_halting.json per_seed_runs seed 42",
+      "transfer": {
+        "crema_d": {
+          "emotion": {
+            "acc": 0.6514,
+            "chance_uniform": 0.1667,
+            "macro_f1": 0.6473,
+            "shuffled_acc": 0.1764,
+            "shuffled_macro_f1": 0.1747
+          },
+          "speaker_1_minus_eer": 0.6038,
+          "speaker_eer": 0.3962
+        },
+        "maestro_real": {
+          "macro_map": 0.5185,
+          "micro_f1": 0.7734,
+          "n_eval_classes": 9,
+          "shuffled_macro_map": 0.1146
+        },
+        "vocalset": {
+          "acc": 0.7963,
+          "chance_uniform": 0.1,
+          "macro_f1": 0.7815,
+          "shuffled_acc": 0.213,
+          "shuffled_macro_f1": 0.1816
+        }
+      },
+      "transfer_composite": 0.6425
+    },
+    "B_comp_ml": {
+      "arm": "B_comp_ml",
+      "checkpoint": "/tmp/stage2_ckpts/B_comp_ml_s42.pt",
+      "checkpoint_sha256": "4a1e63e837beef45d184e765d33a1177a73b3f2776a984012886ea364da24043",
+      "dev": {
+        "ami_1_minus_eer": 0.732,
+        "composite": 0.666,
+        "dipco_macro_f1": 0.6959,
+        "onset_f1_100ms": 0.1946,
+        "onset_f1_200ms": 0.2445,
+        "onset_f1_60ms": 0.1693,
+        "realdesed_macro_map": 0.6492,
+        "starss23_macro_map": 0.5868
+      },
+      "retrained": false,
+      "seed": 42,
+      "source": "results/stage2_multilayer_halting.json per_seed_runs seed 42",
+      "transfer": {
+        "crema_d": {
+          "emotion": {
+            "acc": 0.6278,
+            "chance_uniform": 0.1667,
+            "macro_f1": 0.6217,
+            "shuffled_acc": 0.1486,
+            "shuffled_macro_f1": 0.1489
+          },
+          "speaker_1_minus_eer": 0.623,
+          "speaker_eer": 0.377
+        },
+        "maestro_real": {
+          "macro_map": 0.4734,
+          "micro_f1": 0.7569,
+          "n_eval_classes": 9,
+          "shuffled_macro_map": 0.1227
+        },
+        "vocalset": {
+          "acc": 0.7315,
+          "chance_uniform": 0.1,
+          "macro_f1": 0.7225,
+          "shuffled_acc": 0.1759,
+          "shuffled_macro_f1": 0.1671
+        }
+      },
+      "transfer_composite": 0.6139
+    }
+  },
+  "gate": {
+    "dev_composite_k1": 0.6239,
+    "dev_composite_k4": 0.6287,
+    "dev_composite_k4_minus_k1": 0.0048,
+    "k4_beats_k1_dev_composite": true,
+    "k4_beats_k1_onset_f1_100ms": true,
+    "k4_does_not_lose_transfer_composite": true,
+    "onset_f1_100ms_k1": 0.0534,
+    "onset_f1_100ms_k4": 0.054,
+    "onset_f1_100ms_k4_minus_k1": 0.0006,
+    "passed": true,
+    "shuffled_probes_near_chance": true,
+    "transfer_composite_k1": 0.6381,
+    "transfer_composite_k4": 0.64,
+    "transfer_composite_k4_minus_k1": 0.0019
+  },
+  "method": {
+    "arm": "E_depth_probe",
+    "batch_size": 16,
+    "cloud_gpu_spend_usd": 0.0,
+    "depths": [
+      1,
+      2,
+      4
+    ],
+    "epochs": 8,
+    "fullrate_residual": "event and STARSS logits are a 50 Hz linear on stem features plus a depthwise 50 Hz residual conditioned by the pooled refined state",
+    "lr": 0.0008,
+    "monotonic_penalty": "relu(loss_k - loss_k1.detach()) on event, starss, overlap, and speaker",
+    "realdesed_test": "sealed",
+    "seed": 42,
+    "selection": "best k=4 dev composite",
+    "steps_per_epoch": 28,
+    "stopgrad_k1_target": true,
+    "stride": 8
+  },
+  "payload_sha256": "ad45a9c7d83d329037e195860037a388fe71abf12fac2ca97aa47acc5b12b2ed",
+  "probe": {
+    "best_epoch": 8,
+    "checkpoint": "checkpoints/stage3_depth_probe.pt",
+    "history": [
+      {
+        "epoch": 1,
+        "k4_minus_k1_composite": 0.002,
+        "lr": 0.0008,
+        "monotonic_penalty": 0.0747,
+        "train_loss": 26.374,
+        "val_composite_k1": 0.4467,
+        "val_composite_k4": 0.4487
+      },
+      {
+        "epoch": 2,
+        "k4_minus_k1_composite": -0.0094,
+        "lr": 0.000762,
+        "monotonic_penalty": 0.0896,
+        "train_loss": 17.5075,
+        "val_composite_k1": 0.5395,
+        "val_composite_k4": 0.5301
+      },
+      {
+        "epoch": 3,
+        "lr": 0.000657,
+        "monotonic_penalty": 0.0421,
+        "train_loss": 12.8583
+      },
+      {
+        "epoch": 4,
+        "k4_minus_k1_composite": 0.0036,
+        "lr": 0.000505,
+        "monotonic_penalty": 0.0401,
+        "train_loss": 10.5663,
+        "val_composite_k1": 0.5984,
+        "val_composite_k4": 0.6021
+      },
+      {
+        "epoch": 5,
+        "lr": 0.000335,
+        "monotonic_penalty": 0.0383,
+        "train_loss": 9.1665
+      },
+      {
+        "epoch": 6,
+        "k4_minus_k1_composite": 0.0006,
+        "lr": 0.000183,
+        "monotonic_penalty": 0.0154,
+        "train_loss": 7.6205,
+        "val_composite_k1": 0.6188,
+        "val_composite_k4": 0.6194
+      },
+      {
+        "epoch": 7,
+        "lr": 7.8e-05,
+        "monotonic_penalty": 0.0133,
+        "train_loss": 6.9525
+      },
+      {
+        "epoch": 8,
+        "k4_minus_k1_composite": 0.0048,
+        "lr": 4e-05,
+        "monotonic_penalty": 0.0036,
+        "train_loss": 6.1916,
+        "val_composite_k1": 0.6239,
+        "val_composite_k4": 0.6287
+      }
+    ],
+    "metrics_by_k": {
+      "1": {
+        "ami_1_minus_eer": 0.7202,
+        "ami_eer": 0.2798,
+        "composite": 0.6239,
+        "composite_raw": 0.6239186051524741,
+        "dipco_macro_f1": 0.6768,
+        "onset_f1_100ms_raw": 0.0534,
+        "realdesed_macro_map": 0.574,
+        "starss23_macro_map": 0.5247,
+        "timing_mean": {
+          "boundary_f1_100ms": 0.5859,
+          "boundary_f1_60ms": 0.5679,
+          "interior_f1": 0.6449,
+          "onset_f1_100ms": 0.0534,
+          "onset_f1_200ms": 0.0654,
+          "onset_f1_60ms": 0.0456
+        },
+        "timing_realdesed": {
+          "boundary_f1_100ms": 0.5484,
+          "boundary_f1_60ms": 0.5297,
+          "interior_f1": 0.6127,
+          "onset_f1_100ms": 0.0412,
+          "onset_f1_200ms": 0.0511,
+          "onset_f1_60ms": 0.0356
+        },
+        "timing_starss23": {
+          "boundary_f1_100ms": 0.6235,
+          "boundary_f1_60ms": 0.6061,
+          "interior_f1": 0.677,
+          "onset_f1_100ms": 0.0656,
+          "onset_f1_200ms": 0.0796,
+          "onset_f1_60ms": 0.0557
+        },
+        "window_f1_mean": 0.6507
+      },
+      "2": {
+        "ami_1_minus_eer": 0.738,
+        "ami_eer": 0.262,
+        "composite": 0.6294,
+        "composite_raw": 0.6294026451799251,
+        "dipco_macro_f1": 0.6714,
+        "onset_f1_100ms_raw": 0.05405,
+        "realdesed_macro_map": 0.5819,
+        "starss23_macro_map": 0.5263,
+        "timing_mean": {
+          "boundary_f1_100ms": 0.5856,
+          "boundary_f1_60ms": 0.5695,
+          "interior_f1": 0.6473,
+          "onset_f1_100ms": 0.0541,
+          "onset_f1_200ms": 0.0648,
+          "onset_f1_60ms": 0.0471
+        },
+        "timing_realdesed": {
+          "boundary_f1_100ms": 0.5547,
+          "boundary_f1_60ms": 0.5374,
+          "interior_f1": 0.6183,
+          "onset_f1_100ms": 0.0428,
+          "onset_f1_200ms": 0.0503,
+          "onset_f1_60ms": 0.0371
+        },
+        "timing_starss23": {
+          "boundary_f1_100ms": 0.6165,
+          "boundary_f1_60ms": 0.6015,
+          "interior_f1": 0.6763,
+          "onset_f1_100ms": 0.0653,
+          "onset_f1_200ms": 0.0792,
+          "onset_f1_60ms": 0.0572
+        },
+        "window_f1_mean": 0.6486
+      },
+      "4": {
+        "ami_1_minus_eer": 0.7441,
+        "ami_eer": 0.2559,
+        "composite": 0.6287,
+        "composite_raw": 0.6286916271931773,
+        "dipco_macro_f1": 0.6631,
+        "onset_f1_100ms_raw": 0.054000000000000006,
+        "realdesed_macro_map": 0.5849,
+        "starss23_macro_map": 0.5226,
+        "timing_mean": {
+          "boundary_f1_100ms": 0.5799,
+          "boundary_f1_60ms": 0.5656,
+          "interior_f1": 0.6434,
+          "onset_f1_100ms": 0.054,
+          "onset_f1_200ms": 0.0648,
+          "onset_f1_60ms": 0.0479
+        },
+        "timing_realdesed": {
+          "boundary_f1_100ms": 0.552,
+          "boundary_f1_60ms": 0.5374,
+          "interior_f1": 0.6204,
+          "onset_f1_100ms": 0.0429,
+          "onset_f1_200ms": 0.0509,
+          "onset_f1_60ms": 0.0387
+        },
+        "timing_starss23": {
+          "boundary_f1_100ms": 0.6078,
+          "boundary_f1_60ms": 0.5938,
+          "interior_f1": 0.6664,
+          "onset_f1_100ms": 0.0651,
+          "onset_f1_200ms": 0.0787,
+          "onset_f1_60ms": 0.0571
+        },
+        "window_f1_mean": 0.642
+      }
+    },
+    "n_params": 2995177,
+    "train_wall_s": 308.64,
+    "transfer": {
+      "crema_d": {
+        "1": {
+          "emotion": {
+            "acc": 0.6514,
+            "chance_uniform": 0.1667,
+            "macro_f1": 0.6475,
+            "shuffled_acc": 0.1958,
+            "shuffled_macro_f1": 0.1913
+          },
+          "speaker_1_minus_eer": 0.6068,
+          "speaker_eer": 0.3932
+        },
+        "2": {
+          "emotion": {
+            "acc": 0.6611,
+            "chance_uniform": 0.1667,
+            "macro_f1": 0.657,
+            "shuffled_acc": 0.1972,
+            "shuffled_macro_f1": 0.1926
+          },
+          "speaker_1_minus_eer": 0.6464,
+          "speaker_eer": 0.3536
+        },
+        "4": {
+          "emotion": {
+            "acc": 0.6278,
+            "chance_uniform": 0.1667,
+            "macro_f1": 0.6223,
+            "shuffled_acc": 0.2014,
+            "shuffled_macro_f1": 0.1972
+          },
+          "speaker_1_minus_eer": 0.6773,
+          "speaker_eer": 0.3227
+        }
+      },
+      "maestro_real": {
+        "1": {
+          "macro_map": 0.5163,
+          "micro_f1": 0.7709,
+          "n_eval_classes": 9,
+          "shuffled_macro_map": 0.1257
+        },
+        "2": {
+          "macro_map": 0.5132,
+          "micro_f1": 0.7612,
+          "n_eval_classes": 9,
+          "shuffled_macro_map": 0.1222
+        },
+        "4": {
+          "macro_map": 0.5047,
+          "micro_f1": 0.7506,
+          "n_eval_classes": 9,
+          "shuffled_macro_map": 0.1275
+        }
+      },
+      "vocalset": {
+        "1": {
+          "acc": 0.7778,
+          "chance_uniform": 0.1,
+          "macro_f1": 0.7728,
+          "shuffled_acc": 0.1296,
+          "shuffled_macro_f1": 0.1094
+        },
+        "2": {
+          "acc": 0.75,
+          "chance_uniform": 0.1,
+          "macro_f1": 0.7467,
+          "shuffled_acc": 0.1296,
+          "shuffled_macro_f1": 0.1166
+        },
+        "4": {
+          "acc": 0.75,
+          "chance_uniform": 0.1,
+          "macro_f1": 0.7352,
+          "shuffled_acc": 0.1481,
+          "shuffled_macro_f1": 0.1312
+        }
+      }
+    },
+    "transfer_composite_by_k": {
+      "1": 0.6381,
+      "2": 0.6427,
+      "4": 0.64
+    }
+  },
+  "question": "Can a later refinement step beat a frozen first pass when the loss penalizes any step that is worse than stop-grad k=1, and a full-rate 50 Hz residual path feeds the onset/event head?",
+  "shuffled_controls": {
+    "k4": {
+      "crema_d_emotion": {
+        "chance": 0.1667,
+        "real": 0.6278,
+        "shuffled": 0.2014
+      },
+      "maestro_real": {
+        "chance": null,
+        "real": 0.5047,
+        "shuffled": 0.1275
+      },
+      "vocalset": {
+        "chance": 0.1,
+        "real": 0.75,
+        "shuffled": 0.1481
+      }
+    },
+    "near_chance": true
+  },
+  "stage": "stage3_depth_probe",
+  "total_wall_s": 591.76,
+  "written_utc": "2026-11-26T02:46:13.933556+00:00"
+}

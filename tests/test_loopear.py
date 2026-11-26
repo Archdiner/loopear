@@ -61,6 +61,8 @@ from loopear.losses import (
     apply_feature_augmentation,
     compute_cross_chapter_eer,
     masked_mean_pool,
+    mean_depth_loss,
+    monotonic_penalty,
     multidepth_event_loss,
     multidepth_loss,
     multidepth_overlap_loss,
@@ -68,6 +70,7 @@ from loopear.losses import (
     set_seed,
 )
 from loopear.models import (
+    FullRateResidualHead,
     LocalDetailStem,
     LoopEarModel,
     build_arm,
@@ -956,3 +959,43 @@ def test_stage2_adaptive_stream_and_endpoint(usad2_encoder, tmp_path: Path):
     )
     assert f_out.shape == (1, HALT_FEAT_DIM)
     assert "ev" in probs_out and "st" in probs_out and "ov" in probs_out
+
+
+def test_stage3_fullrate_residual_and_stopgrad_penalty():
+    head = FullRateResidualHead(d=8, n_cls=3, kernel_size=5)
+    e = torch.randn(2, 16, 8)
+    pad = torch.zeros(2, 16, dtype=torch.bool)
+    pad[:, 12:] = True
+    z1 = torch.randn(2, 2, 8)
+    z4 = torch.randn(2, 2, 8)
+    logits = head.logits_by_depth(e, pad, {1: z1, 4: z4}, stride=8, freeze_first=False)
+    assert logits[1].shape == (2, 16, 3)
+    assert float((logits[1] - logits[4]).abs().max().item()) == 0.0
+    assert float((logits[1] - head.base(e)).abs().max().item()) == 0.0
+
+    torch.nn.init.normal_(head.pw.weight, std=0.05)
+    torch.nn.init.normal_(head.cond.weight, std=0.05)
+    e_g = e.detach().clone().requires_grad_(True)
+    z1_g = z1.detach().clone().requires_grad_(True)
+    z4_g = z4.detach().clone().requires_grad_(True)
+    frozen = head.logits_by_depth(
+        e_g, pad, {1: z1_g, 4: z4_g}, stride=8, freeze_first=True
+    )
+    frozen[4].sum().backward()
+    assert head.base.weight.grad is None
+    assert z1_g.grad is None
+    assert z4_g.grad is not None
+    assert float(z4_g.grad.abs().sum().item()) > 0.0
+
+    worse = {
+        1: torch.tensor(0.4, requires_grad=True),
+        4: torch.tensor(0.9, requires_grad=True),
+    }
+    pen = monotonic_penalty(worse)
+    pen.backward()
+    assert float(pen.item()) == pytest.approx(0.5)
+    assert worse[1].grad is None or float(worse[1].grad.item()) == 0.0
+    assert float(worse[4].grad.item()) == pytest.approx(1.0)
+    better = {1: torch.tensor(0.8), 4: torch.tensor(0.3)}
+    assert float(monotonic_penalty(better).item()) == 0.0
+    assert float(mean_depth_loss(better).item()) == pytest.approx(0.55)

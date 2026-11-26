@@ -223,6 +223,102 @@ def multidepth_overlap_loss(
     return total
 
 
+def fullrate_multilabel_loss(
+    logits: torch.Tensor,
+    y_frame: torch.Tensor,
+    frame_pad: torch.Tensor,
+    y_clip: torch.Tensor,
+    pos_weight: torch.Tensor | None = None,
+    clip_weight: float = 0.5,
+) -> torch.Tensor:
+    valid = (~frame_pad).unsqueeze(-1).to(logits.dtype)
+    frame = F.binary_cross_entropy_with_logits(
+        logits,
+        y_frame.to(logits.dtype),
+        pos_weight=pos_weight,
+        reduction="none",
+    )
+    frame_loss = (frame * valid).sum() / valid.sum().clamp(min=1.0)
+    clip_logits = logits.masked_fill(frame_pad.unsqueeze(-1), -1e4).amax(dim=1)
+    clip_loss = F.binary_cross_entropy_with_logits(clip_logits, y_clip.to(logits.dtype))
+    return frame_loss + clip_weight * clip_loss
+
+
+def fullrate_multilabel_losses_by_depth(
+    logits_by_k: dict[int, torch.Tensor],
+    y_frame: torch.Tensor,
+    frame_pad: torch.Tensor,
+    y_clip: torch.Tensor,
+    pos_weight: torch.Tensor | None = None,
+    clip_weight: float = 0.5,
+) -> dict[int, torch.Tensor]:
+    return {
+        int(k): fullrate_multilabel_loss(
+            logits, y_frame, frame_pad, y_clip, pos_weight=pos_weight, clip_weight=clip_weight
+        )
+        for k, logits in logits_by_k.items()
+    }
+
+
+def overlap_losses_by_depth(
+    states: dict[int, torch.Tensor],
+    pad: torch.Tensor,
+    heads: MultiTaskHeads,
+    y_ovl: torch.Tensor,
+    class_weight: torch.Tensor | None = None,
+) -> dict[int, torch.Tensor]:
+    valid = (~pad).float()
+    denom = valid.sum().clamp(min=1.0)
+    out: dict[int, torch.Tensor] = {}
+    for k, z in states.items():
+        logits = heads.overlap_logits(z)
+        ce = F.cross_entropy(
+            logits.reshape(-1, logits.shape[-1]),
+            y_ovl.reshape(-1).long(),
+            weight=class_weight,
+            reduction="none",
+        ).reshape_as(valid)
+        out[int(k)] = (ce * valid).sum() / denom
+    return out
+
+
+def speaker_losses_by_depth(
+    states: dict[int, torch.Tensor],
+    pad: torch.Tensor,
+    heads: MultiTaskHeads,
+    spk_ids: torch.Tensor,
+    s: float = 30.0,
+    m: float = 0.2,
+    layer_clip: torch.Tensor | None = None,
+) -> dict[int, torch.Tensor]:
+    out: dict[int, torch.Tensor] = {}
+    for k, z in states.items():
+        emb = heads.speaker_embed(z, pad, layer_clip=layer_clip)
+        out[int(k)] = aam_softmax_loss(emb, heads.spk_w, spk_ids, s=s, m=m)
+    return out
+
+
+def mean_depth_loss(per_depth: dict[int, torch.Tensor]) -> torch.Tensor:
+    if 1 not in per_depth:
+        raise KeyError("mean_depth_loss requires a k=1 loss")
+    total = per_depth[1].new_zeros(())
+    for loss_k in per_depth.values():
+        total = total + loss_k
+    return total / float(len(per_depth))
+
+
+def monotonic_penalty(per_depth: dict[int, torch.Tensor]) -> torch.Tensor:
+    if 1 not in per_depth:
+        raise KeyError("monotonic penalty requires a k=1 loss")
+    anchor = per_depth[1].detach()
+    pen = anchor.new_zeros(())
+    for depth, loss_k in per_depth.items():
+        if int(depth) == 1:
+            continue
+        pen = pen + F.relu(loss_k - anchor)
+    return pen
+
+
 def multidepth_speaker_loss(
     states: dict[int, torch.Tensor],
     pad: torch.Tensor,

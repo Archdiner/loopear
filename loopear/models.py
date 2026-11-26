@@ -705,6 +705,66 @@ class LoopEarModel(nn.Module):
         return out, ctx["z_pad"]
 
 
+class FullRateResidualHead(nn.Module):
+    def __init__(self, d: int, n_cls: int, kernel_size: int = 5):
+        super().__init__()
+        if kernel_size % 2 != 1:
+            raise ValueError(f"kernel_size must be odd, got {kernel_size}")
+        self.base = nn.Linear(d, n_cls)
+        self.cond = nn.Linear(d, d, bias=False)
+        self.dw = nn.Conv1d(
+            d, d, kernel_size=kernel_size, padding=kernel_size // 2, groups=d
+        )
+        self.pw = nn.Linear(d, n_cls)
+        nn.init.zeros_(self.cond.weight)
+        nn.init.zeros_(self.pw.weight)
+        nn.init.zeros_(self.pw.bias)
+
+    def delta(
+        self,
+        e_50: torch.Tensor,
+        e_pad: torch.Tensor,
+        z: torch.Tensor,
+        stride: int,
+    ) -> torch.Tensor:
+        t = int(e_50.shape[1])
+        cond = self.cond(z).repeat_interleave(int(stride), dim=1)[:, :t]
+        h = (e_50 + cond).masked_fill(e_pad.unsqueeze(-1), 0.0)
+        h = self.dw(h.transpose(1, 2)).transpose(1, 2)
+        h = F.gelu(h).masked_fill(e_pad.unsqueeze(-1), 0.0)
+        return self.pw(h)
+
+    def logits_by_depth(
+        self,
+        e_50: torch.Tensor,
+        e_pad: torch.Tensor,
+        states: dict[int, torch.Tensor],
+        stride: int,
+        freeze_first: bool = False,
+    ) -> dict[int, torch.Tensor]:
+        base = self.base(e_50)
+        deltas = {
+            int(k): self.delta(e_50, e_pad, z, stride) for k, z in states.items()
+        }
+        if 1 not in deltas:
+            return {k: base + dlt for k, dlt in deltas.items()}
+        first = base + deltas[1]
+        out = {1: first}
+        if freeze_first:
+            frozen = first.detach()
+            d1 = deltas[1].detach()
+            for k, dlt in deltas.items():
+                if k == 1:
+                    continue
+                out[k] = frozen + (dlt - d1)
+        else:
+            for k, dlt in deltas.items():
+                if k == 1:
+                    continue
+                out[k] = base + dlt
+        return out
+
+
 def build_arm(arm: str, **kwargs) -> nn.Module:
     if arm == "A_last":
         return BaselineALast(**kwargs)
