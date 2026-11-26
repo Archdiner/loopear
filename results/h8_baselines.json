@@ -1,0 +1,183 @@
+{
+  "encoders": [
+    {
+      "dev": {
+        "ami_1_minus_eer": 0.571,
+        "ami_eer": 0.429,
+        "audio_s": 22236.1,
+        "composite": 0.5623,
+        "dipco_macro_f1": 0.6651,
+        "native_hop_s": 0.02,
+        "onset_f1_100ms": 0.0412,
+        "realdesed_macro_ap": 0.534,
+        "starss_macro_ap": 0.479
+      },
+      "name": "usad2_small",
+      "params": 24760256,
+      "retention": {
+        "cosine_to_loud": 0.9282520895294203,
+        "cosine_to_quiet": 0.903308149313782,
+        "gain_db": -12.0,
+        "n_pairs": 8.0,
+        "quiet_label_ap": 0.6711479602763032
+      },
+      "role": "frozen_reference",
+      "rtf_1": {
+        "audio_s": 10.0,
+        "median_s": 0.3986526529997718,
+        "rtf": 0.03986526529997718,
+        "threads": 1.0
+      },
+      "rtf_4": {
+        "audio_s": 10.0,
+        "median_s": 0.1328187440003603,
+        "rtf": 0.013281874400036031,
+        "threads": 4.0
+      }
+    },
+    {
+      "dev": {
+        "ami_1_minus_eer": 0.5886,
+        "ami_eer": 0.4114,
+        "audio_s": 22236.1,
+        "composite": 0.4683,
+        "dipco_macro_f1": 0.5293,
+        "native_hop_s": 0.3125,
+        "onset_f1_100ms": 0.0772,
+        "realdesed_macro_ap": 0.4315,
+        "starss_macro_ap": 0.324
+      },
+      "name": "mn01",
+      "params": 123783,
+      "retention": {
+        "cosine_to_loud": 0.8569566551776719,
+        "cosine_to_quiet": 0.7808226265032707,
+        "gain_db": -12.0,
+        "n_pairs": 8.0,
+        "quiet_label_ap": 0.6659111679603661
+      },
+      "role": "public_lightweight",
+      "rtf_1": {
+        "audio_s": 10.0,
+        "median_s": 0.018564624000191543,
+        "rtf": 0.0018564624000191542,
+        "threads": 1.0
+      },
+      "rtf_4": {
+        "audio_s": 10.0,
+        "median_s": 0.012098647000129858,
+        "rtf": 0.001209864700012986,
+        "threads": 4.0
+      }
+    },
+    {
+      "dev": {
+        "ami_1_minus_eer": 0.6246,
+        "ami_eer": 0.3754,
+        "audio_s": 22236.1,
+        "composite": 0.5234,
+        "dipco_macro_f1": 0.5968,
+        "native_hop_s": 0.3125,
+        "onset_f1_100ms": 0.096,
+        "realdesed_macro_ap": 0.4745,
+        "starss_macro_ap": 0.3975
+      },
+      "name": "mn04",
+      "params": 983599,
+      "retention": {
+        "cosine_to_loud": 0.7416162148499935,
+        "cosine_to_quiet": 0.635181477624888,
+        "gain_db": -12.0,
+        "n_pairs": 8.0,
+        "quiet_label_ap": 0.698409453881759
+      },
+      "role": "public_lightweight",
+      "rtf_1": {
+        "audio_s": 10.0,
+        "median_s": 0.0343009099997289,
+        "rtf": 0.0034300909999728903,
+        "threads": 1.0
+      },
+      "rtf_4": {
+        "audio_s": 10.0,
+        "median_s": 0.02569017099995108,
+        "rtf": 0.002569017099995108,
+        "threads": 4.0
+      }
+    },
+    {
+      "dev": {
+        "ami_1_minus_eer": 0.6395,
+        "ami_eer": 0.3605,
+        "audio_s": 22236.1,
+        "composite": 0.5356,
+        "dipco_macro_f1": 0.5906,
+        "native_hop_s": 0.3125,
+        "onset_f1_100ms": 0.102,
+        "realdesed_macro_ap": 0.4673,
+        "starss_macro_ap": 0.4448
+      },
+      "name": "mn05",
+      "params": 1431239,
+      "retention": {
+        "cosine_to_loud": 0.7335494258905393,
+        "cosine_to_quiet": 0.6435525236538974,
+        "gain_db": -12.0,
+        "n_pairs": 8.0,
+        "quiet_label_ap": 0.6600040681721455
+      },
+      "role": "public_lightweight",
+      "rtf_1": {
+        "audio_s": 10.0,
+        "median_s": 0.03336387099989224,
+        "rtf": 0.003336387099989224,
+        "threads": 1.0
+      },
+      "rtf_4": {
+        "audio_s": 10.0,
+        "median_s": 0.023049365000133548,
+        "rtf": 0.002304936500013355,
+        "threads": 4.0
+      }
+    },
+    {
+      "dev": {
+        "ami_1_minus_eer": 0.5831,
+        "ami_eer": 0.4169,
+        "audio_s": 22236.1,
+        "composite": 0.5645,
+        "dipco_macro_f1": 0.6674,
+        "native_hop_s": 0.5,
+        "onset_f1_100ms": 0.1543,
+        "realdesed_macro_ap": 0.5838,
+        "starss_macro_ap": 0.4236
+      },
+      "name": "ssondo_matpac_mobilenetv3",
+      "params": 2971664,
+      "retention": {
+        "cosine_to_loud": 0.9567829031000799,
+        "cosine_to_quiet": 0.9029305159546435,
+        "gain_db": -12.0,
+        "n_pairs": 8.0,
+        "quiet_label_ap": 0.6291783485465949
+      },
+      "role": "public_clip_student_frame_map",
+      "rtf_1": {
+        "audio_s": 10.0,
+        "median_s": 0.03363153500004046,
+        "rtf": 0.0033631535000040458,
+        "threads": 1.0
+      },
+      "rtf_4": {
+        "audio_s": 10.0,
+        "median_s": 0.01931960000001709,
+        "rtf": 0.001931960000001709,
+        "threads": 4.0
+      }
+    }
+  ],
+  "gpu_usd": 0.0,
+  "payload_sha256": "eefac0aab5382cd492ff98738659687ff2899a828f8ca2cf178e1e4534fc9e32",
+  "wall_s": 672.6,
+  "written_utc": "2026-11-26T04:08:00.424489+00:00"
+}
