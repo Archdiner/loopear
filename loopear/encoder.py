@@ -25,6 +25,7 @@ MIN_WIN_S: float = 0.1
 HOP_E: float = 0.02
 D_E: int = 384
 NUM_ENCODER_LAYERS: int = 12
+TAP_LAYERS: tuple[int, ...] = (2, 5, 8, 11)
 T_E_MAX: int = 504
 
 
@@ -445,6 +446,124 @@ class ShardedFeatureCache:
     def read_index(self, cache_dir: Path | str) -> dict[str, Any]:
         path = Path(cache_dir) / "index.json"
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def extract_tap_dataset(
+        self,
+        dataset_name: str,
+        rows: list[dict[str, Any]],
+        model: nn.Module,
+        device: torch.device | str = "cpu",
+        batch_size: int = 8,
+        shard_size: int = 128,
+        tap_layers: tuple[int, ...] = TAP_LAYERS,
+        win_s: float = WIN_S,
+        hop_s: float = HOP_S,
+        min_win_s: float = MIN_WIN_S,
+    ) -> Path:
+        dev = torch.device(device)
+        taps = tuple(int(i) for i in tap_layers)
+        key, meta = make_cache_key(
+            dataset=dataset_name,
+            source_hash=self._rows_digest(rows),
+            encoder=MODEL_ID,
+            tap_layers=list(taps),
+            layer_clip=True,
+            sr=SR,
+            win_s=win_s,
+            hop_s=hop_s,
+            dtype="float16",
+        )
+        out_dir = self.root / key
+        index_path = out_dir / "index.json"
+        if index_path.exists():
+            return out_dir
+        windows = expand_recording_windows(
+            rows, win_s=win_s, hop_s=hop_s, min_win_s=min_win_s, sr=SR
+        )
+        if not windows:
+            raise ValueError("No valid audio windows produced for tap caching")
+        out_dir.mkdir(parents=True, exist_ok=True)
+        index_items: list[dict[str, Any]] = []
+        for s0 in range(0, len(windows), shard_size):
+            sw = windows[s0 : s0 + shard_size]
+            tap_buf = np.zeros(
+                (len(sw), len(taps), T_E_MAX, D_E), dtype=np.float16
+            )
+            lc_buf = np.zeros(
+                (len(sw), NUM_ENCODER_LAYERS, D_E), dtype=np.float16
+            )
+            l_buf = np.zeros((len(sw),), dtype=np.int16)
+            for b0 in range(0, len(sw), batch_size):
+                batch = sw[b0 : b0 + batch_size]
+                wav_list: list[np.ndarray] = []
+                for item in batch:
+                    if "wav" in item and item["wav"] is not None:
+                        wav_list.append(np.asarray(item["wav"], dtype=np.float32))
+                    else:
+                        wav_list.append(
+                            load_mono_audio(
+                                item["path"],
+                                target_sr=SR,
+                                channel=item.get("channel"),
+                                start_s=item["start_s"],
+                                end_s=item["end_s"],
+                            )
+                        )
+                lens = [int(w.shape[0]) for w in wav_list]
+                max_len = max(lens)
+                wav_tensor = torch.zeros(
+                    (len(batch), max_len), dtype=torch.float32, device=dev
+                )
+                for idx, w in enumerate(wav_list):
+                    wav_tensor[idx, : w.shape[0]] = torch.from_numpy(w)
+                len_tensor = torch.tensor(lens, dtype=torch.long, device=dev)
+                feats = extract_window_features(model, wav_tensor, len_tensor)
+                hs = feats["hidden_states"]
+                x_lens = feats["x_lengths"].cpu().tolist()
+                for idx in range(len(batch)):
+                    n_frames = min(int(x_lens[idx]), T_E_MAX)
+                    tap_np = (
+                        hs[idx, list(taps), :n_frames]
+                        .cpu()
+                        .numpy()
+                        .astype(np.float16)
+                    )
+                    lc_np = (
+                        hs[idx, :, :n_frames]
+                        .mean(dim=1)
+                        .cpu()
+                        .numpy()
+                        .astype(np.float16)
+                    )
+                    _assert_finite_arrays({"E_taps": tap_np, "layer_clip": lc_np})
+                    tap_buf[b0 + idx, :, :n_frames] = tap_np
+                    lc_buf[b0 + idx] = lc_np
+                    l_buf[b0 + idx] = n_frames
+            shard_name = f"shard_{s0 // shard_size:04d}.npz"
+            save_npz_atomic(
+                out_dir / shard_name,
+                E_taps=tap_buf,
+                layer_clip=lc_buf,
+                lengths=l_buf,
+            )
+            for local_idx, item in enumerate(sw):
+                index_items.append(
+                    {
+                        "id": item["id"],
+                        "source_id": item["source_id"],
+                        "shard": shard_name,
+                        "row": local_idx,
+                        "n_frames": int(l_buf[local_idx]),
+                        "start_s": item["start_s"],
+                        "end_s": item["end_s"],
+                        "meta": item["meta"],
+                    }
+                )
+        write_json_atomic(
+            index_path,
+            {"key": key, "meta": meta, "items": index_items},
+        )
+        return out_dir
 
     def load_shard(self, cache_dir: Path | str, shard_name: str) -> dict[str, np.ndarray]:
         shard_path = Path(cache_dir) / shard_name

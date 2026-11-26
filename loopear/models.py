@@ -1,4 +1,5 @@
 import math
+from typing import Any
 
 import torch
 import torch.nn.functional as F
@@ -115,6 +116,25 @@ class MultiLayerFusion(nn.Module):
     def forward(self, layers: torch.Tensor) -> torch.Tensor:
         w = F.softmax(self.layer_logits, dim=0).view(1, -1, 1, 1)
         return (w * layers).sum(dim=1)
+
+
+class LocalDetailStem(nn.Module):
+    def __init__(self, d: int = 384, kernel_size: int = 5, drop: float = 0.1):
+        super().__init__()
+        self.ln = nn.LayerNorm(d)
+        self.dw = nn.Conv1d(
+            d, d, kernel_size=kernel_size, padding=kernel_size // 2, groups=d
+        )
+        self.pw = nn.Conv1d(d, d, kernel_size=1)
+        self.drop = nn.Dropout(drop)
+        self.alpha = nn.Parameter(torch.zeros(d))
+
+    def forward(self, x: torch.Tensor, pad: torch.Tensor) -> torch.Tensor:
+        h = self.ln(x).masked_fill(pad.unsqueeze(-1), 0.0)
+        h_c = self.dw(h.transpose(1, 2))
+        h_c = self.pw(F.gelu(h_c)).transpose(1, 2)
+        h_c = self.drop(h_c).masked_fill(pad.unsqueeze(-1), 0.0)
+        return (x + self.alpha * h_c).masked_fill(pad.unsqueeze(-1), 0.0)
 
 
 class ContinuousTimeRoPE(nn.Module):
@@ -378,6 +398,10 @@ class BaselineB(nn.Module):
         d: int | None = None,
         h: int | None = None,
         d_ff: int | None = None,
+        use_multilayer: bool = False,
+        n_layers: int = NUM_ENCODER_LAYERS,
+        use_local_stem: bool = False,
+        ls: float = 0.1,
     ):
         super().__init__()
         if variant == "compute":
@@ -393,9 +417,13 @@ class BaselineB(nn.Module):
         self.out_dim = d
         self.stride = stride
         self.depths = (1,)
+        self.use_multilayer = use_multilayer
+        self.use_local_stem = use_local_stem
+        self.fusion = MultiLayerFusion(n_layers=n_layers) if use_multilayer else None
         self.in_proj = nn.Linear(d_e, d)
+        self.local_stem = LocalDetailStem(d=d, kernel_size=5, drop=drop) if use_local_stem else None
         self.blocks = nn.ModuleList(
-            [SelfAttnFFNBlock(d, h, d_ff, drop) for _ in range(n_l)]
+            [SelfAttnFFNBlock(d, h, d_ff, drop, ls=ls) for _ in range(n_l)]
         )
         self.pool = TemporalPool(d, stride=stride, mode=pool_mode)
         self.out_ln = nn.LayerNorm(d)
@@ -408,11 +436,18 @@ class BaselineB(nn.Module):
         hidden_states: torch.Tensor | None = None,
         layer_pool: torch.Tensor | None = None,
     ) -> tuple[dict[int, torch.Tensor], torch.Tensor]:
-        e_pad = lengths_to_padding_mask(e_len, e.shape[1])
+        e_in = (
+            self.fusion(hidden_states)
+            if (self.fusion is not None and hidden_states is not None)
+            else e
+        )
+        e_pad = lengths_to_padding_mask(e_len, e_in.shape[1])
         ts_e = (
-            torch.arange(e.shape[1], device=e.device, dtype=torch.float32) + 0.5
+            torch.arange(e_in.shape[1], device=e_in.device, dtype=torch.float32) + 0.5
         ) * HOP_E
-        h = self.in_proj(e).masked_fill(e_pad.unsqueeze(-1), 0.0)
+        h = self.in_proj(e_in).masked_fill(e_pad.unsqueeze(-1), 0.0)
+        if self.local_stem is not None:
+            h = self.local_stem(h, e_pad)
         for blk in self.blocks:
             h = blk(h, ts_e, e_pad)
         z, z_pad = self.pool(h, e_pad)
@@ -486,22 +521,30 @@ class BaselineD(nn.Module):
         max_k: int = 4,
         pool_mode: str = "avg",
         use_film: bool = True,
+        use_multilayer: bool = False,
+        n_layers: int = NUM_ENCODER_LAYERS,
+        use_local_stem: bool = False,
+        ls: float = 0.1,
         drop: float = 0.1,
     ):
         super().__init__()
         self.out_dim = d
         self.stride = stride
         self.max_k = max_k
+        self.use_multilayer = use_multilayer
+        self.use_local_stem = use_local_stem
         self.depths = (1, 2, 4) if max_k >= 4 else tuple(range(1, max_k + 1))
+        self.fusion = MultiLayerFusion(n_layers=n_layers) if use_multilayer else None
         self.e_proj = nn.Linear(d_e, d)
+        self.local_stem = LocalDetailStem(d=d, kernel_size=5, drop=drop) if use_local_stem else None
         self.e_ln = nn.LayerNorm(d)
         self.pool = TemporalPool(d, stride=stride, mode=pool_mode)
         self.z0_ln = nn.LayerNorm(d)
         self.out_ln = nn.LayerNorm(d)
         self.ln_c = nn.LayerNorm(d)
         self.pass1_ca = MultiHeadAttnRoPE(d, h, drop)
-        self.g_c = nn.Parameter(torch.full((d,), 0.1))
-        self.latent_blk = SelfAttnFFNBlock(d, h, d_ff, drop)
+        self.g_c = nn.Parameter(torch.full((d,), ls))
+        self.latent_blk = SelfAttnFFNBlock(d, h, d_ff, drop, ls=ls)
         self.film_emb = nn.Embedding(max_k, 2 * d) if use_film else None
         if self.film_emb is not None:
             nn.init.zeros_(self.film_emb.weight)
@@ -515,12 +558,19 @@ class BaselineD(nn.Module):
         layer_pool: torch.Tensor | None = None,
     ) -> tuple[dict[int, torch.Tensor], torch.Tensor]:
         target_depths = depths if depths is not None else self.depths
-        e_pad = lengths_to_padding_mask(e_len, e.shape[1])
-        ep = self.e_proj(e).masked_fill(e_pad.unsqueeze(-1), 0.0)
+        e_in = (
+            self.fusion(hidden_states)
+            if (self.fusion is not None and hidden_states is not None)
+            else e
+        )
+        e_pad = lengths_to_padding_mask(e_len, e_in.shape[1])
+        ep = self.e_proj(e_in).masked_fill(e_pad.unsqueeze(-1), 0.0)
+        if self.local_stem is not None:
+            ep = self.local_stem(ep, e_pad)
         e_norm = self.e_ln(ep).masked_fill(e_pad.unsqueeze(-1), 0.0)
         z, z_pad = self.pool(ep, e_pad)
         z = self.z0_ln(z).masked_fill(z_pad.unsqueeze(-1), 0.0)
-        ts_e, ts_z = make_timestamps(e.shape[1], z.shape[1], self.stride, e.device)
+        ts_e, ts_z = make_timestamps(e_in.shape[1], z.shape[1], self.stride, e_in.device)
         out: dict[int, torch.Tensor] = {}
         for k in range(1, max(target_depths) + 1):
             film = (
@@ -552,6 +602,8 @@ class LoopEarModel(nn.Module):
         use_film: bool = True,
         use_multilayer: bool = False,
         n_layers: int = NUM_ENCODER_LAYERS,
+        use_local_stem: bool = False,
+        ls: float = 0.1,
         drop: float = 0.1,
     ):
         super().__init__()
@@ -560,17 +612,76 @@ class LoopEarModel(nn.Module):
         self.max_k = max_k
         self.pool_mode = pool_mode
         self.use_multilayer = use_multilayer
+        self.use_local_stem = use_local_stem
         self.depths = (1, 2, 4) if max_k >= 4 else tuple(range(1, max_k + 1))
         self.fusion = MultiLayerFusion(n_layers=n_layers) if use_multilayer else None
         self.e_proj = nn.Linear(d_e, d)
+        self.local_stem = LocalDetailStem(d=d, kernel_size=5, drop=drop) if use_local_stem else None
         self.e_ln = nn.LayerNorm(d)
         self.pool = TemporalPool(d, stride=stride, mode=pool_mode)
         self.z0_ln = nn.LayerNorm(d)
         self.out_ln = nn.LayerNorm(d)
-        self.refine = EvidenceRefineBlock(d, h, d_ff, drop)
+        self.refine = EvidenceRefineBlock(d, h, d_ff, drop, ls=ls)
         self.film_emb = nn.Embedding(max_k, 2 * d) if use_film else None
         if self.film_emb is not None:
             nn.init.zeros_(self.film_emb.weight)
+
+    def prepare_evidence(
+        self,
+        e: torch.Tensor,
+        e_len: torch.Tensor,
+        hidden_states: torch.Tensor | None = None,
+        use_kv_cache: bool = True,
+    ) -> dict[str, Any]:
+        e_in = (
+            self.fusion(hidden_states)
+            if (self.fusion is not None and hidden_states is not None)
+            else e
+        )
+        e_pad = lengths_to_padding_mask(e_len, e_in.shape[1])
+        ep = self.e_proj(e_in).masked_fill(e_pad.unsqueeze(-1), 0.0)
+        if self.local_stem is not None:
+            ep = self.local_stem(ep, e_pad)
+        e_norm = self.e_ln(ep).masked_fill(e_pad.unsqueeze(-1), 0.0)
+        z0, z_pad = self.pool(ep, e_pad)
+        z0 = self.z0_ln(z0).masked_fill(z_pad.unsqueeze(-1), 0.0)
+        ts_e, ts_z = make_timestamps(e_in.shape[1], z0.shape[1], self.stride, e_in.device)
+        e_kv = self.refine.precompute_kv(e_norm, ts_e) if use_kv_cache else None
+        return {
+            "e_in": e_in,
+            "e_pad": e_pad,
+            "e_norm": e_norm,
+            "z0": z0,
+            "z_pad": z_pad,
+            "ts_e": ts_e,
+            "ts_z": ts_z,
+            "e_kv": e_kv,
+        }
+
+    def step_refine(
+        self,
+        z: torch.Tensor,
+        k: int,
+        ctx: dict[str, Any],
+        use_kv_cache: bool = True,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        film = (
+            self.film_emb.weight[k - 1].chunk(2)
+            if self.film_emb is not None
+            else None
+        )
+        z_next = self.refine(
+            z,
+            ctx["ts_z"],
+            ctx["e_pad"],
+            ctx["z_pad"],
+            e_kv=ctx["e_kv"] if use_kv_cache else None,
+            e_norm=None if use_kv_cache else ctx["e_norm"],
+            t_e=None if use_kv_cache else ctx["ts_e"],
+            film=film,
+        )
+        z_out = self.out_ln(z_next).masked_fill(ctx["z_pad"].unsqueeze(-1), 0.0)
+        return z_next, z_out
 
     def forward_states(
         self,
@@ -582,38 +693,16 @@ class LoopEarModel(nn.Module):
         use_kv_cache: bool = True,
     ) -> tuple[dict[int, torch.Tensor], torch.Tensor]:
         target_depths = depths if depths is not None else self.depths
-        e_in = (
-            self.fusion(hidden_states)
-            if (self.fusion is not None and hidden_states is not None)
-            else e
+        ctx = self.prepare_evidence(
+            e, e_len, hidden_states=hidden_states, use_kv_cache=use_kv_cache
         )
-        e_pad = lengths_to_padding_mask(e_len, e_in.shape[1])
-        ep = self.e_proj(e_in).masked_fill(e_pad.unsqueeze(-1), 0.0)
-        e_norm = self.e_ln(ep).masked_fill(e_pad.unsqueeze(-1), 0.0)
-        z, z_pad = self.pool(ep, e_pad)
-        z = self.z0_ln(z).masked_fill(z_pad.unsqueeze(-1), 0.0)
-        ts_e, ts_z = make_timestamps(e_in.shape[1], z.shape[1], self.stride, e_in.device)
-        e_kv = self.refine.precompute_kv(e_norm, ts_e) if use_kv_cache else None
+        z = ctx["z0"]
         out: dict[int, torch.Tensor] = {}
         for k in range(1, max(target_depths) + 1):
-            film = (
-                self.film_emb.weight[k - 1].chunk(2)
-                if self.film_emb is not None
-                else None
-            )
-            z = self.refine(
-                z,
-                ts_z,
-                e_pad,
-                z_pad,
-                e_kv=e_kv,
-                e_norm=None if use_kv_cache else e_norm,
-                t_e=None if use_kv_cache else ts_e,
-                film=film,
-            )
+            z, z_out = self.step_refine(z, k, ctx, use_kv_cache=use_kv_cache)
             if k in target_depths:
-                out[k] = self.out_ln(z).masked_fill(z_pad.unsqueeze(-1), 0.0)
-        return out, z_pad
+                out[k] = z_out
+        return out, ctx["z_pad"]
 
 
 def build_arm(arm: str, **kwargs) -> nn.Module:

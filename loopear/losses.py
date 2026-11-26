@@ -34,6 +34,9 @@ class MultiTaskHeads(nn.Module):
         n_spk: int = 120,
         n_starss: int = 0,
         n_ovl: int = 0,
+        use_layer_clip_spk: bool = False,
+        n_spk_layers: int = 12,
+        d_e: int = 384,
     ):
         super().__init__()
         self.d = d
@@ -42,6 +45,8 @@ class MultiTaskHeads(nn.Module):
         self.n_spk = n_spk
         self.n_starss = n_starss
         self.n_ovl = n_ovl
+        self.use_layer_clip_spk = use_layer_clip_spk
+        self.n_spk_layers = n_spk_layers
         self.ev_head = nn.Linear(d, n_ev)
         self.starss_head = nn.Linear(d, n_starss) if n_starss > 0 else None
         self.ovl_head = nn.Linear(d, n_ovl) if n_ovl > 0 else None
@@ -52,6 +57,16 @@ class MultiTaskHeads(nn.Module):
         )
         self.spk_proj = nn.Linear(2 * d, d_spk, bias=False)
         self.spk_ln = nn.LayerNorm(d_spk)
+        if use_layer_clip_spk:
+            self.spk_layer_logits = nn.Parameter(torch.zeros(n_spk_layers))
+            self.spk_clip_proj = nn.Linear(d_e, d_spk, bias=False)
+            self.spk_clip_ln = nn.LayerNorm(d_spk)
+            self.spk_clip_gate = nn.Parameter(torch.tensor(0.5))
+        else:
+            self.spk_layer_logits = None
+            self.spk_clip_proj = None
+            self.spk_clip_ln = None
+            self.spk_clip_gate = None
         self.spk_w = nn.Parameter(torch.empty(n_spk, d_spk))
         nn.init.xavier_uniform_(self.spk_w)
 
@@ -68,13 +83,70 @@ class MultiTaskHeads(nn.Module):
             raise RuntimeError("ovl_head is not enabled (n_ovl=0)")
         return self.ovl_head(z)
 
-    def speaker_embed(self, z: torch.Tensor, pad: torch.Tensor) -> torch.Tensor:
+    def speaker_embed(
+        self,
+        z: torch.Tensor,
+        pad: torch.Tensor,
+        layer_clip: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         scores = self.spk_attn(z).squeeze(-1).masked_fill(pad, -1e9)
         w = F.softmax(scores, dim=-1).masked_fill(pad, 0.0).unsqueeze(-1)
         mu = (w * z).sum(dim=1)
         var = (w * (z - mu.unsqueeze(1)).pow(2)).sum(dim=1)
         std = var.clamp(min=1e-6).sqrt()
-        return F.normalize(self.spk_ln(self.spk_proj(torch.cat((mu, std), dim=-1))), dim=-1)
+        emb_z = F.normalize(
+            self.spk_ln(self.spk_proj(torch.cat((mu, std), dim=-1))), dim=-1
+        )
+        if (
+            self.use_layer_clip_spk
+            and layer_clip is not None
+            and self.spk_layer_logits is not None
+            and self.spk_clip_proj is not None
+            and self.spk_clip_ln is not None
+            and self.spk_clip_gate is not None
+        ):
+            w_l = F.softmax(self.spk_layer_logits, dim=0).view(1, -1, 1)
+            lc = (w_l * layer_clip.to(z.dtype)).sum(dim=1)
+            emb_lc = F.normalize(self.spk_clip_ln(self.spk_clip_proj(lc)), dim=-1)
+            return F.normalize(emb_z + self.spk_clip_gate * emb_lc, dim=-1)
+        return emb_z
+
+    def speaker_layer_weights(self) -> list[float] | None:
+        if self.spk_layer_logits is None:
+            return None
+        w = F.softmax(self.spk_layer_logits.detach().float(), dim=0)
+        return [round(float(v), 4) for v in w.cpu().tolist()]
+
+
+def apply_feature_augmentation(
+    x: torch.Tensor,
+    lengths: torch.Tensor,
+    time_mask_prob: float = 0.5,
+    n_masks: int = 2,
+    max_mask_frames: int = 16,
+    noise_std: float = 0.015,
+) -> torch.Tensor:
+    out = x.clone()
+    if noise_std > 0.0:
+        out = out + torch.randn_like(out) * noise_std
+    bsz = out.shape[0]
+    t_dim = -2
+    t_max = out.shape[t_dim]
+    for b in range(bsz):
+        if random.random() > time_mask_prob:
+            continue
+        valid_len = min(int(lengths[b].item()), t_max)
+        if valid_len <= 4:
+            continue
+        cap = min(max_mask_frames, max(2, valid_len // 6))
+        for _ in range(n_masks):
+            w = random.randint(1, cap)
+            t0 = random.randint(0, max(0, valid_len - w))
+            if out.ndim == 3:
+                out[b, t0 : t0 + w, :] = 0.0
+            else:
+                out[b, :, t0 : t0 + w, :] = 0.0
+    return out
 
 
 def aam_softmax_loss(
@@ -158,11 +230,12 @@ def multidepth_speaker_loss(
     spk_ids: torch.Tensor,
     s: float = 30.0,
     m: float = 0.2,
+    layer_clip: torch.Tensor | None = None,
 ) -> torch.Tensor:
     wk = 1.0 / float(len(states))
     total = torch.zeros((), device=pad.device, dtype=torch.float32)
     for z in states.values():
-        emb = heads.speaker_embed(z, pad)
+        emb = heads.speaker_embed(z, pad, layer_clip=layer_clip)
         total = total + wk * aam_softmax_loss(emb, heads.spk_w, spk_ids, s=s, m=m)
     return total
 

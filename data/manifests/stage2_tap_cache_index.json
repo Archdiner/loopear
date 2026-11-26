@@ -1,0 +1,134 @@
+{
+  "caches": {
+    "ami_sdm": {
+      "train": {
+        "audio_hours": 1.11,
+        "cache_dir": "cache/stage2_taps/ccec36ed065ed74f",
+        "extract_s_per_h": 51.1,
+        "extract_wall_s": 56.72,
+        "n_windows": 951
+      },
+      "val": {
+        "audio_hours": 0.1428,
+        "cache_dir": "cache/stage2_taps/0144c86ca7a2fba4",
+        "extract_s_per_h": 47.86,
+        "extract_wall_s": 6.83,
+        "n_windows": 128
+      }
+    },
+    "crema_d": {
+      "probe_eval": {
+        "audio_hours": 0.4571,
+        "cache_dir": "cache/stage2_taps/3147de6688c1e702",
+        "extract_s_per_h": 30.21,
+        "extract_wall_s": 13.81,
+        "n_windows": 720
+      },
+      "probe_train": {
+        "audio_hours": 0.9368,
+        "cache_dir": "cache/stage2_taps/c2c78754a38101d0",
+        "extract_s_per_h": 31.33,
+        "extract_wall_s": 29.34,
+        "n_windows": 1464
+      }
+    },
+    "dipco": {
+      "train": {
+        "audio_hours": 1.25,
+        "cache_dir": "cache/stage2_taps/ddfb11419b3cd474",
+        "extract_s_per_h": 49.24,
+        "extract_wall_s": 61.55,
+        "n_windows": 450
+      },
+      "val": {
+        "audio_hours": 0.75,
+        "cache_dir": "cache/stage2_taps/bc671643d22613e3",
+        "extract_s_per_h": 45.14,
+        "extract_wall_s": 33.85,
+        "n_windows": 270
+      }
+    },
+    "maestro_real": {
+      "probe_eval": {
+        "audio_hours": 0.25,
+        "cache_dir": "cache/stage2_taps/07a17c63bd4e1b50",
+        "extract_s_per_h": 45.26,
+        "extract_wall_s": 11.31,
+        "n_windows": 90
+      },
+      "probe_train": {
+        "audio_hours": 0.5,
+        "cache_dir": "cache/stage2_taps/6b9ade412631d374",
+        "extract_s_per_h": 46.52,
+        "extract_wall_s": 23.26,
+        "n_windows": 180
+      }
+    },
+    "realdesed": {
+      "train": {
+        "audio_hours": 0.7977,
+        "cache_dir": "cache/stage2_taps/608ff3fc42d5d925",
+        "extract_s_per_h": 56.73,
+        "extract_wall_s": 45.25,
+        "n_windows": 349
+      },
+      "val": {
+        "audio_hours": 0.37,
+        "cache_dir": "cache/stage2_taps/793c7e67552180eb",
+        "extract_s_per_h": 57.36,
+        "extract_wall_s": 21.22,
+        "n_windows": 159
+      }
+    },
+    "starss23": {
+      "train": {
+        "audio_hours": 1.1505,
+        "cache_dir": "cache/stage2_taps/a4d2415935e57aff",
+        "extract_s_per_h": 50.33,
+        "extract_wall_s": 57.91,
+        "n_windows": 423
+      },
+      "val": {
+        "audio_hours": 0.6059,
+        "cache_dir": "cache/stage2_taps/d20aec7be98a086f",
+        "extract_s_per_h": 49.66,
+        "extract_wall_s": 30.09,
+        "n_windows": 224
+      }
+    },
+    "vocalset": {
+      "probe_eval": {
+        "audio_hours": 0.2301,
+        "cache_dir": "cache/stage2_taps/2463adabdfe4180e",
+        "extract_s_per_h": 72.23,
+        "extract_wall_s": 16.62,
+        "n_windows": 125
+      },
+      "probe_train": {
+        "audio_hours": 0.5627,
+        "cache_dir": "cache/stage2_taps/7d69508393c85bfe",
+        "extract_s_per_h": 66.68,
+        "extract_wall_s": 37.52,
+        "n_windows": 307
+      }
+    }
+  },
+  "encoder_invariants": {
+    "max_abs_diff_sil_tone": 0.7851055264472961,
+    "num_layers": 12,
+    "shape": [
+      1,
+      99,
+      384
+    ]
+  },
+  "extract_throughput_s_per_h": 48.86,
+  "extract_total_audio_hours": 9.1135,
+  "extract_total_wall_s": 445.3,
+  "tap_layers": [
+    2,
+    5,
+    8,
+    11
+  ]
+}

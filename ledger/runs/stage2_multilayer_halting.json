@@ -1,0 +1,24 @@
+{
+  "config": {
+    "batch_size": 16,
+    "cloud_gpu_spend_usd": 0.0,
+    "epochs": 26,
+    "lr": 0.0008,
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "stage": "stage2_multilayer_halting",
+    "steps_per_epoch": 28,
+    "tap_layers": [
+      2,
+      5,
+      8,
+      11
+    ]
+  },
+  "config_sha256": "41df75c3d0b3c4f07083335b4d5480a42cfe2b0bd4dd7a74e53dcec3c6e46170",
+  "created_utc": "2026-11-26T02:01:44.896870+00:00",
+  "run_id": "stage2_multilayer_halting"
+}

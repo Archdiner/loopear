@@ -135,6 +135,18 @@ def create_app(stream: LoopEarStream) -> web.Application:
             return web.json_response({"error": str(exc)}, status=400)
         return web.json_response({"depth": new_depth})
 
+    async def handle_adaptive(request: web.Request) -> web.Response:
+        try:
+            body: dict[str, Any] = await request.json()
+            enabled = bool(body["adaptive"])
+            threshold = body.get("halt_threshold")
+            res = request.app[STREAM_KEY].set_adaptive(
+                enabled, threshold=float(threshold) if threshold is not None else None
+            )
+        except (KeyError, ValueError, TypeError) as exc:
+            return web.json_response({"error": str(exc)}, status=400)
+        return web.json_response(res)
+
     async def handle_pcm(request: web.Request) -> web.Response:
         try:
             if request.content_type == "application/json":
@@ -196,6 +208,7 @@ def create_app(stream: LoopEarStream) -> web.Application:
     app.router.add_get("/", handle_index)
     app.router.add_get("/api/state", handle_state)
     app.router.add_post("/api/depth", handle_depth)
+    app.router.add_post("/api/adaptive", handle_adaptive)
     app.router.add_post("/api/pcm", handle_pcm)
     app.router.add_post("/api/enroll", handle_enroll)
     app.router.add_post("/api/compare", handle_compare)
@@ -208,10 +221,16 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--ckpt", default=None)
     parser.add_argument("--depth", type=int, default=2)
+    parser.add_argument("--adaptive", action="store_true")
+    parser.add_argument("--halt-threshold", type=float, default=None)
     parser.add_argument("--device", default="cpu")
     args = parser.parse_args()
     stream = LoopEarStream.from_checkpoint(
-        ckpt=args.ckpt, depth=args.depth, device=args.device
+        ckpt=args.ckpt,
+        depth=args.depth,
+        device=args.device,
+        adaptive=args.adaptive,
+        halt_threshold=args.halt_threshold,
     )
     web.run_app(create_app(stream), host=args.host, port=args.port)
 

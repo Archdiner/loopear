@@ -13,6 +13,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from loopear.data import (
     PILOT_CORPUS_SOURCES,
     assert_disjoint_groups,
+    compute_onset_and_boundary_metrics,
     downsample_binary_targets,
     downsample_overlap_targets,
     parse_hms_seconds,
@@ -30,12 +31,20 @@ from loopear.encoder import (
     NUM_ENCODER_LAYERS,
     SR,
     T_E_MAX,
+    TAP_LAYERS,
     ShardedFeatureCache,
     load_mono_audio,
     load_usad2_extractor,
     random_crop_window,
     save_npz_atomic,
     verify_extractor_invariants,
+)
+from loopear.halting import (
+    HALT_FEAT_DIM,
+    HaltingGate,
+    evaluate_halting_pareto,
+    extract_halting_features,
+    fit_halting_gate,
 )
 from loopear.harness import (
     USAD2_SMALL_FREESOUND_OVERLAP_SOURCES,
@@ -49,14 +58,17 @@ from loopear.harness import (
 )
 from loopear.losses import (
     MultiTaskHeads,
+    apply_feature_augmentation,
     compute_cross_chapter_eer,
     masked_mean_pool,
     multidepth_event_loss,
     multidepth_loss,
     multidepth_overlap_loss,
+    multidepth_speaker_loss,
     set_seed,
 )
 from loopear.models import (
+    LocalDetailStem,
     LoopEarModel,
     build_arm,
 )
@@ -705,3 +717,242 @@ def test_data_manifest_validation_channel_select_and_stage1_heads(tmp_path: Path
     loss.backward()
     assert heads.starss_head is not None and heads.starss_head.weight.grad is not None
     assert heads.ovl_head is not None and heads.ovl_head.weight.grad is not None
+
+
+def test_stage2_local_stem_multilayer_and_dual_speaker_fusion():
+    set_seed(11)
+    stem = LocalDetailStem(d=32, kernel_size=5, drop=0.0).eval()
+    x = torch.randn(2, 24, 32)
+    pad = torch.zeros(2, 24, dtype=torch.bool)
+    pad[1, 18:] = True
+    x_masked = x.masked_fill(pad.unsqueeze(-1), 0.0)
+    y_init = stem(x_masked, pad)
+    assert float((y_init - x_masked).abs().max().item()) == 0.0
+    with torch.no_grad():
+        stem.alpha.fill_(0.25)
+    y_active = stem(x_masked, pad)
+    assert float((y_active[1, 18:]).abs().max().item()) == 0.0
+    assert float((y_active[0] - x_masked[0]).abs().max().item()) > 1e-4
+
+    taps = torch.randn(2, len(TAP_LAYERS), 64, D_E)
+    e_last = taps[:, -1]
+    lens = torch.tensor([64, 48], dtype=torch.long)
+    layer_clip = torch.randn(2, NUM_ENCODER_LAYERS, D_E)
+    aug = apply_feature_augmentation(taps, lens, time_mask_prob=1.0, noise_std=0.02)
+    assert aug.shape == taps.shape
+
+    for arm_name, kwargs in (
+        ("B_comp", {"stride": 8, "use_multilayer": True, "n_layers": 4, "use_local_stem": True, "ls": 0.3}),
+        ("D", {"stride": 8, "max_k": 4, "use_multilayer": True, "n_layers": 4, "use_local_stem": True, "ls": 0.3}),
+        ("E", {"stride": 8, "max_k": 4, "use_multilayer": True, "n_layers": 4, "use_local_stem": True, "ls": 0.3}),
+        ("E", {"stride": 4, "max_k": 4, "use_multilayer": True, "n_layers": 4, "use_local_stem": True, "ls": 0.3}),
+    ):
+        model = build_arm(arm_name, **kwargs)
+        heads = MultiTaskHeads(
+            d=model.out_dim,
+            n_ev=15,
+            n_spk=12,
+            n_starss=13,
+            n_ovl=3,
+            use_layer_clip_spk=True,
+            n_spk_layers=12,
+            d_e=D_E,
+        )
+        states, z_pad = model.forward_states(e_last, lens, hidden_states=taps)
+        spk_ids = torch.tensor([1, 5], dtype=torch.long)
+        loss = multidepth_speaker_loss(states, z_pad, heads, spk_ids, layer_clip=layer_clip)
+        assert torch.isfinite(loss)
+        loss.backward()
+        assert heads.spk_layer_logits is not None and heads.spk_layer_logits.grad is not None
+        assert model.fusion is not None and model.fusion.layer_logits.grad is not None
+        assert model.local_stem is not None and model.local_stem.alpha.grad is not None
+        weights = heads.speaker_layer_weights()
+        assert weights is not None and len(weights) == 12
+        assert abs(sum(weights) - 1.0) < 1e-3
+
+
+def test_stage2_onset_and_boundary_metrics():
+    y = np.zeros((100, 2), dtype=np.float32)
+    y[20:40, 0] = 1.0
+    y[60:80, 1] = 1.0
+    p_exact = y.copy()
+    m_exact = compute_onset_and_boundary_metrics([y], [p_exact])
+    assert m_exact["onset_f1_60ms"] == 1.0
+    assert m_exact["onset_f1_100ms"] == 1.0
+    assert m_exact["boundary_f1_60ms"] == 1.0
+
+    p_shift_4 = np.zeros_like(y)
+    p_shift_4[24:44, 0] = 1.0
+    p_shift_4[64:84, 1] = 1.0
+    m_shift = compute_onset_and_boundary_metrics([y], [p_shift_4])
+    assert m_shift["onset_f1_60ms"] == 0.0
+    assert m_shift["onset_f1_100ms"] == 1.0
+    assert m_shift["boundary_f1_60ms"] < 1.0
+
+
+def test_stage2_halting_gate_and_pareto():
+    set_seed(17)
+    rng = np.random.default_rng(17)
+    n = 120
+    hard = np.arange(0, 40)
+    f1 = rng.normal(0.0, 0.3, size=(n, HALT_FEAT_DIM)).astype(np.float32)
+    f2 = rng.normal(0.0, 0.3, size=(n, HALT_FEAT_DIM)).astype(np.float32)
+    f1[hard, 0] += 2.5
+    f1[hard, 4] += 2.0
+    f2[hard, 0] += 2.5
+    f2[hard, 14] += 2.0
+    s1 = np.full(n, 0.78, dtype=np.float64)
+    s2 = s1.copy()
+    s4 = s1.copy()
+    s2[hard] = 0.86
+    s4[hard] = 0.95
+    s4[40:80] = 0.72
+    x_tr = np.concatenate([f1, f2], axis=0)
+    y_tr = np.concatenate([np.maximum(s2, s4) - s1, s4 - s2], axis=0)
+    gate = fit_halting_gate(x_tr, y_tr, hidden_dim=16, epochs=120, lr=5e-3, seed=17)
+    e_seq = rng.normal(0.0, 0.2, size=(n, 16, 8)).astype(np.float32)
+    pareto = evaluate_halting_pareto(
+        gate,
+        f1,
+        f2,
+        {1: s1, 2: s2, 4: s4},
+        {1: 0.5, 2: 0.9, 4: 1.6},
+        e_seq,
+    )
+    assert pareto["learned_beats_uniform_auc"] is True
+    assert pareto["best_learned"]["score"] > pareto["uniform"]["k4"]
+    assert pareto["overthinking_reduction_vs_k4"] > 0.15
+
+
+def test_stage2_adaptive_stream_and_endpoint(usad2_encoder, tmp_path: Path):
+    set_seed(19)
+    ref = LoopEarModel(
+        d_e=D_E,
+        d=384,
+        h=6,
+        d_ff=768,
+        stride=8,
+        use_multilayer=True,
+        n_layers=len(TAP_LAYERS),
+        use_local_stem=True,
+        ls=0.3,
+    ).eval()
+    heads = MultiTaskHeads(
+        d=384,
+        n_ev=15,
+        n_spk=16,
+        n_starss=13,
+        n_ovl=3,
+        use_layer_clip_spk=True,
+        n_spk_layers=12,
+        d_e=D_E,
+    ).eval()
+    gate = HaltingGate(in_dim=HALT_FEAT_DIM, hidden_dim=32).eval()
+    stream = LoopEarStream(
+        encoder=usad2_encoder,
+        refiner=ref,
+        heads=heads,
+        depth=2,
+        win_s=2.0,
+        step_s=1.0,
+        device="cpu",
+        tap_layers=TAP_LAYERS,
+        halting_gate=gate,
+        adaptive=True,
+        halt_threshold=0.5,
+    )
+    wav = _sine_wave(440.0, 3.0)
+    res_hi = stream.encode(wav[: 2 * SR], adaptive=True)
+    assert res_hi["depth_used"] in (1, 2, 4)
+    assert 1 in res_hi["halt_probs"]
+
+    stream.set_adaptive(True, threshold=0.0)
+    assert stream.encode(wav[: 2 * SR], adaptive=True)["depth_used"] == 4
+    stream.set_adaptive(True, threshold=1.01)
+    assert stream.encode(wav[: 2 * SR], adaptive=True)["depth_used"] == 1
+
+    st = stream.feed(wav)
+    assert st["adaptive"] is True
+    assert st["windows_processed"] == 2
+    assert st["depth_counts"]["1"] == 2
+
+    ckpt_path = tmp_path / "stage2_test.pt"
+    torch.save(
+        {
+            "refiner_kwargs": {
+                "d_e": D_E,
+                "d": 384,
+                "h": 6,
+                "d_ff": 768,
+                "stride": 8,
+                "use_multilayer": True,
+                "n_layers": len(TAP_LAYERS),
+                "use_local_stem": True,
+                "ls": 0.3,
+            },
+            "head_kwargs": {
+                "d": 384,
+                "n_ev": 15,
+                "n_spk": 16,
+                "n_starss": 13,
+                "n_ovl": 3,
+                "use_layer_clip_spk": True,
+                "n_spk_layers": 12,
+                "d_e": D_E,
+            },
+            "tap_layers": list(TAP_LAYERS),
+            "refiner": ref.state_dict(),
+            "heads": heads.state_dict(),
+            "halting_gate": gate.state_dict(),
+            "halting_gate_kwargs": {"in_dim": HALT_FEAT_DIM, "hidden_dim": 32},
+            "default_halt_threshold": 0.5,
+        },
+        ckpt_path,
+    )
+    reloaded = LoopEarStream.from_checkpoint(ckpt=ckpt_path, adaptive=True, device="cpu")
+    r_orig = stream.encode(wav[: 2 * SR], k=4)
+    r_relo = reloaded.encode(wav[: 2 * SR], k=4)
+    assert float((r_orig["vec"] - r_relo["vec"]).abs().max().item()) == 0.0
+    assert float((r_orig["spk"] - r_relo["spk"]).abs().max().item()) == 0.0
+
+    async def _run_adapt_http():
+        app = create_app(reloaded)
+        async with TestClient(TestServer(app)) as client:
+            r = await client.post(
+                "/api/adaptive", json={"adaptive": True, "halt_threshold": 0.65}
+            )
+            assert r.status == 200
+            body = await r.json()
+            assert body["adaptive"] is True
+            assert body["halt_threshold"] == pytest.approx(0.65, abs=1e-4)
+
+    asyncio.run(_run_adapt_http())
+
+    cache = ShardedFeatureCache(tmp_path / "tap_cache")
+    wav_file = tmp_path / "clip.wav"
+    sf.write(str(wav_file), wav[: 2 * SR], SR, subtype="PCM_16")
+    tap_dir = cache.extract_tap_dataset(
+        "demo_taps",
+        [{"id": "c0", "path": str(wav_file)}],
+        usad2_encoder,
+        device="cpu",
+        batch_size=1,
+        shard_size=4,
+        tap_layers=TAP_LAYERS,
+    )
+    idx = cache.read_index(tap_dir)
+    assert len(idx["items"]) == 1
+    sh = cache.load_shard(tap_dir, idx["items"][0]["shard"])
+    assert sh["E_taps"].shape == (1, len(TAP_LAYERS), T_E_MAX, D_E)
+    assert sh["layer_clip"].shape == (1, NUM_ENCODER_LAYERS, D_E)
+    f_out, probs_out = extract_halting_features(
+        torch.randn(1, 32, D_E),
+        torch.tensor([32], dtype=torch.long),
+        torch.randn(1, 4, 384),
+        torch.randn(1, 4, 384),
+        torch.zeros(1, 4, dtype=torch.bool),
+        heads,
+        step_k=1,
+    )
+    assert f_out.shape == (1, HALT_FEAT_DIM)
+    assert "ev" in probs_out and "st" in probs_out and "ov" in probs_out

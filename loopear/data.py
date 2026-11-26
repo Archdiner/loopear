@@ -416,6 +416,107 @@ def upsample_frame_preds(
     return np.ascontiguousarray(rep[:n_frames])
 
 
+def _extract_onsets(binary_seq: np.ndarray) -> list[int]:
+    if binary_seq.size == 0:
+        return []
+    prev = np.concatenate(([0], binary_seq[:-1]))
+    return np.flatnonzero((binary_seq > 0) & (prev == 0)).tolist()
+
+
+def _match_onsets_greedy(
+    gt_onsets: list[int],
+    pred_onsets: list[int],
+    collar_frames: int,
+) -> tuple[int, int, int]:
+    if not gt_onsets:
+        return 0, len(pred_onsets), 0
+    if not pred_onsets:
+        return 0, 0, len(gt_onsets)
+    used_gt: set[int] = set()
+    tp = 0
+    for tp_idx in pred_onsets:
+        best_j = -1
+        best_dist = collar_frames + 1
+        for j, tg_idx in enumerate(gt_onsets):
+            if j in used_gt:
+                continue
+            d = abs(tp_idx - tg_idx)
+            if d <= collar_frames and d < best_dist:
+                best_dist = d
+                best_j = j
+        if best_j >= 0:
+            used_gt.add(best_j)
+            tp += 1
+    fp = len(pred_onsets) - tp
+    fn = len(gt_onsets) - tp
+    return tp, fp, fn
+
+
+def compute_onset_and_boundary_metrics(
+    y_50hz_list: list[np.ndarray],
+    p_50hz_list: list[np.ndarray],
+    hop_e: float = HOP_E,
+    thr: float = 0.5,
+) -> dict[str, float]:
+    collars = {
+        "onset_f1_60ms": max(1, int(round(0.06 / hop_e))),
+        "onset_f1_100ms": max(1, int(round(0.10 / hop_e))),
+        "onset_f1_200ms": max(1, int(round(0.20 / hop_e))),
+    }
+    counts = {k: [0, 0, 0] for k in collars}
+    bnd_60_rad = max(1, int(round(0.06 / hop_e)))
+    bnd_100_rad = max(1, int(round(0.10 / hop_e)))
+    bnd_60 = [0, 0, 0]
+    bnd_100 = [0, 0, 0]
+    interior = [0, 0, 0]
+    for y_raw, p_raw in zip(y_50hz_list, p_50hz_list):
+        t_n = min(y_raw.shape[0], p_raw.shape[0])
+        if t_n == 0:
+            continue
+        y_bin = (y_raw[:t_n] >= 0.5).astype(np.int32)
+        p_bin = (p_raw[:t_n] >= thr).astype(np.int32)
+        n_cls = y_bin.shape[1]
+        for c in range(n_cls):
+            gt_on = _extract_onsets(y_bin[:, c])
+            pr_on = _extract_onsets(p_bin[:, c])
+            for name, col in collars.items():
+                tp, fp, fn = _match_onsets_greedy(gt_on, pr_on, col)
+                counts[name][0] += tp
+                counts[name][1] += fp
+                counts[name][2] += fn
+            prev = np.concatenate(([0], y_bin[:-1, c]))
+            trans = np.flatnonzero(y_bin[:, c] != prev)
+            m60 = np.zeros(t_n, dtype=bool)
+            m100 = np.zeros(t_n, dtype=bool)
+            for idx in trans:
+                m60[max(0, idx - bnd_60_rad) : min(t_n, idx + bnd_60_rad + 1)] = True
+                m100[max(0, idx - bnd_100_rad) : min(t_n, idx + bnd_100_rad + 1)] = True
+            for mask, acc in (
+                (m60, bnd_60),
+                (m100, bnd_100),
+                (~m100, interior),
+            ):
+                if not np.any(mask):
+                    continue
+                ym = y_bin[mask, c]
+                pm = p_bin[mask, c]
+                acc[0] += int(np.sum((ym == 1) & (pm == 1)))
+                acc[1] += int(np.sum((ym == 0) & (pm == 1)))
+                acc[2] += int(np.sum((ym == 1) & (pm == 0)))
+    out: dict[str, float] = {}
+    for name, (tp, fp, fn) in counts.items():
+        denom = 2 * tp + fp + fn
+        out[name] = round(float(2 * tp / denom) if denom > 0 else 0.0, 4)
+    for name, (tp, fp, fn) in (
+        ("boundary_f1_60ms", bnd_60),
+        ("boundary_f1_100ms", bnd_100),
+        ("interior_f1", interior),
+    ):
+        denom = 2 * tp + fp + fn
+        out[name] = round(float(2 * tp / denom) if denom > 0 else 0.0, 4)
+    return out
+
+
 def validate_manifest(
     manifest: dict[str, Any],
     min_join_coverage: float = 0.99,
