@@ -74,3 +74,9 @@ Separate from the frozen USAD2 stack above. `loopear/d` is a 682,752-parameter e
 ```
 
 After 1,000 steps of global contrastive loss plus masked latent discrimination (`K=1`, batch 64, seed 42), validation class tokens are not collapsed (effective rank 29.3, mean off-diagonal cosine 0.327). A frozen 2,716-parameter probe on mean patch tokens scores macro AP 0.316 on 160 official validation clips and 28 classes. Random initialization scores 0.262 and log-mel mean/std scores 0.246. Shuffled labels sit near 0.17. Global-only is slightly higher (0.328). The same budget does not beat a mel baseline on a four-file STARSS23 onset check. `results/loopear_d_train.json` and `results/loopear_d_eval_k1.json` hold the raw numbers.
+
+```bash
+.venv/bin/python scripts/eval_loopear_d_baselines.py
+```
+
+That command does not train. It scores frozen USAD2-Small and EfficientAT mn04_as with the same 2,716-parameter readout, the same 256/160 clips, and the same four STARSS23 files. USAD2-Small scores macro AP 0.312. EfficientAT mn04_as, AudioSet-pretrained and using its own 32 kHz frontend, scores 0.526. Shuffled labels for both sit near 0.16. On the STARSS23 frame grid both raw scores sit above global-only and match their shuffled-label controls, because the scored validation classes have no positive training frames. `results/loopear_d_baselines.json` holds those numbers. AudioSet audio is not downloaded.
