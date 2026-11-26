@@ -62,3 +62,15 @@ python3 -m venv .venv
 .venv/bin/python scripts/train_stage3.py --epochs 8 --steps-per-epoch 28 --batch-size 16 --seed 42
 .venv/bin/python -m loopear.demo --ckpt checkpoints/stage2_best.pt --adaptive --host 127.0.0.1 --port 8765
 ```
+
+## LoopEar-D
+
+Separate from the frozen USAD2 stack above. `loopear/d` is a 682,752-parameter encoder trained from scratch on the official FSD50K training split. The deployed file is the encoder. The predictor, the projection heads, and the EMA teacher are training-only. This run used the nested 5.001-hour prefix (1,680 clips). The 20-hour prefix is in the manifest and was not trained. CPU only. Cloud GPU spend `$0.00`.
+
+```bash
+.venv/bin/python scripts/prepare_loopear_d.py
+.venv/bin/python scripts/train_loopear_d.py --stage auto
+.venv/bin/python scripts/eval_loopear_d.py --encoder results/loopear_d_k1_encoder.safetensors --report results/loopear_d_eval_k1.json
+```
+
+After 1,000 steps of global contrastive loss plus masked latent discrimination (`K=1`, batch 64, seed 42), validation class tokens are not collapsed (effective rank 29.3, mean off-diagonal cosine 0.327). A frozen 2,716-parameter probe on mean patch tokens scores macro AP 0.316 on 160 official validation clips and 28 classes. Random initialization scores 0.262 and log-mel mean/std scores 0.246. Shuffled labels sit near 0.17. Global-only is slightly higher (0.328). The same budget does not beat a mel baseline on a four-file STARSS23 onset check. `results/loopear_d_train.json` and `results/loopear_d_eval_k1.json` hold the raw numbers.

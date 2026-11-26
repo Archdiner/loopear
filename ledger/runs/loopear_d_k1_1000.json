@@ -1,0 +1,12 @@
+{
+  "config": {
+    "batch": 64,
+    "objective": "k1",
+    "seed": 42,
+    "steps": 1000,
+    "subset": "h5"
+  },
+  "config_sha256": "1cc15a33eafa3795a03a5058476b62ff5a8919a9c1c1d08a5f52f34effee6ddd",
+  "created_utc": "2026-11-26T08:48:50.304612+00:00",
+  "run_id": "loopear_d_k1_1000"
+}
