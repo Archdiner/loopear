@@ -135,3 +135,12 @@ P-LTC keeps that model, including the locked alpha `0.0027896127554686775`, and 
 ```
 
 `results/loopear_pltc_h20_protocol.json` holds the probe. `results/loopear_pltc_time_rank.json` holds the EMA retrieval. `results/loopear_pltc_event_order.json` holds the STARSS event-order counts. Four-example recognition, onset localization, and event order are the primary scores. The energy profile and the 970-parameter readout stay diagnostics.
+
+P-LT-F is the P-LT recipe again, not a new loss. It is the calibrated anchored Perceiver before temporal correspondence: global NT-Xent plus the masked local loss, λ = 1, K = 1, priors 0.1/0.8/0.1, locked alpha `0.0027896127554686775`. No `L_time`. Random initialization. 5,000 steps, batch 64, seed 42, 640,000 windows. The corpus is the full eligible official FSD50K train split. The run records how many of those recordings the sampler actually drew. It saves the EMA teacher.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-plt-f
+.venv/bin/python scripts/eval_loopear_protocol.py --p results/loopear_pltf_full_5000_encoder.safetensors --time-alpha 0.0027896127554686775 --p-reference results/loopear_plt_h20_global_5000_encoder.safetensors --p-reference-time-alpha 0.0027896127554686775 --d-global results/loopear_d_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_ltf --report results/loopear_pltf_full_protocol.json
+```
+
+`results/loopear_pltf_full_train.json` holds the run, including the recordings actually drawn. `results/loopear_pltf_full_protocol.json` holds the same probe as P-LT. `results/loopear_pltf_event_order.json` holds the STARSS event-order counts against the saved P-LT EMA. In that file the `pltc` block is P-LT-F.
