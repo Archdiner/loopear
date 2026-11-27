@@ -638,6 +638,28 @@ class MelCache:
             ),
         }
 
+    def crop_once(
+        self, indices: list[int], generator: torch.Generator
+    ) -> dict[str, torch.Tensor]:
+        mels = []
+        valids = []
+        starts = []
+        for index in indices:
+            raw = self._load(index)
+            crop, valid, start = crop_logmel_with_start(raw, generator)
+            mels.append(normalize_logmel(crop, self.mean, self.std) * valid.unsqueeze(-1))
+            valids.append(valid)
+            starts.append(int(start))
+        return {
+            "mel": torch.stack(mels, dim=0),
+            "frame_valid": torch.stack(valids, dim=0),
+            "start": torch.tensor(starts, dtype=torch.long),
+            "freesound_id": torch.tensor(
+                [int(self.rows[index]["freesound_id"]) for index in indices],
+                dtype=torch.long,
+            ),
+        }
+
 
 def load_manifest(path: Path) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))

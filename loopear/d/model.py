@@ -42,7 +42,13 @@ class Block(nn.Module):
         self.fc1 = nn.Linear(d_model, hidden)
         self.fc2 = nn.Linear(hidden, d_model)
 
-    def forward(self, x: torch.Tensor, key_pad: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self,
+        x: torch.Tensor,
+        key_pad: torch.Tensor,
+        *,
+        disallow: torch.Tensor | None = None,
+    ) -> torch.Tensor:
         h = self.ln1(x)
         b, n, d = h.shape
         hd = d // self.n_heads
@@ -54,7 +60,17 @@ class Block(nn.Module):
         scale = hd ** -0.5
         scores = torch.matmul(q, k.transpose(-2, -1)) * scale
         scores = scores.masked_fill(key_pad[:, None, None, :], -1e9)
-        weights = torch.softmax(scores, dim=-1)
+        if disallow is not None:
+            if disallow.ndim == 2:
+                scores = scores.masked_fill(disallow[None, None, :, :], -1e9)
+            else:
+                scores = scores.masked_fill(disallow[:, None, :, :], -1e9)
+            dead = (scores <= -1e8).all(dim=-1, keepdim=True)
+            scores = scores.masked_fill(dead, 0.0)
+            weights = torch.softmax(scores, dim=-1)
+            weights = weights.masked_fill(dead, 0.0)
+        else:
+            weights = torch.softmax(scores, dim=-1)
         y = torch.matmul(weights, v)
         y = y.permute(0, 2, 1, 3).contiguous().view(b, n, d)
         x = x + self.proj(y)
