@@ -20,7 +20,9 @@ from loopear.d.diagnostics import (
 from loopear.d.frontend import crop_logmel, normalize_logmel
 from loopear.d.fsd import MelCache, assert_train_rows, items_for, load_manifest, sha256_of_ids
 from loopear.d.objective import (
+    TIME_NEIGHBORHOOD_PATCHES,
     broadcast_time_valid,
+    describe_crop_offsets,
     global_ntxent,
     patch_valid_from_frames,
     sample_freq_mask,
@@ -35,6 +37,7 @@ from loopear.d.perceiver import (
     init_perceiver,
     init_perceiver_local,
     perceiver_local_loss,
+    perceiver_ltc_loss,
     visible_cross_logit_stats,
     within_recording_time_sums,
 )
@@ -47,6 +50,7 @@ from loopear.d.spec import (
     PERCEIVER_ENCODER_PARAMS,
     SEED,
     TAU_GLOBAL,
+    TAU_LOCAL,
     WEIGHT_DECAY,
     ema_at,
     lr_at,
@@ -492,6 +496,7 @@ def _preserved_weight_paths() -> list[Path]:
         "loopear_p_h20_global_5000*.safetensors",
         "loopear_pt_h20_global_5000*.safetensors",
         "loopear_pl_h20_global_5000*.safetensors",
+        "loopear_plt_h20_global_5000*.safetensors",
         "loopear_d_cmp_global_encoder.safetensors",
         "loopear_d_k1_encoder.safetensors",
         "loopear_p_encoder.safetensors",
@@ -990,6 +995,217 @@ def confirm_local_lambda(cache: MelCache, seed: int, batch: int, time_alpha: flo
     }
 
 
+def _time_tables(model: Any) -> tuple[torch.Tensor, torch.Tensor]:
+    return model.encoder.pos_time.detach(), model.predictor.pos_time.detach()
+
+
+def measure_offset_crops(cache: MelCache, seed: int, batches: int = 4) -> dict[str, Any]:
+    model = init_perceiver_local(seed)
+    model.set_time_alpha(0.0)
+    model.eval()
+    order = Order(len(cache), 64, seed)
+    totals = {
+        "n_recordings": 0.0,
+        "n_same_offset": 0.0,
+        "n_unaligned": 0.0,
+        "n_aligned_recordings": 0.0,
+        "n_index_pairs": 0.0,
+        "n_shared_embedding_pairs": 0.0,
+        "n_distinct_embedding_pairs": 0.0,
+    }
+    with torch.no_grad():
+        for _ in range(int(batches)):
+            crops = cache.crops_with_starts(order.indices(), order.crop_gen)
+            row = describe_crop_offsets(crops["start1"], crops["start2"], _time_tables(model))
+            for key in totals:
+                totals[key] += float(row[key])
+    if totals["n_shared_embedding_pairs"] > 0.0:
+        raise SystemExit("an aligned moment shares a time positional embedding")
+    if totals["n_distinct_embedding_pairs"] <= 0.0:
+        raise SystemExit("no crop pair aligns at different time embeddings")
+    return {
+        "task": "loopear_pltc_offset_crops",
+        "neighborhood_patches": TIME_NEIGHBORHOOD_PATCHES,
+        "neighborhood_seconds": TIME_NEIGHBORHOOD_PATCHES * 4 * 160 / 16000,
+        "patch_frames": 4,
+        "alignment": "absolute frame start, exact multiples of 4 frames",
+        "batches": int(batches),
+        "batch_recordings": 64,
+        "seed": int(seed),
+        **totals,
+        "gpu_usd": 0.0,
+    }
+
+
+def lock_lambda_time(cache: MelCache, seed: int, batch: int, time_alpha: float) -> dict[str, Any]:
+    model = init_perceiver_local(seed)
+    model.set_time_alpha(time_alpha)
+    counted = sum(param.numel() for param in model.encoder.parameters())
+    student = sum(param.numel() for param in model.student_parameters())
+    reference = init_perceiver_local(seed + 1)
+    reference_student = sum(param.numel() for param in reference.student_parameters())
+    if counted != PERCEIVER_ENCODER_PARAMS or student != reference_student:
+        raise SystemExit(f"parameter count changed: encoder {counted} student {student}")
+    if isinstance(model.encoder.time_alpha, torch.nn.Parameter):
+        raise SystemExit("time alpha became a parameter")
+    model.train()
+    order = Order(len(cache), batch, seed)
+    chosen = None
+    chosen_index = None
+    with torch.no_grad():
+        for batch_index in range(8):
+            crops = cache.crops_with_starts(order.indices(), order.crop_gen)
+            _total, _loss_g, loss_l, loss_t, stats = perceiver_ltc_loss(
+                model,
+                crops["mel1"],
+                crops["mel2"],
+                crops["frame_valid1"],
+                crops["frame_valid2"],
+                crops["start1"],
+                crops["start2"],
+                order.mask_gen,
+                1.0,
+                1.0,
+            )
+            if float(stats["n_queries"]) > 0.0 and torch.isfinite(loss_l) and torch.isfinite(loss_t):
+                chosen = (crops, float(loss_l.detach()), float(loss_t.detach()), float(stats["n_queries"]))
+                chosen_index = batch_index
+                break
+    if chosen is None or chosen_index is None:
+        raise SystemExit("no initialization batch contained an aligned time pair")
+    crops, loss_l_value, loss_t_value, n_queries = chosen
+    if abs(loss_t_value) == 0.0:
+        raise SystemExit("time loss was zero on the lock batch")
+    lambda_time = abs(loss_l_value) / abs(loss_t_value)
+    model.zero_grad(set_to_none=True)
+    total, loss_g, loss_l, loss_t, stats = perceiver_ltc_loss(
+        model,
+        crops["mel1"],
+        crops["mel2"],
+        crops["frame_valid1"],
+        crops["frame_valid2"],
+        crops["start1"],
+        crops["start2"],
+        torch.Generator().manual_seed(seed + 91),
+        1.0,
+        lambda_time,
+    )
+    finite = bool(torch.isfinite(total))
+    grad_norm = None
+    grad_finite = False
+    if finite:
+        total.backward()
+        square = 0.0
+        saw = False
+        grad_finite = True
+        for param in model.student_parameters():
+            if param.grad is None:
+                continue
+            saw = True
+            if not bool(torch.isfinite(param.grad).all()):
+                grad_finite = False
+                break
+            square += float(param.grad.detach().float().square().sum())
+        grad_finite = bool(grad_finite and saw)
+        if grad_finite:
+            grad_norm = square ** 0.5
+    after = sum(param.numel() for param in model.encoder.parameters())
+    del model, reference
+    if not finite or not grad_finite or after != PERCEIVER_ENCODER_PARAMS:
+        raise SystemExit("lambda_t is not finite at initialization; it is not swept")
+    return {
+        "task": "loopear_pltc_lambda_time",
+        "loss_sweep": False,
+        "tau": float(TAU_LOCAL),
+        "tau_changed": False,
+        "neighborhood_patches": TIME_NEIGHBORHOOD_PATCHES,
+        "lambda_local": 1.0,
+        "loss_l": loss_l_value,
+        "loss_t_at_unit_weight": loss_t_value,
+        "lambda_time": float(lambda_time),
+        "lock_batch_index": int(chosen_index),
+        "n_queries": n_queries,
+        "check_loss": float(total.detach()),
+        "check_loss_g": float(loss_g.detach()),
+        "check_loss_l": float(loss_l.detach()),
+        "check_loss_t": float(loss_t.detach()),
+        "grad_norm": grad_norm,
+        "chosen_lambda": 1.0,
+        "encoder_params": after,
+        "time_alpha": float(time_alpha),
+        "gpu_usd": 0.0,
+    }
+
+
+def smoke_ema_checkpoint(cache: MelCache, seed: int, time_alpha: float, lambda_time: float, path: Path) -> dict[str, Any]:
+    if "smoke" not in path.name:
+        raise SystemExit("the smoke checkpoint path must be marked smoke")
+    model = init_perceiver_local(seed)
+    model.set_time_alpha(time_alpha)
+    opt = torch.optim.AdamW(model.student_parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    order = Order(len(cache), 8, seed)
+    for step in range(2):
+        crops = cache.crops_with_starts(order.indices(), order.crop_gen)
+        model.train()
+        loss, _loss_g, _loss_l, _loss_t, _stats = perceiver_ltc_loss(
+            model,
+            crops["mel1"],
+            crops["mel2"],
+            crops["frame_valid1"],
+            crops["frame_valid2"],
+            crops["start1"],
+            crops["start2"],
+            order.mask_gen,
+            1.0,
+            lambda_time,
+        )
+        if not torch.isfinite(loss):
+            raise SystemExit("smoke loss was not finite")
+        opt.zero_grad(set_to_none=True)
+        loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.student_parameters(), GRAD_CLIP)
+        opt.step()
+        model.ema_update(ema_at(step, 2))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "step": 2,
+        "objective": "global_plus_local_plus_time",
+        "lambda_local": 1.0,
+        "lambda_time": float(lambda_time),
+        "time_alpha": float(time_alpha),
+        "encoder": model.encoder.state_dict(),
+        "global_head": model.global_head.state_dict(),
+        "predictor": model.predictor.state_dict(),
+        "local_head": model.local_head.state_dict(),
+        "teacher_encoder": model.teacher_encoder.state_dict(),
+        "teacher_predictor": model.teacher_predictor.state_dict(),
+        "teacher_local": model.teacher_local.state_dict(),
+    }
+    torch.save(payload, path)
+    blob = torch.load(path, map_location="cpu", weights_only=False)
+    required = ("teacher_encoder", "teacher_predictor", "teacher_local")
+    missing = [key for key in required if key not in blob or not isinstance(blob[key], dict)]
+    if missing:
+        raise SystemExit(f"smoke checkpoint is missing EMA tensors: {missing}")
+    student_vec = torch.cat([tensor.detach().float().reshape(-1) for tensor in model.encoder.state_dict().values()])
+    teacher_vec = torch.cat([tensor.detach().float().reshape(-1) for tensor in blob["teacher_encoder"].values()])
+    if student_vec.shape != teacher_vec.shape:
+        raise SystemExit("smoke teacher encoder shape does not match the student")
+    delta = float((student_vec - teacher_vec).abs().sum())
+    if delta <= 0.0:
+        raise SystemExit("smoke EMA teacher matches the student exactly")
+    keys = sorted(key for key in blob if key.endswith("_encoder") or key.startswith("teacher_"))
+    del model, blob
+    return {
+        "path": str(path),
+        "teacher_tensors_present": True,
+        "teacher_keys": keys,
+        "teacher_student_l1": delta,
+        "steps": 2,
+        "gpu_usd": 0.0,
+    }
+
+
 def run_perceiver_local(
     cache: MelCache,
     steps: int,
@@ -1003,6 +1219,8 @@ def run_perceiver_local(
     lambda_local: float,
     snapshot_every: int | None = None,
     time_alpha: float = 0.0,
+    lambda_time: float = 0.0,
+    time_neighborhood: int = TIME_NEIGHBORHOOD_PATCHES,
 ) -> dict[str, Any]:
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
@@ -1019,18 +1237,34 @@ def run_perceiver_local(
     probe_order = Order(len(cache), batch, seed + 1)
     write_run_manifest(run_id, config)
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    probe = cache.crops(probe_order.indices(), probe_order.crop_gen)
     probe_model.train()
     t_probe = time.perf_counter()
-    loss_probe, _probe_g, _probe_l = perceiver_local_loss(
-        probe_model,
-        probe["mel1"],
-        probe["mel2"],
-        probe["frame_valid1"],
-        probe["frame_valid2"],
-        probe_order.mask_gen,
-        lambda_local,
-    )
+    if float(lambda_time) > 0.0:
+        probe = cache.crops_with_starts(probe_order.indices(), probe_order.crop_gen)
+        loss_probe, _probe_g, _probe_l, _probe_t, _probe_stats = perceiver_ltc_loss(
+            probe_model,
+            probe["mel1"],
+            probe["mel2"],
+            probe["frame_valid1"],
+            probe["frame_valid2"],
+            probe["start1"],
+            probe["start2"],
+            probe_order.mask_gen,
+            lambda_local,
+            lambda_time,
+            time_neighborhood,
+        )
+    else:
+        probe = cache.crops(probe_order.indices(), probe_order.crop_gen)
+        loss_probe, _probe_g, _probe_l = perceiver_local_loss(
+            probe_model,
+            probe["mel1"],
+            probe["mel2"],
+            probe["frame_valid1"],
+            probe["frame_valid2"],
+            probe_order.mask_gen,
+            lambda_local,
+        )
     probe_opt.zero_grad(set_to_none=True)
     loss_probe.backward()
     torch.nn.utils.clip_grad_norm_(probe_model.student_parameters(), GRAD_CLIP)
@@ -1057,21 +1291,39 @@ def run_perceiver_local(
     stopped_collapse = False
     with log_path.open("w", encoding="utf-8") as handle:
         for step in range(int(steps)):
-            batch_tensors = cache.crops(order.indices(), order.crop_gen)
             model.train()
             if float(model.encoder.time_alpha) != float(time_alpha):
                 raise RuntimeError("time anchor changed during training")
             lr = lr_at(step, steps)
             _set_lr(opt, lr)
-            loss, loss_g, loss_l = perceiver_local_loss(
-                model,
-                batch_tensors["mel1"],
-                batch_tensors["mel2"],
-                batch_tensors["frame_valid1"],
-                batch_tensors["frame_valid2"],
-                order.mask_gen,
-                lambda_local,
-            )
+            if float(lambda_time) > 0.0:
+                batch_tensors = cache.crops_with_starts(order.indices(), order.crop_gen)
+                loss, loss_g, loss_l, loss_t, time_stats = perceiver_ltc_loss(
+                    model,
+                    batch_tensors["mel1"],
+                    batch_tensors["mel2"],
+                    batch_tensors["frame_valid1"],
+                    batch_tensors["frame_valid2"],
+                    batch_tensors["start1"],
+                    batch_tensors["start2"],
+                    order.mask_gen,
+                    lambda_local,
+                    lambda_time,
+                    time_neighborhood,
+                )
+            else:
+                batch_tensors = cache.crops(order.indices(), order.crop_gen)
+                loss, loss_g, loss_l = perceiver_local_loss(
+                    model,
+                    batch_tensors["mel1"],
+                    batch_tensors["mel2"],
+                    batch_tensors["frame_valid1"],
+                    batch_tensors["frame_valid2"],
+                    order.mask_gen,
+                    lambda_local,
+                )
+                loss_t = loss.detach() * 0.0
+                time_stats = {"n_queries": 0.0}
             if not torch.isfinite(loss):
                 raise RuntimeError("non-finite loss")
             opt.zero_grad(set_to_none=True)
@@ -1084,7 +1336,10 @@ def run_perceiver_local(
                 "loss": float(loss.detach()),
                 "loss_g": float(loss_g.detach()),
                 "loss_l": float(loss_l.detach()),
+                "loss_t": float(loss_t.detach()),
                 "lambda_local": float(lambda_local),
+                "lambda_time": float(lambda_time),
+                "n_time_queries": float(time_stats["n_queries"]),
                 "k": 1,
                 "time_alpha": float(time_alpha),
                 "lr": float(lr),
@@ -1108,7 +1363,7 @@ def run_perceiver_local(
                 handle.flush()
                 print(
                     f"local perceiver step {step} loss {stats['loss']:.4f} "
-                    f"g {stats['loss_g']:.4f} l {stats['loss_l']:.4f}",
+                    f"g {stats['loss_g']:.4f} l {stats['loss_l']:.4f} t {stats['loss_t']:.4f}",
                     flush=True,
                 )
     wall = time.perf_counter() - t0
@@ -1119,8 +1374,11 @@ def run_perceiver_local(
     torch.save(
         {
             "step": len(rows),
-            "objective": "global_plus_local",
+            "objective": "global_plus_local_plus_time" if float(lambda_time) > 0.0 else "global_plus_local",
             "lambda_local": float(lambda_local),
+            "lambda_time": float(lambda_time),
+            "time_neighborhood": int(time_neighborhood),
+            "tau_time": float(TAU_LOCAL),
             "k": 1,
             "time_alpha": float(time_alpha),
             "encoder": model.encoder.state_dict(),
@@ -1143,8 +1401,11 @@ def run_perceiver_local(
     save_file(model.encoder.state_dict(), str(weight_path))
     losses = [row["loss"] for row in rows]
     return {
-        "objective": "global_plus_local",
+        "objective": "global_plus_local_plus_time" if float(lambda_time) > 0.0 else "global_plus_local",
         "lambda_local": float(lambda_local),
+        "lambda_time": float(lambda_time),
+        "time_neighborhood": int(time_neighborhood),
+        "tau_time": float(TAU_LOCAL),
         "k": 1,
         "time_alpha": float(time_alpha),
         "anchored": float(time_alpha) != 0.0,
@@ -1164,6 +1425,7 @@ def run_perceiver_local(
         "loss_min": min(losses),
         "loss_g_end": rows[-1]["loss_g"],
         "loss_l_end": rows[-1]["loss_l"],
+        "loss_t_end": rows[-1].get("loss_t"),
         "weights_l2_change": moved,
         "weights_moved": moved > 0.0,
         "diagnostics": diag,
@@ -1230,6 +1492,11 @@ def _launch_prepared(which: str, seed: int) -> None:
         ckpt_path = Path("checkpoints/loopear_plt_h20_global_5000.pt")
         weight_path = Path("results/loopear_plt_h20_global_5000_encoder.safetensors")
         report_path = Path("results/loopear_plt_h20_train.json")
+    elif which == "loopear-pltc":
+        log_path = Path("results/loopear_pltc_h20_global_5000.jsonl")
+        ckpt_path = Path("checkpoints/loopear_pltc_h20_global_5000.pt")
+        weight_path = Path("results/loopear_pltc_h20_global_5000_encoder.safetensors")
+        report_path = Path("results/loopear_pltc_h20_train.json")
     else:
         raise SystemExit(f"unknown arm {which}")
     occupied = [path for path in (log_path, ckpt_path, weight_path, report_path) if path.exists()]
@@ -1248,7 +1515,13 @@ def _launch_prepared(which: str, seed: int) -> None:
         "steps": 5000,
         "batch": 64,
         "seed": seed,
-        "objective": "global_plus_local" if which in ("loopear-pl", "loopear-plt") else "global",
+        "objective": (
+            "global_plus_local_plus_time"
+            if which == "loopear-pltc"
+            else "global_plus_local"
+            if which in ("loopear-pl", "loopear-plt")
+            else "global"
+        ),
         "lambda_local": 0.0,
         "snapshot_every": 1000,
     }
@@ -1258,6 +1531,10 @@ def _launch_prepared(which: str, seed: int) -> None:
     preserved_before = None
     time_rank = None
     softmax_alpha = None
+    offset_crops = None
+    lambda_time_lock = None
+    smoke_ema = None
+    locked_time_alpha = 0.0027896127554686775
     if which == "loopear-pt":
         sweep = select_time_alpha(cache, seed, 64)
         config["time_alpha"] = sweep["alpha"]
@@ -1344,9 +1621,105 @@ def _launch_prepared(which: str, seed: int) -> None:
             "wall_s": time.perf_counter() - before_wall,
             "cpu_hours": hours(cpu_seconds() - before_cpu),
         }
+    if which == "loopear-pltc":
+        preserved_before = {str(path): _file_sha256(path) for path in _preserved_weight_paths()}
+        before_cpu = cpu_seconds()
+        before_wall = time.perf_counter()
+        before_path = Path("results/loopear_pltc_before.json")
+        smoke_path = Path("checkpoints/loopear_pltc_smoke_ema.pt")
+        if before_path.exists():
+            stored = json.loads(before_path.read_text(encoding="utf-8"))
+            offset_crops = stored["offset_crops"]
+            lambda_time_lock = stored["lambda_time"]
+            smoke_ema = stored["smoke_ema"]
+            if float(lambda_time_lock["lambda_time"]) <= 0.0 or bool(lambda_time_lock["loss_sweep"]):
+                raise SystemExit("stored lambda_t is not a one-batch lock")
+            blob = torch.load(smoke_path, map_location="cpu", weights_only=False)
+            required = ("teacher_encoder", "teacher_predictor", "teacher_local")
+            if any(key not in blob or not isinstance(blob[key], dict) for key in required):
+                raise SystemExit("stored smoke checkpoint is missing EMA tensors")
+            del blob
+            before_train = stored.get("before_train")
+        else:
+            offset_crops = measure_offset_crops(cache, seed, 4)
+            lambda_time_lock = lock_lambda_time(cache, seed, 64, locked_time_alpha)
+            smoke_ema = smoke_ema_checkpoint(
+                cache, seed, locked_time_alpha, float(lambda_time_lock["lambda_time"]), smoke_path
+            )
+            if not smoke_ema["teacher_tensors_present"]:
+                raise SystemExit("smoke checkpoint does not contain EMA tensors")
+            before_train = {
+                "cpu_s": cpu_seconds() - before_cpu,
+                "wall_s": time.perf_counter() - before_wall,
+                "cpu_hours": hours(cpu_seconds() - before_cpu),
+            }
+            write_result_json(
+                before_path,
+                {
+                    "offset_crops": offset_crops,
+                    "lambda_time": lambda_time_lock,
+                    "smoke_ema": smoke_ema,
+                    "before_train": before_train,
+                    "gpu_usd": 0.0,
+                },
+            )
+        config["lambda_local"] = 1.0
+        config["lambda_time"] = float(lambda_time_lock["lambda_time"])
+        config["k"] = 1
+        config["time_alpha"] = locked_time_alpha
+        config["time_neighborhood"] = TIME_NEIGHBORHOOD_PATCHES
+        config["tau_time"] = float(TAU_LOCAL)
+        lambda_check = lambda_time_lock
+        print(
+            json.dumps(
+                {
+                    "lambda_time": float(lambda_time_lock["lambda_time"]),
+                    "loss_l": lambda_time_lock["loss_l"],
+                    "loss_t_at_unit_weight": lambda_time_lock["loss_t_at_unit_weight"],
+                    "neighborhood_patches": TIME_NEIGHBORHOOD_PATCHES,
+                    "neighborhood_seconds": offset_crops["neighborhood_seconds"],
+                    "distinct_embedding_pairs": offset_crops["n_distinct_embedding_pairs"],
+                    "shared_embedding_pairs": offset_crops["n_shared_embedding_pairs"],
+                    "smoke_teacher_tensors": True,
+                    "loss_sweep": False,
+                }
+            ),
+            flush=True,
+        )
+        if before_train is None:
+            before_train = {
+                "cpu_s": cpu_seconds() - before_cpu,
+                "wall_s": time.perf_counter() - before_wall,
+                "cpu_hours": hours(cpu_seconds() - before_cpu),
+            }
     ledger = SpendLedger(Path("ledger/loopear_h20_spend.jsonl"), cap_usd=0.0)
     ledger.record(which, "cpu", 0.0, "no paid GPU")
-    if which == "loopear-plt":
+    if which == "loopear-pltc":
+        trained = run_perceiver_local(
+            cache,
+            5000,
+            64,
+            seed,
+            log_path,
+            ckpt_path,
+            weight_path,
+            "loopear_pltc_h20_global_5000",
+            config,
+            1.0,
+            snapshot_every=1000,
+            time_alpha=locked_time_alpha,
+            lambda_time=float(lambda_time_lock["lambda_time"]),
+            time_neighborhood=TIME_NEIGHBORHOOD_PATCHES,
+        )
+        preserved_after = {str(path): _file_sha256(path) for path in _preserved_weight_paths()}
+        if preserved_after != preserved_before:
+            raise SystemExit("a preserved D, P, P-T, P-L, or P-LT encoder changed during P-LTC")
+        saved = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        required = ("teacher_encoder", "teacher_predictor", "teacher_local")
+        if any(key not in saved or not isinstance(saved[key], dict) for key in required):
+            raise SystemExit("the trained checkpoint is missing EMA tensors")
+        del saved
+    elif which == "loopear-plt":
         trained = run_perceiver_local(
             cache,
             5000,
@@ -1420,12 +1793,21 @@ def _launch_prepared(which: str, seed: int) -> None:
         "dataset_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
         "dataset_id_sha256": digest,
         "lambda_local": 0.0 if lambda_check is None else lambda_check["chosen_lambda"],
-        "objective": "global_plus_local" if which in ("loopear-pl", "loopear-plt") else "global",
+        "objective": (
+            "global_plus_local_plus_time"
+            if which == "loopear-pltc"
+            else "global_plus_local"
+            if which in ("loopear-pl", "loopear-plt")
+            else "global"
+        ),
         "equal_compute_extension": False,
         "time_alpha_sweep": sweep,
         "penalty_versus_logits": penalty_scale,
         "within_recording_time_rank": time_rank,
         "softmax_alpha": softmax_alpha,
+        "offset_crops": offset_crops,
+        "lambda_time_lock": lambda_time_lock,
+        "smoke_ema": smoke_ema,
         "lambda_check": lambda_check,
         "before_train": before_train,
         "preserved_encoder_files": 0 if preserved_before is None else len(preserved_before),
@@ -1446,7 +1828,7 @@ def main() -> None:
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument(
         "--launch-prepared",
-        choices=("loopear-d", "loopear-p", "loopear-pt", "loopear-pl", "loopear-plt"),
+        choices=("loopear-d", "loopear-p", "loopear-pt", "loopear-pl", "loopear-plt", "loopear-pltc"),
     )
     args = parser.parse_args()
     if args.prepare_only:

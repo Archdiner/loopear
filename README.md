@@ -126,3 +126,12 @@ P-LT keeps that local objective and adds the temporal penalty on the input cross
 ```
 
 `results/loopear_plt_h20_protocol.json` holds the P-LT probe. Four-example recognition stays the primary score. The energy profile stays a diagnostic.
+
+P-LTC keeps that model, including the locked alpha `0.0027896127554686775`, and adds one correspondence term. The positive pair is the same absolute time in two crops whose offsets differ. The denominator is the other aligned moments in that recording, excluding one patch (0.04 s) on each side of the positive. Temperature stays 0.1. The locked weight is `λ_t = 0.8774499635938284`, from one initialization batch, in `results/loopear_pltc_before.json`. The run saves the EMA teacher.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-pltc
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_pltc_h20_global_5000_encoder.safetensors --time-alpha 0.0027896127554686775 --p-reference results/loopear_plt_h20_global_5000_encoder.safetensors --p-reference-time-alpha 0.0027896127554686775 --skip-k1 --coordinate --coordinate-name perceiver_ltc --report results/loopear_pltc_h20_protocol.json
+```
+
+`results/loopear_pltc_h20_protocol.json` holds the probe. `results/loopear_pltc_time_rank.json` holds the EMA retrieval. `results/loopear_pltc_event_order.json` holds the STARSS event-order counts. Four-example recognition, onset localization, and event order are the primary scores. The energy profile and the 970-parameter readout stay diagnostics.

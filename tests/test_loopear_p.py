@@ -2,13 +2,18 @@ import torch
 
 from loopear.d.diagnostics import analytic_encoder_flops
 from loopear.d.model import patchify
+from loopear.d.frontend import crop_logmel, crop_logmel_with_start
 from loopear.d.objective import (
+    TIME_NEIGHBORHOOD_PATCHES,
     broadcast_time_valid,
+    describe_crop_offsets,
     global_ntxent,
+    temporal_retrieval_sums,
     local_mld,
     patch_valid_from_frames,
     sample_freq_mask,
     sample_time_mask,
+    time_correspondence_loss,
 )
 from loopear.d.perceiver import (
     LatentBankPredictor,
@@ -23,6 +28,7 @@ from loopear.d.perceiver import (
     init_perceiver_local,
     patch_and_latent_time,
     perceiver_local_loss,
+    perceiver_ltc_loss,
     visible_cross_logit_stats,
     within_recording_time_sums,
 )
@@ -34,8 +40,10 @@ from loopear.d.spec import (
     N_FRAMES,
     N_LATENTS,
     N_MELS,
+    PATCH_FRAMES,
     PERCEIVER_ENCODER_PARAMS,
     TAU_GLOBAL,
+    TAU_LOCAL,
 )
 
 
@@ -333,3 +341,156 @@ def test_softmax_alpha_matches_centered_variation_and_moves_attention():
         encoder.time_alpha = float(alpha)
         moved, _summary = encoder(mel, visible)
     assert not torch.allclose(plain, moved)
+
+
+def test_time_loss_aligns_absolute_time_and_rejects_a_shared_embedding():
+    assert TIME_NEIGHBORHOOD_PATCHES == 1
+    frames = torch.arange(N_FRAMES + 40, dtype=torch.float32).view(-1, 1).repeat(1, N_MELS)
+    left = torch.Generator().manual_seed(3)
+    right = torch.Generator().manual_seed(3)
+    crop_a, valid_a = crop_logmel(frames, left)
+    crop_b, valid_b, start = crop_logmel_with_start(frames, right)
+    assert torch.equal(crop_a, crop_b)
+    assert torch.equal(valid_a, valid_b)
+    assert torch.equal(crop_b, frames[start : start + N_FRAMES])
+    n_time, freq, width = 6, 1, 6
+    pred = torch.zeros(1, n_time, freq, width)
+    target = torch.zeros(1, n_time, freq, width)
+    for index in range(n_time):
+        pred[0, index, 0, index] = 1.0
+        if index + 2 < n_time:
+            target[0, index + 2, 0, index] = 1.0
+    valid = torch.zeros(1, n_time, freq, dtype=torch.bool)
+    valid[0, :, 0] = True
+    pos = torch.eye(n_time, 4)
+    tables = (pos, pos + 1.0)
+    loss, n_queries = time_correspondence_loss(
+        pred,
+        target,
+        valid,
+        valid,
+        torch.tensor([2 * PATCH_FRAMES]),
+        torch.tensor([0]),
+        tables,
+        TAU_LOCAL,
+        1,
+    )
+    assert n_queries == 4
+    retrieved = temporal_retrieval_sums(
+        pred,
+        target,
+        valid,
+        valid,
+        torch.tensor([2 * PATCH_FRAMES]),
+        torch.tensor([0]),
+        1,
+    )
+    assert retrieved["n_queries"] == 4.0
+    assert retrieved["n_strictly_best"] == 4.0
+    assert retrieved["n_correct_beats_same_index"] == retrieved["n_same_index"]
+    assert retrieved["chance_top1_sum"] < retrieved["n_strictly_best"]
+    expected = -1.0 / TAU_LOCAL + 0.5 * torch.log(torch.tensor(2.0))
+    assert torch.allclose(loss, expected)
+    absolute = torch.zeros(1, n_time, freq, width)
+    absolute[0, 0, 0, 0] = 1.0
+    target_index = torch.zeros(1, n_time, freq, width)
+    target_index[0, 2, 0, 2] = 1.0
+    target_index[0, 4, 0, 4] = 1.0
+    target_index[0, 5, 0, 5] = 1.0
+    one = torch.zeros(1, n_time, freq, dtype=torch.bool)
+    one[0, 0, 0] = True
+    keys = torch.zeros(1, n_time, freq, dtype=torch.bool)
+    keys[0, 2, 0] = True
+    keys[0, 4, 0] = True
+    keys[0, 5, 0] = True
+    shifted, n_shifted = time_correspondence_loss(
+        absolute,
+        target_index,
+        one,
+        keys,
+        torch.tensor([2 * PATCH_FRAMES]),
+        torch.tensor([0]),
+        tables,
+        TAU_LOCAL,
+        1,
+    )
+    assert n_shifted == 1
+    assert torch.allclose(shifted, torch.log(torch.tensor(2.0)))
+    same, n_same = time_correspondence_loss(
+        pred,
+        target,
+        valid,
+        valid,
+        torch.tensor([4]),
+        torch.tensor([4]),
+        tables,
+        TAU_LOCAL,
+        1,
+    )
+    assert n_same == 0
+    assert float(same) == 0.0
+    census = describe_crop_offsets(torch.tensor([0, 4]), torch.tensor([8, 4]), tables)
+    assert census["n_distinct_embedding_pairs"] > 0.0
+    assert census["n_shared_embedding_pairs"] == 0.0
+    assert census["n_same_offset"] == 1.0
+    flat = torch.zeros(n_time, 4)
+    try:
+        time_correspondence_loss(
+            pred,
+            target,
+            valid,
+            valid,
+            torch.tensor([0]),
+            torch.tensor([8]),
+            (flat, pos),
+            TAU_LOCAL,
+            1,
+        )
+    except RuntimeError as exc:
+        assert "positional embedding" in str(exc)
+    else:
+        raise AssertionError("a shared time embedding was accepted")
+    model = init_perceiver_local(1)
+    model.set_time_alpha(0.0027896127554686775)
+    before = sum(param.numel() for param in model.student_parameters())
+    mel, _visible = _mel(2, seed=5)
+    frame_valid = torch.ones(2, N_FRAMES, dtype=torch.bool)
+    total, loss_g, loss_l, loss_t, stats = perceiver_ltc_loss(
+        model,
+        mel,
+        mel,
+        frame_valid,
+        frame_valid,
+        torch.tensor([0, 0]),
+        torch.tensor([8, 16]),
+        torch.Generator().manual_seed(2),
+        1.0,
+        1.0,
+    )
+    assert stats["n_queries"] > 0.0
+    assert torch.isfinite(total)
+    assert torch.isfinite(loss_g)
+    assert torch.isfinite(loss_l)
+    assert torch.isfinite(loss_t)
+    total.backward()
+    assert sum(param.numel() for param in model.encoder.parameters()) == PERCEIVER_ENCODER_PARAMS
+    assert sum(param.numel() for param in model.student_parameters()) == before
+    assert all(bool(torch.isfinite(param.grad).all()) for param in model.student_parameters() if param.grad is not None)
+
+
+def test_event_order_pairs_keep_a_gap_and_distinct_patches():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "scripts" / "eval_loopear_event_order.py"
+    spec = importlib.util.spec_from_file_location("event_order_probe", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    runs = module.event_runs([(0, 0), (1, 0), (2, 0), (10, 1), (12, 0)])
+    pairs = module.candidate_pairs(runs)
+    assert (0, 10, 0, 1, 1.0) in pairs
+    assert all(class_a != class_b and gap >= 0.2 for _a, _b, class_a, class_b, gap in pairs)
+    sample = module.place_crop(1.0, 1.8, 16000 * 10)
+    assert sample is not None
+    assert module.patch_index(1.0, sample) != module.patch_index(1.8, sample)
+    assert module.reversed_patch(1.8, sample) != module.reversed_patch(1.0, sample)

@@ -16,6 +16,7 @@ from loopear.d.frontend import (
     RunningNorm,
     build_mel,
     crop_logmel,
+    crop_logmel_with_start,
     normalize_logmel,
     waveform_logmel,
     write_frontend_config,
@@ -560,6 +561,38 @@ class MelCache:
             "mel2": torch.stack(mel2s, dim=0),
             "frame_valid1": torch.stack(valid1s, dim=0),
             "frame_valid2": torch.stack(valid2s, dim=0),
+            "freesound_id": torch.tensor(
+                [int(self.rows[index]["freesound_id"]) for index in indices],
+                dtype=torch.long,
+            ),
+        }
+
+    def crops_with_starts(
+        self, indices: list[int], generator: torch.Generator
+    ) -> dict[str, torch.Tensor]:
+        mel1s = []
+        mel2s = []
+        valid1s = []
+        valid2s = []
+        start1s = []
+        start2s = []
+        for index in indices:
+            raw = self._load(index)
+            crop1, valid1, start1 = crop_logmel_with_start(raw, generator)
+            crop2, valid2, start2 = crop_logmel_with_start(raw, generator)
+            mel1s.append(normalize_logmel(crop1, self.mean, self.std) * valid1.unsqueeze(-1))
+            mel2s.append(normalize_logmel(crop2, self.mean, self.std) * valid2.unsqueeze(-1))
+            valid1s.append(valid1)
+            valid2s.append(valid2)
+            start1s.append(int(start1))
+            start2s.append(int(start2))
+        return {
+            "mel1": torch.stack(mel1s, dim=0),
+            "mel2": torch.stack(mel2s, dim=0),
+            "frame_valid1": torch.stack(valid1s, dim=0),
+            "frame_valid2": torch.stack(valid2s, dim=0),
+            "start1": torch.tensor(start1s, dtype=torch.long),
+            "start2": torch.tensor(start2s, dtype=torch.long),
             "freesound_id": torch.tensor(
                 [int(self.rows[index]["freesound_id"]) for index in indices],
                 dtype=torch.long,

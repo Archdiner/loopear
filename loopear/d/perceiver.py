@@ -10,6 +10,8 @@ from loopear.d.objective import (
     patch_valid_from_frames,
     sample_freq_mask,
     sample_time_mask,
+    time_correspondence_loss,
+    TIME_NEIGHBORHOOD_PATCHES,
 )
 from loopear.d.spec import (
     D_LOCAL,
@@ -281,6 +283,33 @@ class LoopEarPLocal(nn.Module):
         self.teacher_encoder.time_alpha = float(self.encoder.time_alpha)
 
 
+def load_local_with_teacher(path: str, time_alpha: float) -> LoopEarPLocal:
+    blob = torch.load(path, map_location="cpu", weights_only=False)
+    required = (
+        "encoder",
+        "global_head",
+        "predictor",
+        "local_head",
+        "teacher_encoder",
+        "teacher_predictor",
+        "teacher_local",
+    )
+    missing = [key for key in required if key not in blob]
+    if missing:
+        raise RuntimeError(f"checkpoint is missing EMA tensors: {missing}")
+    model = init_perceiver_local(0)
+    model.encoder.load_state_dict(blob["encoder"])
+    model.global_head.load_state_dict(blob["global_head"])
+    model.predictor.load_state_dict(blob["predictor"])
+    model.local_head.load_state_dict(blob["local_head"])
+    model.teacher_encoder.load_state_dict(blob["teacher_encoder"])
+    model.teacher_predictor.load_state_dict(blob["teacher_predictor"])
+    model.teacher_local.load_state_dict(blob["teacher_local"])
+    model.set_time_alpha(float(time_alpha))
+    model.eval()
+    return model
+
+
 def init_perceiver_local(seed: int) -> LoopEarPLocal:
     from loopear.losses import set_seed
 
@@ -331,6 +360,73 @@ def perceiver_local_loss(
         + local_mld(pred2, target2, mask2, valid2, TAU_LOCAL, 1)
     )
     return loss_g + float(lambda_local) * loss_l, loss_g, loss_l
+
+
+def perceiver_ltc_loss(
+    model: LoopEarPLocal,
+    mel1: torch.Tensor,
+    mel2: torch.Tensor,
+    frame_valid1: torch.Tensor,
+    frame_valid2: torch.Tensor,
+    start1: torch.Tensor,
+    start2: torch.Tensor,
+    generator: torch.Generator,
+    lambda_local: float,
+    lambda_time: float,
+    neighborhood: int = TIME_NEIGHBORHOOD_PATCHES,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, float]]:
+    if float(model.encoder.time_alpha) != float(model.teacher_encoder.time_alpha):
+        raise RuntimeError("student and teacher time anchors differ")
+    if float(lambda_time) <= 0.0:
+        raise ValueError("P-LTC requires a positive time weight")
+    valid1 = broadcast_time_valid(patch_valid_from_frames(frame_valid1))
+    valid2 = broadcast_time_valid(patch_valid_from_frames(frame_valid2))
+    if bool((valid1.flatten(1).sum(dim=1) == 0).any()) or bool(
+        (valid2.flatten(1).sum(dim=1) == 0).any()
+    ):
+        raise ValueError("a crop has no valid patches")
+    mask1 = sample_time_mask(valid1.any(dim=-1), generator)
+    mask1 = mask1[:, :, None].expand_as(valid1) & valid1
+    mask2 = sample_freq_mask(mel2.shape[0], generator)
+    mask2 = mask2[:, None, :].expand_as(valid2) & valid2
+    latents1, summary1 = model.encoder(mel1, ~mask1 & valid1)
+    latents2, summary2 = model.encoder(mel2, ~mask2 & valid2)
+    loss_g = global_ntxent(
+        model.project_global(summary1),
+        model.project_global(summary2),
+        TAU_GLOBAL,
+    )
+    pred1 = model.project_local(model.predictor(latents1, 0))
+    pred2 = model.project_local(model.predictor(latents2, 1))
+    with torch.no_grad():
+        teacher1, _summary1 = model.teacher_encoder(mel1, valid1)
+        teacher2, _summary2 = model.teacher_encoder(mel2, valid2)
+        target1 = model.project_teacher(model.teacher_predictor(teacher1, 0))
+        target2 = model.project_teacher(model.teacher_predictor(teacher2, 1))
+    loss_l = 0.5 * (
+        local_mld(pred1, target1, mask1, valid1, TAU_LOCAL, 1)
+        + local_mld(pred2, target2, mask2, valid2, TAU_LOCAL, 1)
+    )
+    tables = (model.encoder.pos_time, model.predictor.pos_time)
+    loss_ab, n_ab = time_correspondence_loss(
+        pred1, target2, valid1, valid2, start1, start2, tables, TAU_LOCAL, neighborhood
+    )
+    loss_ba, n_ba = time_correspondence_loss(
+        pred2, target1, valid2, valid1, start2, start1, tables, TAU_LOCAL, neighborhood
+    )
+    n_queries = n_ab + n_ba
+    if n_queries == 0:
+        loss_t = pred1.sum() * 0.0
+    else:
+        loss_t = (loss_ab * n_ab + loss_ba * n_ba) / float(n_queries)
+    total = loss_g + float(lambda_local) * loss_l + float(lambda_time) * loss_t
+    return (
+        total,
+        loss_g,
+        loss_l,
+        loss_t,
+        {"n_queries": float(n_queries), "tau": float(TAU_LOCAL), "neighborhood_patches": float(neighborhood)},
+    )
 
 
 def visible_cross_logit_stats(

@@ -48,28 +48,52 @@ def frame_count(n_samples: int) -> int:
     return 1 + (int(n_samples) - N_FFT) // HOP_SAMPLES
 
 
-def crop_logmel(
-    logmel: torch.Tensor,
-    generator: torch.Generator | None,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    if logmel.ndim != 2 or logmel.shape[1] != N_MELS:
-        raise ValueError(f"logmel must be [frames, {N_MELS}]")
+def _crop_start(n_frames: int, generator: torch.Generator | None) -> int:
+    if n_frames >= N_FRAMES:
+        span = n_frames - N_FRAMES + 1
+        if generator is None:
+            return max((n_frames - N_FRAMES) // 2, 0)
+        return int(torch.randint(0, span, (1,), generator=generator).item())
+    return 0
+
+
+def _slice_crop(logmel: torch.Tensor, start: int) -> tuple[torch.Tensor, torch.Tensor]:
     n = int(logmel.shape[0])
     if n >= N_FRAMES:
-        span = n - N_FRAMES + 1
-        if generator is None:
-            start = max((n - N_FRAMES) // 2, 0)
-        else:
-            start = int(torch.randint(0, span, (1,), generator=generator).item())
+        if start < 0 or start + N_FRAMES > n:
+            raise ValueError("crop start is outside the recording")
         crop = logmel[start : start + N_FRAMES]
         valid = torch.ones(N_FRAMES, dtype=torch.bool)
         return crop, valid
+    if start != 0:
+        raise ValueError("a short recording has only one offset")
     crop = torch.zeros(N_FRAMES, N_MELS, dtype=logmel.dtype)
     if n > 0:
         crop[:n] = logmel
     valid = torch.zeros(N_FRAMES, dtype=torch.bool)
     valid[:n] = True
     return crop, valid
+
+
+def crop_logmel(
+    logmel: torch.Tensor,
+    generator: torch.Generator | None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if logmel.ndim != 2 or logmel.shape[1] != N_MELS:
+        raise ValueError(f"logmel must be [frames, {N_MELS}]")
+    start = _crop_start(int(logmel.shape[0]), generator)
+    return _slice_crop(logmel, start)
+
+
+def crop_logmel_with_start(
+    logmel: torch.Tensor,
+    generator: torch.Generator | None,
+) -> tuple[torch.Tensor, torch.Tensor, int]:
+    if logmel.ndim != 2 or logmel.shape[1] != N_MELS:
+        raise ValueError(f"logmel must be [frames, {N_MELS}]")
+    start = _crop_start(int(logmel.shape[0]), generator)
+    crop, valid = _slice_crop(logmel, start)
+    return crop, valid, int(start)
 
 
 def normalize_logmel(logmel: torch.Tensor, mean: torch.Tensor, std: torch.Tensor) -> torch.Tensor:

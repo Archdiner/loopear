@@ -807,6 +807,7 @@ def main() -> None:
     parser.add_argument("--coordinate-name", default="trained_perceiver")
     parser.add_argument("--time-alpha", type=float, default=0.0)
     parser.add_argument("--p-reference", default="")
+    parser.add_argument("--p-reference-time-alpha", type=float, default=0.0)
     parser.add_argument("--report", default="results/loopear_protocol.json")
     args = parser.parse_args()
     if torch.cuda.is_available():
@@ -850,7 +851,7 @@ def main() -> None:
             param.requires_grad = False
         models["p_random"] = random_model.encoder
     if args.p_reference:
-        models["p_reference"] = _load_p(Path(args.p_reference), 0.0)
+        models["p_reference"] = _load_p(Path(args.p_reference), args.p_reference_time_alpha)
     mel_bank = build_mel()
     rows = train_rows + val_rows
     print(f"encoding {len(train_rows)} development clips and {len(val_rows)} val clips", flush=True)
@@ -915,6 +916,7 @@ def main() -> None:
             "p": args.p,
             "p_time_alpha": float(args.time_alpha),
             "p_reference": args.p_reference or None,
+            "p_reference_time_alpha": float(args.p_reference_time_alpha) if args.p_reference else None,
             "coordinate_random_init": bool(args.coordinate),
             "coordinate_name": args.coordinate_name if args.coordinate else None,
         },
