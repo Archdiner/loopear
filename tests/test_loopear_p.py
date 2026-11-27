@@ -13,8 +13,11 @@ from loopear.d.objective import (
 from loopear.d.perceiver import (
     LoopEarPEncoder,
     analytic_perceiver_flops,
+    apply_time_bias,
     encoder_parameter_count,
     init_perceiver,
+    patch_and_latent_time,
+    visible_cross_logit_stats,
 )
 from loopear.d.spec import (
     D_MODEL,
@@ -146,3 +149,40 @@ def test_perceiver_flops_are_below_the_token_transformer():
     assert ours["cross_score_bytes_one_layer"] < theirs["gemm_flops_mul_add"]
     encoder = LoopEarPEncoder()
     assert sum(p.numel() for p in encoder.parameters()) == PERCEIVER_ENCODER_PARAMS
+
+
+def test_zero_alpha_matches_ordinary_cross_attention_and_keeps_the_parameter_count():
+    torch.manual_seed(0)
+    left = LoopEarPEncoder()
+    right = LoopEarPEncoder()
+    right.load_state_dict(left.state_dict())
+    left.time_alpha = 0.0
+    right.time_alpha = 0.0
+    mel, visible = _mel(2, seed=1)
+    with torch.no_grad():
+        latents, summary = left(mel, visible)
+        other_latents, other_summary = right(mel, visible)
+    assert torch.equal(latents, other_latents)
+    assert torch.equal(summary, other_summary)
+    assert sum(p.numel() for p in left.parameters()) == PERCEIVER_ENCODER_PARAMS
+    scores = torch.zeros(1, 1, N_LATENTS, GRID_T * GRID_F)
+    assert torch.equal(apply_time_bias(scores, 0.0), scores)
+    patch_time, latent_time = patch_and_latent_time()
+    assert float(latent_time[0]) == 0.0
+    assert float(latent_time[-1]) == float(GRID_T - 1)
+    assert float(patch_time[0]) == 0.0
+    assert float(patch_time[-1]) == float(GRID_T - 1)
+    biased = apply_time_bias(scores, 0.5)
+    far = (GRID_T - 1) * GRID_F
+    assert float(biased[0, 0, 0, 0]) == 0.0
+    assert torch.allclose(biased[0, 0, 0, far], torch.tensor(-0.5 * float(GRID_T - 1) ** 2))
+    assert torch.allclose(biased[0, 0, -1, far], torch.tensor(0.0), atol=1e-5)
+    left.time_alpha = 4.0
+    with torch.no_grad():
+        moved, _summary = left(mel, visible)
+    assert not torch.allclose(moved, latents, atol=1e-5, rtol=1e-5)
+    assert sum(p.numel() for p in left.parameters()) == PERCEIVER_ENCODER_PARAMS
+    stats = visible_cross_logit_stats(left, mel, visible)
+    assert stats["count"] > 0.0
+    assert stats["logit_sq"] > 0.0
+    assert stats["penalty_sq"] > 0.0

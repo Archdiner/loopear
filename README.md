@@ -100,3 +100,11 @@ The training command is the existing 5.001-hour subset, 1,000 steps, batch 64, s
 ```
 
 The 5,000-step weights are `results/loopear_d_h20_global_5000_encoder.safetensors` and `results/loopear_p_h20_global_5000_encoder.safetensors`. `results/loopear_h20_protocol.json` holds that probe, including the coordinate readout. The 1,000-step eval command fits one readout on 1,680 development clips and 640 official validation clips, scores STARSS23 only where both sides have enough positives, runs a 4-example probe, and checks a 10-bin log-mel profile. `results/loopear_protocol.json` holds those 1,000-step numbers. The 160-clip scores above are a different probe.
+
+The equal-wall-clock scores use the existing LoopEar-D snapshots at 2,000 and 3,000 steps: `results/loopear_h20_equal_time_d2000.json` and `results/loopear_h20_equal_time_d3000.json`. P-T keeps the same 32 latents and the same global loss, and changes only the input cross-attention logits to `q·k/sqrt(d) − α(t−μ)^2`. Alpha 0 is ordinary cross-attention. The locked alpha is in `results/loopear_pt_h20_train.json`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-pt
+```
+
+`results/loopear_pt_h20_protocol.json` holds the P-T probe. GPU spend `$0.00`.

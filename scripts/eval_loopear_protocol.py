@@ -63,9 +63,10 @@ def _load_d(path: Path):
     return model
 
 
-def _load_p(path: Path) -> LoopEarPEncoder:
+def _load_p(path: Path, time_alpha: float = 0.0) -> LoopEarPEncoder:
     model = LoopEarPEncoder()
     model.load_state_dict(load_file(str(path)))
+    model.time_alpha = float(time_alpha)
     model.eval()
     for param in model.parameters():
         param.requires_grad = False
@@ -287,6 +288,8 @@ def _encode_fsd(rows, models, helpers, mean, std, mel_bank) -> dict[str, Any]:
         "dsp": np.zeros((n, N_MELS * 2), dtype=np.float32),
         "full": np.zeros(n, dtype=bool),
     }
+    if models.get("p_reference") is not None:
+        center["p_reference"] = np.zeros((n, 32 * D_MODEL), dtype=np.float32)
     pending: list[dict[str, Any]] = []
     native = {"mel_frames": 0, "fmap_time": 0, "fmap_freq": 0, "usad_frames": 0}
     n_windows = 0
@@ -322,6 +325,9 @@ def _encode_fsd(rows, models, helpers, mean, std, mel_bank) -> dict[str, Any]:
             random_latents = None
             if models.get("p_random") is not None:
                 random_latents, _random_summary = models["p_random"](mel, visible)
+            reference_latents = None
+            if models.get("p_reference") is not None:
+                reference_latents, _reference_summary = models["p_reference"](mel, visible)
         g_patch = []
         k_patch = []
         for index in range(mel.shape[0]):
@@ -378,6 +384,8 @@ def _encode_fsd(rows, models, helpers, mean, std, mel_bank) -> dict[str, Any]:
                 center["p_latents"][owner] = latents[local].reshape(-1).detach().float().cpu().numpy()
                 if random_latents is not None:
                     center["p_random"][owner] = random_latents[local].reshape(-1).detach().float().cpu().numpy()
+                if reference_latents is not None:
+                    center["p_reference"][owner] = reference_latents[local].reshape(-1).detach().float().cpu().numpy()
                 center["dsp"][owner] = dsp[local].detach().float().cpu().numpy()
                 if center["usad_mean"] is None:
                     center["usad_mean"] = np.zeros((n, usad_dim), dtype=np.float32)
@@ -722,7 +730,7 @@ def _fit_per_bin(tokens_train: torch.Tensor, y_train: torch.Tensor, tokens_val: 
     return pred, int(weight.numel() + bias.numel())
 
 
-def _coordinate_block(encoded: dict[str, Any], n_train: int) -> dict[str, Any]:
+def _coordinate_block(encoded: dict[str, Any], n_train: int, evaluated_name: str = "trained_perceiver") -> dict[str, Any]:
     full = encoded["center"]["full"]
     train_idx = np.where(full[:n_train])[0]
     val_idx = np.where(full[n_train:])[0] + n_train
@@ -735,10 +743,13 @@ def _coordinate_block(encoded: dict[str, Any], n_train: int) -> dict[str, Any]:
         return coordinate_pool(latents, coords)
 
     sources = {
-        "trained_perceiver": _from_latents(encoded["center"]["p_latents"]),
+        evaluated_name: _from_latents(encoded["center"]["p_latents"]),
         "random_init_perceiver": _from_latents(encoded["center"]["p_random"]),
         "loopear_d_time_bins": torch.from_numpy(encoded["center"]["d_global_local"]),
     }
+    if "p_reference" in encoded["center"]:
+        reference_name = "trained_perceiver" if evaluated_name != "trained_perceiver" else "perceiver_reference"
+        sources[reference_name] = _from_latents(encoded["center"]["p_reference"])
     out = {
         "equal_compute_extension": False,
         "trained_steps": None,
@@ -759,19 +770,29 @@ def _coordinate_block(encoded: dict[str, Any], n_train: int) -> dict[str, Any]:
             "shared_linear": {"params": D_MODEL + 1, **mean_pearson(shared, target_val.numpy())},
             "per_bin_linear": {"params": per_params, **mean_pearson(per_bin, target_val.numpy())},
         }
-    trained = out["models"]["trained_perceiver"]["per_bin_linear"]["mean_r"]
-    random_r = out["models"]["random_init_perceiver"]["per_bin_linear"]["mean_r"]
-    explicit = out["models"]["loopear_d_time_bins"]["per_bin_linear"]["mean_r"]
-    shared_trained = out["models"]["trained_perceiver"]["shared_linear"]["mean_r"]
-    shared_explicit = out["models"]["loopear_d_time_bins"]["shared_linear"]["mean_r"]
+    def _r(name: str, head: str) -> float | None:
+        row = out["models"].get(name)
+        if row is None:
+            return None
+        return row[head]["mean_r"]
+
+    def _sub(left: str, right: str, head: str) -> float | None:
+        a = _r(left, head)
+        b = _r(right, head)
+        if a is None or b is None:
+            return None
+        return float(a - b)
+
     out["reading"] = {
         "shared_budget_matches_the_time_bin_head": True,
         "per_bin_budget": PROFILE_BINS * D_MODEL + PROFILE_BINS,
-        "trained_minus_random_per_bin": None if trained is None or random_r is None else float(trained - random_r),
-        "explicit_minus_trained_per_bin": None if explicit is None or trained is None else float(explicit - trained),
-        "explicit_minus_trained_shared": None
-        if shared_explicit is None or shared_trained is None
-        else float(shared_explicit - shared_trained),
+        "evaluated_name": evaluated_name,
+        "evaluated_minus_random_per_bin": _sub(evaluated_name, "random_init_perceiver", "per_bin_linear"),
+        "evaluated_minus_random_shared": _sub(evaluated_name, "random_init_perceiver", "shared_linear"),
+        "explicit_minus_evaluated_per_bin": _sub("loopear_d_time_bins", evaluated_name, "per_bin_linear"),
+        "explicit_minus_evaluated_shared": _sub("loopear_d_time_bins", evaluated_name, "shared_linear"),
+        "evaluated_minus_trained_perceiver_per_bin": _sub(evaluated_name, "trained_perceiver", "per_bin_linear"),
+        "evaluated_minus_trained_perceiver_shared": _sub(evaluated_name, "trained_perceiver", "shared_linear"),
     }
     return out
 
@@ -783,6 +804,9 @@ def main() -> None:
     parser.add_argument("--p", default="results/loopear_p_encoder.safetensors")
     parser.add_argument("--skip-k1", action="store_true")
     parser.add_argument("--coordinate", action="store_true")
+    parser.add_argument("--coordinate-name", default="trained_perceiver")
+    parser.add_argument("--time-alpha", type=float, default=0.0)
+    parser.add_argument("--p-reference", default="")
     parser.add_argument("--report", default="results/loopear_protocol.json")
     args = parser.parse_args()
     if torch.cuda.is_available():
@@ -812,7 +836,7 @@ def main() -> None:
     usad, _dtype = load_usad2_extractor("cpu")
     models = {
         "d_global": _load_d(Path(args.d_global)),
-        "p": _load_p(Path(args.p)),
+        "p": _load_p(Path(args.p), args.time_alpha),
         "usad": usad,
         "eat": eat,
         "eat_mel": eat_mel,
@@ -825,6 +849,8 @@ def main() -> None:
         for param in random_model.parameters():
             param.requires_grad = False
         models["p_random"] = random_model.encoder
+    if args.p_reference:
+        models["p_reference"] = _load_p(Path(args.p_reference), 0.0)
     mel_bank = build_mel()
     rows = train_rows + val_rows
     print(f"encoding {len(train_rows)} development clips and {len(val_rows)} val clips", flush=True)
@@ -864,7 +890,7 @@ def main() -> None:
     print("fidelity", {key: value.get("mean_r") for key, value in fidelity.items() if isinstance(value, dict)}, flush=True)
     few = _few_block(train_rows, val_rows, tag_features)
     print("few-example", few.get("status"), few.get("n_classes"), flush=True)
-    coordinate = _coordinate_block(encoded, n_train) if args.coordinate else None
+    coordinate = _coordinate_block(encoded, n_train, args.coordinate_name) if args.coordinate else None
     if coordinate is not None:
         print("coordinate", {name: row["per_bin_linear"]["mean_r"] for name, row in coordinate["models"].items()}, flush=True)
     full_val = [row for row in manifest["items"] if row["split"] == "val"]
@@ -887,7 +913,10 @@ def main() -> None:
             "d_global": args.d_global,
             "d_k1": None if args.skip_k1 else args.d_k1,
             "p": args.p,
+            "p_time_alpha": float(args.time_alpha),
+            "p_reference": args.p_reference or None,
             "coordinate_random_init": bool(args.coordinate),
+            "coordinate_name": args.coordinate_name if args.coordinate else None,
         },
         "development": {
             "clips": len(train_rows),

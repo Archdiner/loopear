@@ -25,7 +25,7 @@ from loopear.d.objective import (
     sample_freq_mask,
     sample_time_mask,
 )
-from loopear.d.perceiver import analytic_perceiver_flops, init_perceiver
+from loopear.d.perceiver import analytic_perceiver_flops, init_perceiver, visible_cross_logit_stats
 from loopear.d.spec import (
     CROP_SECONDS,
     ENCODER_PARAMS,
@@ -139,6 +139,102 @@ def _collapsed(stats: dict[str, Any]) -> bool:
     return bool(summary["collapsed"] or not summary["finite"])
 
 
+ALPHA_FACTORS = (0.25, 0.5, 1.0, 2.0)
+ALPHA_SWEEP_BATCHES = 4
+ALPHA_SWEEP_STEPS = 8
+ALPHA_RULE = (
+    "On four training batches, measure the RMS of the first cross-attention logits "
+    "and the RMS of (t_j - mu_i)^2. Candidates set alpha so that RMS of "
+    "alpha*(t_j - mu_i)^2 is 0.25, 0.5, 1, or 2 times the logit RMS. "
+    "Each candidate trains eight AdamW steps from seed 42 on the 20-hour cache. "
+    "Lock the eligible candidate with the lowest mean global NT-Xent loss. "
+    "Alpha 0 is recorded and is not eligible. Validation audio is not used. "
+    "The locked value is not changed after the probe."
+)
+
+
+def select_time_alpha(cache: MelCache, seed: int, batch: int) -> dict[str, Any]:
+    scale_model = init_perceiver(seed)
+    scale_model.eval()
+    scale_order = Order(len(cache), batch, seed)
+    logit_sq = 0.0
+    penalty_sq = 0.0
+    count = 0.0
+    with torch.no_grad():
+        for _ in range(ALPHA_SWEEP_BATCHES):
+            crops = cache.crops(scale_order.indices(), scale_order.crop_gen)
+            stats = visible_cross_logit_stats(
+                scale_model.encoder, crops["mel1"], _visible(crops["frame_valid1"])
+            )
+            logit_sq += float(stats["logit_sq"])
+            penalty_sq += float(stats["penalty_sq"])
+            count += float(stats["count"])
+    if count <= 0.0 or penalty_sq <= 0.0 or logit_sq <= 0.0:
+        raise SystemExit("time-alpha scale measurement was empty")
+    logit_rms = (logit_sq / count) ** 0.5
+    penalty_rms = (penalty_sq / count) ** 0.5
+    unit = logit_rms / penalty_rms
+    candidates = []
+    for factor in (0.0,) + ALPHA_FACTORS:
+        alpha = 0.0 if factor == 0.0 else float(factor) * unit
+        model = init_perceiver(seed)
+        model.encoder.time_alpha = float(alpha)
+        opt = torch.optim.AdamW(model.student_parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+        order = Order(len(cache), batch, seed)
+        losses = []
+        for step in range(ALPHA_SWEEP_STEPS):
+            crops = cache.crops(order.indices(), order.crop_gen)
+            model.train()
+            _set_lr(opt, lr_at(step, ALPHA_SWEEP_STEPS))
+            loss = global_forward(
+                model,
+                crops["mel1"],
+                crops["mel2"],
+                crops["frame_valid1"],
+                crops["frame_valid2"],
+                order.mask_gen,
+            )
+            if not torch.isfinite(loss):
+                losses.append(float("nan"))
+                break
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.student_parameters(), GRAD_CLIP)
+            opt.step()
+            losses.append(float(loss.detach()))
+        finite = [value for value in losses if value == value]
+        mean_loss = None if not finite or len(finite) != ALPHA_SWEEP_STEPS else sum(finite) / len(finite)
+        candidates.append(
+            {
+                "factor": float(factor),
+                "alpha": float(alpha),
+                "losses": losses,
+                "mean_loss": mean_loss,
+                "eligible": factor != 0.0 and mean_loss is not None,
+            }
+        )
+    eligible = [row for row in candidates if row["eligible"]]
+    if not eligible:
+        raise SystemExit("time-alpha sweep produced no finite candidate")
+    chosen = min(eligible, key=lambda row: float(row["mean_loss"]))
+    return {
+        "rule": ALPHA_RULE,
+        "retuned_after_eval": False,
+        "batches": ALPHA_SWEEP_BATCHES,
+        "steps": ALPHA_SWEEP_STEPS,
+        "batch_recordings": int(batch),
+        "seed": int(seed),
+        "logit_rms": logit_rms,
+        "penalty_rms": penalty_rms,
+        "alpha_unit": unit,
+        "time_units": "patch index, 0 on the first time patch and GRID_T-1 on the last",
+        "anchors": "linspace across the 50 time patches, one anchor per latent",
+        "candidates": candidates,
+        "alpha": float(chosen["alpha"]),
+        "factor": float(chosen["factor"]),
+    }
+
+
 def write_plan(measured_sec_per_step: float | None, report_path: Path) -> dict[str, Any]:
     data = json.loads(Path("results/loopear_d_data.json").read_text(encoding="utf-8"))
     h20 = data["subsets"]["h20"]
@@ -222,10 +318,12 @@ def run_perceiver(
     run_id: str,
     config: dict[str, Any],
     snapshot_every: int | None = None,
+    time_alpha: float = 0.0,
 ) -> dict[str, Any]:
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
     probe_model = init_perceiver(seed)
+    probe_model.encoder.time_alpha = float(time_alpha)
     counted = sum(p.numel() for p in probe_model.encoder.parameters())
     if counted != PERCEIVER_ENCODER_PARAMS:
         raise SystemExit(f"encoder params {counted} != {PERCEIVER_ENCODER_PARAMS}")
@@ -257,6 +355,7 @@ def run_perceiver(
     print(json.dumps({"profile": profile}), flush=True)
     del probe_model, probe_opt, probe
     model = init_perceiver(seed)
+    model.encoder.time_alpha = float(time_alpha)
     opt = torch.optim.AdamW(model.student_parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     order = Order(len(cache), batch, seed)
     init_vec = flat_params(model.encoder).clone()
@@ -334,6 +433,7 @@ def run_perceiver(
     return {
         "objective": "global",
         "lambda_local": 0.0,
+        "time_alpha": float(time_alpha),
         "steps": len(rows),
         "steps_requested": int(steps),
         "stopped_collapse": stopped_collapse,
@@ -396,6 +496,11 @@ def _launch_prepared(which: str, seed: int) -> None:
         ckpt_path = Path("checkpoints/loopear_d_h20_global_5000.pt")
         weight_path = Path("results/loopear_d_h20_global_5000_encoder.safetensors")
         report_path = Path("results/loopear_d_h20_train.json")
+    elif which == "loopear-pt":
+        log_path = Path("results/loopear_pt_h20_global_5000.jsonl")
+        ckpt_path = Path("checkpoints/loopear_pt_h20_global_5000.pt")
+        weight_path = Path("results/loopear_pt_h20_global_5000_encoder.safetensors")
+        report_path = Path("results/loopear_pt_h20_train.json")
     else:
         raise SystemExit(f"unknown arm {which}")
     occupied = [path for path in (log_path, ckpt_path, weight_path, report_path) if path.exists()]
@@ -408,8 +513,6 @@ def _launch_prepared(which: str, seed: int) -> None:
         Path("data/manifests/loopear_d_frontend.json"),
         None,
     )
-    ledger = SpendLedger(Path("ledger/loopear_h20_spend.jsonl"), cap_usd=0.0)
-    ledger.record(which, "cpu", 0.0, "no paid GPU")
     config = {
         "model": which,
         "subset": "h20",
@@ -420,7 +523,14 @@ def _launch_prepared(which: str, seed: int) -> None:
         "lambda_local": 0.0,
         "snapshot_every": 1000,
     }
-    if which == "loopear-p":
+    sweep = None
+    if which == "loopear-pt":
+        sweep = select_time_alpha(cache, seed, 64)
+        config["time_alpha"] = sweep["alpha"]
+        print(json.dumps({"locked_alpha": sweep["alpha"], "factor": sweep["factor"]}), flush=True)
+    ledger = SpendLedger(Path("ledger/loopear_h20_spend.jsonl"), cap_usd=0.0)
+    ledger.record(which, "cpu", 0.0, "no paid GPU")
+    if which in ("loopear-p", "loopear-pt"):
         trained = run_perceiver(
             cache,
             5000,
@@ -429,9 +539,10 @@ def _launch_prepared(which: str, seed: int) -> None:
             log_path,
             ckpt_path,
             weight_path,
-            "loopear_p_h20_global_5000",
+            "loopear_pt_h20_global_5000" if which == "loopear-pt" else "loopear_p_h20_global_5000",
             config,
             snapshot_every=1000,
+            time_alpha=0.0 if sweep is None else float(sweep["alpha"]),
         )
     else:
         trained = trainer.run_arm(
@@ -460,6 +571,7 @@ def _launch_prepared(which: str, seed: int) -> None:
         "lambda_local": 0.0,
         "objective": "global",
         "equal_compute_extension": False,
+        "time_alpha_sweep": sweep,
         "run": trained,
         "fsd50k_test_audio_read": False,
         "sealed_realdesed_test_read": False,
@@ -475,7 +587,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--subset", default="h5")
     parser.add_argument("--prepare-only", action="store_true")
-    parser.add_argument("--launch-prepared", choices=("loopear-d", "loopear-p"))
+    parser.add_argument("--launch-prepared", choices=("loopear-d", "loopear-p", "loopear-pt"))
     args = parser.parse_args()
     if args.prepare_only:
         write_plan(None, Path("results/loopear_matched_h20_plan.json"))

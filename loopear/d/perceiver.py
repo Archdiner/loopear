@@ -16,6 +16,22 @@ from loopear.d.spec import (
 )
 
 
+def patch_and_latent_time() -> tuple[torch.Tensor, torch.Tensor]:
+    latent_time = torch.linspace(0, GRID_T - 1, N_LATENTS)
+    patch_time = torch.arange(GRID_T, dtype=torch.float32).repeat_interleave(GRID_F)
+    return patch_time, latent_time
+
+
+def apply_time_bias(scores: torch.Tensor, alpha: float) -> torch.Tensor:
+    if float(alpha) == 0.0:
+        return scores
+    patch_time, latent_time = patch_and_latent_time()
+    patch_time = patch_time.to(device=scores.device, dtype=scores.dtype)
+    latent_time = latent_time.to(device=scores.device, dtype=scores.dtype)
+    delta = patch_time.view(1, 1, 1, -1) - latent_time.view(1, 1, -1, 1)
+    return scores - float(alpha) * delta.square()
+
+
 class CrossBlock(nn.Module):
     def __init__(self, d_model: int, n_heads: int, ffn_ratio: int) -> None:
         super().__init__()
@@ -33,7 +49,11 @@ class CrossBlock(nn.Module):
         self.fc2 = nn.Linear(hidden, d_model)
 
     def forward(
-        self, latents: torch.Tensor, tokens: torch.Tensor, key_pad: torch.Tensor
+        self,
+        latents: torch.Tensor,
+        tokens: torch.Tensor,
+        key_pad: torch.Tensor,
+        alpha: float = 0.0,
     ) -> torch.Tensor:
         h = self.ln_q(latents)
         b, m, d = h.shape
@@ -43,6 +63,7 @@ class CrossBlock(nn.Module):
         k = self.k(tokens).view(b, n, self.n_heads, hd).permute(0, 2, 1, 3)
         v = self.v(tokens).view(b, n, self.n_heads, hd).permute(0, 2, 1, 3)
         scores = torch.matmul(q, k.transpose(-2, -1)) * (hd ** -0.5)
+        scores = apply_time_bias(scores, alpha)
         scores = scores.masked_fill(key_pad[:, None, None, :], -1e9)
         weights = torch.softmax(scores, dim=-1)
         y = torch.matmul(weights, v)
@@ -66,6 +87,7 @@ class LoopEarPEncoder(nn.Module):
             [Block(D_MODEL, N_HEADS, FFN_RATIO) for _ in range(P_SELF_LAYERS)]
         )
         self.norm = nn.LayerNorm(D_MODEL)
+        self.time_alpha = 0.0
         self.reset_parameters()
 
     def reset_parameters(self) -> None:
@@ -102,8 +124,9 @@ class LoopEarPEncoder(nn.Module):
         key_pad = ~visible.reshape(b, t * f)
         latents = self.latents.view(1, N_LATENTS, d).expand(b, N_LATENTS, d).clone()
         latent_pad = torch.zeros(b, N_LATENTS, dtype=torch.bool, device=latents.device)
+        alpha = float(self.time_alpha)
         for cross, self_block in zip(self.cross_blocks, self.self_blocks):
-            latents = cross(latents, flat, key_pad)
+            latents = cross(latents, flat, key_pad, alpha)
             latents = self_block(latents, latent_pad)
         latents = self.norm(latents)
         return latents, latents.mean(dim=1)
@@ -130,6 +153,34 @@ def init_perceiver(seed: int) -> LoopEarP:
 
     set_seed(seed)
     return LoopEarP()
+
+
+def visible_cross_logit_stats(
+    encoder: LoopEarPEncoder, mel: torch.Tensor, visible: torch.Tensor
+) -> dict[str, float]:
+    block = encoder.cross_blocks[0]
+    tokens = encoder.patch(patchify(mel))
+    tokens = tokens + encoder.pos_time[None, :, None, :] + encoder.pos_freq[None, None, :, :]
+    b, t, f, d = tokens.shape
+    flat = tokens.reshape(b, t * f, d)
+    key_pad = ~visible.reshape(b, t * f)
+    latents = encoder.latents.view(1, N_LATENTS, d).expand(b, N_LATENTS, d)
+    h = block.ln_q(latents)
+    hd = d // block.n_heads
+    q = block.q(h).view(b, N_LATENTS, block.n_heads, hd).permute(0, 2, 1, 3)
+    k = block.k(flat).view(b, t * f, block.n_heads, hd).permute(0, 2, 1, 3)
+    scores = torch.matmul(q, k.transpose(-2, -1)) * (hd ** -0.5)
+    patch_time, latent_time = patch_and_latent_time()
+    penalty = (patch_time.view(1, -1) - latent_time.view(-1, 1)).square()
+    penalty = penalty.to(dtype=scores.dtype).view(1, 1, N_LATENTS, -1).expand_as(scores)
+    keep = (~key_pad).view(b, 1, 1, t * f).expand_as(scores)
+    kept_scores = scores[keep]
+    kept_penalty = penalty[keep]
+    return {
+        "logit_sq": float((kept_scores * kept_scores).sum()),
+        "penalty_sq": float((kept_penalty * kept_penalty).sum()),
+        "count": float(kept_scores.numel()),
+    }
 
 
 def encoder_parameter_count(model: LoopEarPEncoder | None = None) -> int:
