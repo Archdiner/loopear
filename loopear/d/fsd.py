@@ -441,6 +441,8 @@ def extract_audio(
                     raise TypeError(f"audio payload for {row['freesound_id']} is {type(blob)}")
                 dest.write_bytes(blob)
                 written += 1
+                if written % 200 == 0:
+                    print(json.dumps({"extracted_train_clips": written, "reused": reused}), flush=True)
             else:
                 reused += 1
             info = sf.info(str(dest))
@@ -459,6 +461,43 @@ def extract_audio(
         "reused": reused,
         "max_duration_gap_s": max_duration_gap,
         "n": len(rows),
+    }
+
+
+def cache_missing_logmels(
+    rows: list[dict[str, Any]], audio_root: Path, cache_dir: Path
+) -> dict[str, Any]:
+    assert_train_rows(rows)
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    mel = None
+    written = 0
+    reused = 0
+    for row in rows:
+        shard = str(row.get("shard", ""))
+        if "test" in shard or "validation" in shard:
+            raise PermissionError(f"refusing non-train shard {shard}")
+        dest = cache_dir / f"{int(row['freesound_id'])}.npy"
+        if dest.exists():
+            reused += 1
+            continue
+        if mel is None:
+            mel = build_mel()
+        wav_path = audio_path(audio_root, row)
+        wav, sr = sf.read(str(wav_path), dtype="float32", always_2d=False)
+        if int(sr) != 16000:
+            raise AssertionError(f"unexpected sr {sr}")
+        if wav.ndim != 1:
+            wav = np.mean(wav, axis=1)
+        logmel = waveform_logmel(torch.from_numpy(np.ascontiguousarray(wav)), mel)
+        np.save(dest, logmel.detach().numpy().astype(np.float16))
+        written += 1
+        if written % 500 == 0:
+            print(json.dumps({"cached_logmel": written, "reused": reused}), flush=True)
+    return {
+        "written": written,
+        "reused": reused,
+        "n": len(rows),
+        "frontend_rewritten": False,
     }
 
 

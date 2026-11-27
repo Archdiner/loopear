@@ -17,8 +17,17 @@ from loopear.d.diagnostics import (
     param_delta_l2,
     peak_rss_gb,
 )
-from loopear.d.frontend import crop_logmel, normalize_logmel
-from loopear.d.fsd import MelCache, assert_train_rows, items_for, load_manifest, sha256_of_ids
+from loopear.d.frontend import crop_logmel, load_frontend_config, normalize_logmel
+from loopear.d.fsd import (
+    MelCache,
+    assert_train_rows,
+    audio_path,
+    cache_missing_logmels,
+    extract_audio,
+    items_for,
+    load_manifest,
+    sha256_of_ids,
+)
 from loopear.d.objective import (
     TIME_NEIGHBORHOOD_PATCHES,
     broadcast_time_valid,
@@ -497,6 +506,7 @@ def _preserved_weight_paths() -> list[Path]:
         "loopear_pt_h20_global_5000*.safetensors",
         "loopear_pl_h20_global_5000*.safetensors",
         "loopear_plt_h20_global_5000*.safetensors",
+        "loopear_pltc_h20_global_5000*.safetensors",
         "loopear_d_cmp_global_encoder.safetensors",
         "loopear_d_k1_encoder.safetensors",
         "loopear_p_encoder.safetensors",
@@ -1446,6 +1456,76 @@ def run_perceiver_local(
     }
 
 
+FULL_TRAIN_ID_SHA = "1191eb8964745b9ccc089ef10c14ed424e37a46b0dfce730fe2f506a1fa3cd9f"
+LOCKED_PLT_ALPHA = 0.0027896127554686775
+
+
+def two_crop_exposure(steps: int, batch: int) -> dict[str, float]:
+    presentations = int(steps) * int(batch) * 2
+    return {
+        "crop_presentations": float(presentations),
+        "sampled_window_hours": presentations * CROP_SECONDS / 3600.0,
+        "recording_draws": float(int(steps) * int(batch)),
+    }
+
+
+def _refuse_non_train(rows: list[dict[str, Any]]) -> None:
+    bad = []
+    for row in rows:
+        shard = str(row.get("shard", ""))
+        if (
+            row.get("split") != "train"
+            or str(row.get("hf_split")) != "train"
+            or "test" in shard
+            or "validation" in shard
+            or row.get("duplicate_of")
+        ):
+            bad.append(
+                {
+                    "freesound_id": row.get("freesound_id"),
+                    "split": row.get("split"),
+                    "hf_split": row.get("hf_split"),
+                    "shard": shard,
+                }
+            )
+    if bad:
+        raise SystemExit(f"full train selection includes non-train audio: {bad[:20]}")
+
+
+def _prepare_full_train(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    _refuse_non_train(rows)
+    audio_root = Path("data/raw/fsd50k")
+    cache_dir = Path("cache/loopear_d_mel")
+    frontend = Path("data/manifests/loopear_d_frontend.json")
+    frontend_before = frontend.read_bytes()
+    cpu0 = cpu_seconds()
+    wall0 = time.perf_counter()
+    missing_audio = [row for row in rows if not audio_path(audio_root, row).exists()]
+    extract_stats = {"written": 0, "reused": 0, "n": 0}
+    if missing_audio:
+        print(json.dumps({"missing_train_audio": len(missing_audio)}), flush=True)
+        extract_stats = extract_audio(missing_audio, audio_root)
+    mel_stats = cache_missing_logmels(rows, audio_root, cache_dir)
+    if frontend.read_bytes() != frontend_before:
+        raise SystemExit("the locked frontend config changed while caching")
+    load_frontend_config(frontend)
+    absent = [
+        int(row["freesound_id"])
+        for row in rows
+        if not (cache_dir / f"{int(row['freesound_id'])}.npy").exists()
+    ]
+    if absent:
+        raise SystemExit(f"mel cache still missing {absent[:8]}")
+    return {
+        "extract": extract_stats,
+        "logmel": mel_stats,
+        "frontend_unchanged": True,
+        "cpu_s": cpu_seconds() - cpu0,
+        "wall_s": time.perf_counter() - wall0,
+        "cpu_hours": hours(cpu_seconds() - cpu0),
+    }
+
+
 def _launch_prepared(which: str, seed: int) -> None:
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
@@ -1497,21 +1577,43 @@ def _launch_prepared(which: str, seed: int) -> None:
         ckpt_path = Path("checkpoints/loopear_pltc_h20_global_5000.pt")
         weight_path = Path("results/loopear_pltc_h20_global_5000_encoder.safetensors")
         report_path = Path("results/loopear_pltc_h20_train.json")
+    elif which == "loopear-plt-f":
+        log_path = Path("results/loopear_pltf_full_5000.jsonl")
+        ckpt_path = Path("checkpoints/loopear_pltf_full_5000.pt")
+        weight_path = Path("results/loopear_pltf_full_5000_encoder.safetensors")
+        report_path = Path("results/loopear_pltf_full_train.json")
     else:
         raise SystemExit(f"unknown arm {which}")
     occupied = [path for path in (log_path, ckpt_path, weight_path, report_path) if path.exists()]
     if occupied:
         raise SystemExit(f"refusing to overwrite {[str(path) for path in occupied]}")
-    cache = trainer._cache(
-        manifest,
-        "h20",
-        Path("cache/loopear_d_mel"),
-        Path("data/manifests/loopear_d_frontend.json"),
-        None,
-    )
+    full_prepare = None
+    if which == "loopear-plt-f":
+        rows = items_for(manifest, "full")
+        assert_train_rows(rows)
+        _refuse_non_train(rows)
+        digest = sha256_of_ids(rows)
+        if digest != FULL_TRAIN_ID_SHA or manifest.get("subset_id_sha256", {}).get("full") != FULL_TRAIN_ID_SHA:
+            raise SystemExit(f"full train id sha {digest}")
+        full_prepare = _prepare_full_train(rows)
+        cache = trainer._cache(
+            manifest,
+            "full",
+            Path("cache/loopear_d_mel"),
+            Path("data/manifests/loopear_d_frontend.json"),
+            None,
+        )
+    else:
+        cache = trainer._cache(
+            manifest,
+            "h20",
+            Path("cache/loopear_d_mel"),
+            Path("data/manifests/loopear_d_frontend.json"),
+            None,
+        )
     config = {
         "model": which,
-        "subset": "h20",
+        "subset": "full" if which == "loopear-plt-f" else "h20",
         "steps": 5000,
         "batch": 64,
         "seed": seed,
@@ -1519,7 +1621,7 @@ def _launch_prepared(which: str, seed: int) -> None:
             "global_plus_local_plus_time"
             if which == "loopear-pltc"
             else "global_plus_local"
-            if which in ("loopear-pl", "loopear-plt")
+            if which in ("loopear-pl", "loopear-plt", "loopear-plt-f")
             else "global"
         ),
         "lambda_local": 0.0,
@@ -1692,9 +1794,62 @@ def _launch_prepared(which: str, seed: int) -> None:
                 "wall_s": time.perf_counter() - before_wall,
                 "cpu_hours": hours(cpu_seconds() - before_cpu),
             }
+    if which == "loopear-plt-f":
+        preserved_before = {str(path): _file_sha256(path) for path in _preserved_weight_paths()}
+        config["lambda_local"] = 1.0
+        config["lambda_time"] = 0.0
+        config["k"] = 1
+        config["time_alpha"] = LOCKED_PLT_ALPHA
+        lambda_check = {"chosen_lambda": 1.0, "scaled": False, "lambda_time": 0.0}
+        before_train = full_prepare
+        print(
+            json.dumps(
+                {
+                    "unique_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
+                    "clips": len(rows),
+                    "lambda_time": 0.0,
+                    "time_alpha": LOCKED_PLT_ALPHA,
+                    "cached_logmel": full_prepare["logmel"]["written"],
+                    "reused_logmel": full_prepare["logmel"]["reused"],
+                }
+            ),
+            flush=True,
+        )
     ledger = SpendLedger(Path("ledger/loopear_h20_spend.jsonl"), cap_usd=0.0)
     ledger.record(which, "cpu", 0.0, "no paid GPU")
-    if which == "loopear-pltc":
+    if which == "loopear-plt-f":
+        exposure = two_crop_exposure(5000, 64)
+        trained = run_perceiver_local(
+            cache,
+            5000,
+            64,
+            seed,
+            log_path,
+            ckpt_path,
+            weight_path,
+            "loopear_pltf_full_5000",
+            config,
+            1.0,
+            snapshot_every=1000,
+            time_alpha=LOCKED_PLT_ALPHA,
+            lambda_time=0.0,
+        )
+        trained["two_crop_exposure"] = exposure
+        preserved_after = {str(path): _file_sha256(path) for path in _preserved_weight_paths()}
+        if preserved_after != preserved_before:
+            raise SystemExit("a preserved encoder changed during P-LT-F")
+        saved = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        required = ("teacher_encoder", "teacher_predictor", "teacher_local")
+        if any(key not in saved or not isinstance(saved[key], dict) for key in required):
+            raise SystemExit("the trained checkpoint is missing EMA tensors")
+        student = torch.cat([tensor.detach().float().reshape(-1) for tensor in saved["encoder"].values()])
+        teacher = torch.cat(
+            [tensor.detach().float().reshape(-1) for tensor in saved["teacher_encoder"].values()]
+        )
+        if student.shape != teacher.shape or float((student - teacher).abs().sum()) <= 0.0:
+            raise SystemExit("the saved EMA teacher matches the student")
+        del saved, student, teacher
+    elif which == "loopear-pltc":
         trained = run_perceiver_local(
             cache,
             5000,
@@ -1792,12 +1947,14 @@ def _launch_prepared(which: str, seed: int) -> None:
         "dataset_clips": len(rows),
         "dataset_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
         "dataset_id_sha256": digest,
+        "two_crop_exposure": None if which != "loopear-plt-f" else two_crop_exposure(5000, 64),
+        "full_train_prepare": full_prepare,
         "lambda_local": 0.0 if lambda_check is None else lambda_check["chosen_lambda"],
         "objective": (
             "global_plus_local_plus_time"
             if which == "loopear-pltc"
             else "global_plus_local"
-            if which in ("loopear-pl", "loopear-plt")
+            if which in ("loopear-pl", "loopear-plt", "loopear-plt-f")
             else "global"
         ),
         "equal_compute_extension": False,
@@ -1828,7 +1985,15 @@ def main() -> None:
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument(
         "--launch-prepared",
-        choices=("loopear-d", "loopear-p", "loopear-pt", "loopear-pl", "loopear-plt", "loopear-pltc"),
+        choices=(
+            "loopear-d",
+            "loopear-p",
+            "loopear-pt",
+            "loopear-pl",
+            "loopear-plt",
+            "loopear-pltc",
+            "loopear-plt-f",
+        ),
     )
     args = parser.parse_args()
     if args.prepare_only:

@@ -494,3 +494,74 @@ def test_event_order_pairs_keep_a_gap_and_distinct_patches():
     assert sample is not None
     assert module.patch_index(1.0, sample) != module.patch_index(1.8, sample)
     assert module.reversed_patch(1.8, sample) != module.reversed_patch(1.0, sample)
+
+
+def test_full_train_selection_and_cache_leave_the_frontend_alone():
+    import importlib.util
+    import tempfile
+    from pathlib import Path
+
+    import numpy as np
+    import soundfile as sf
+
+    from loopear.d.fsd import cache_missing_logmels, items_for
+    from loopear.d.spec import CROP_SECONDS
+
+    manifest = {
+        "items": [
+            {"split": "train", "hf_split": "train", "shard": "data/train-00000-of-00013.parquet", "duplicate_of": None, "freesound_id": 1, "rank": 0},
+            {"split": "train", "hf_split": "train", "shard": "data/train-00000-of-00013.parquet", "duplicate_of": 1, "freesound_id": 2, "rank": 1},
+            {"split": "val", "hf_split": "validation", "shard": "data/validation-00000-of-00002.parquet", "duplicate_of": None, "freesound_id": 3, "rank": 2},
+            {"split": "test", "hf_split": "test", "shard": "data/test-00000-of-00005.parquet", "duplicate_of": None, "freesound_id": 4, "rank": 3},
+        ]
+    }
+    chosen = items_for(manifest, "full")
+    assert [int(row["freesound_id"]) for row in chosen] == [1]
+    trainer = Path(__file__).resolve().parents[1] / "scripts" / "train_loopear_p.py"
+    spec = importlib.util.spec_from_file_location("train_loopear_p_exposure", trainer)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    exposure = module.two_crop_exposure(5000, 64)
+    assert exposure["crop_presentations"] == 640000
+    assert exposure["sampled_window_hours"] == 640000 * CROP_SECONDS / 3600.0
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        audio = root / "train"
+        cache = root / "mel"
+        frontend = root / "frontend.json"
+        audio.mkdir()
+        cache.mkdir()
+        frontend.write_text("{}\n", encoding="utf-8")
+        row = {
+            "split": "train",
+            "hf_split": "train",
+            "shard": "data/train-00000-of-00013.parquet",
+            "duplicate_of": None,
+            "freesound_id": 11,
+        }
+        sf.write(str(audio / "11.flac"), np.zeros(16000, dtype=np.float32), 16000)
+        first = cache_missing_logmels([row], root, cache)
+        assert first["written"] == 1 and first["frontend_rewritten"] is False
+        second = cache_missing_logmels([row], root, cache)
+        assert second["written"] == 0 and second["reused"] == 1
+        assert frontend.read_text(encoding="utf-8") == "{}\n"
+        assert (cache / "11.npy").exists()
+        try:
+            cache_missing_logmels(
+                [
+                    {
+                        "split": "val",
+                        "hf_split": "validation",
+                        "shard": "data/validation-00000-of-00002.parquet",
+                        "duplicate_of": None,
+                        "freesound_id": 12,
+                    }
+                ],
+                root,
+                cache,
+            )
+        except PermissionError:
+            refused = True
+        else:
+            refused = False
+        assert refused
