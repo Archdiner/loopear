@@ -144,3 +144,14 @@ P-LT-F is the P-LT recipe again, not a new loss. It is the calibrated anchored P
 ```
 
 `results/loopear_pltf_full_train.json` holds the run, including the recordings actually drawn. `results/loopear_pltf_full_protocol.json` holds the same probe as P-LT. `results/loopear_pltf_event_order.json` holds the STARSS event-order counts against the saved P-LT EMA. In that file the `pltc` block is P-LT-F.
+
+## Causal LoopEar-D
+
+The block-causal encoder drops the class token, so the deployed grid has 682,656 parameters. A query at time t attends to every frequency at times t' ≤ t. Clip summaries are the mean of the grid. Training predicts the EMA teacher's frequency-pooled states with within-clip InfoNCE at horizons 1, 4, and 12. There is no global NT-Xent. CPU only. Cloud GPU spend `$0.00`.
+
+```bash
+.venv/bin/python scripts/train_loopear_causal.py --steps 5000 --batch 64 --seed 42 --only both
+.venv/bin/python scripts/probe_causal_position.py
+```
+
+The 20.003-hour run was stopped after step 1979. On the step-1,000 checkpoint, eight batches of 64 give predictive loss 0.003943 on real crops, 0.003825 when the mel is replaced by zeros, and 0.003948 when each clip's valid time patches are permuted on the fixed positional grid. That is a position shortcut, so the mixture run was not started. `results/loopear_dc_h20_step1000_position_shortcut.json` holds those three losses. The step-1,000 teacher cosine and the 39-pair STARSS event order are in `results/loopear_dc_h20_5000_step1000_gate.json`.
