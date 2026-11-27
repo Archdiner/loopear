@@ -11,12 +11,16 @@ from loopear.d.objective import (
     sample_time_mask,
 )
 from loopear.d.perceiver import (
+    LatentBankPredictor,
     LoopEarPEncoder,
     analytic_perceiver_flops,
     apply_time_bias,
+    content_and_anchor_sums,
     encoder_parameter_count,
     init_perceiver,
+    init_perceiver_local,
     patch_and_latent_time,
+    perceiver_local_loss,
     visible_cross_logit_stats,
 )
 from loopear.d.spec import (
@@ -186,3 +190,74 @@ def test_zero_alpha_matches_ordinary_cross_attention_and_keeps_the_parameter_cou
     assert stats["count"] > 0.0
     assert stats["logit_sq"] > 0.0
     assert stats["penalty_sq"] > 0.0
+
+
+def test_local_predictor_queries_latents_and_stops_the_teacher():
+    model = init_perceiver_local(4)
+    assert sum(p.numel() for p in model.encoder.parameters()) == PERCEIVER_ENCODER_PARAMS
+    assert model.encoder.time_alpha == 0.0
+    assert model.teacher_encoder.time_alpha == 0.0
+    for module in model.predictor.modules():
+        if isinstance(module, torch.nn.Linear):
+            assert module.in_features != 64
+    latents = torch.randn(2, N_LATENTS, D_MODEL)
+    grid = model.predictor(latents, 0)
+    assert grid.shape == (2, GRID_T, GRID_F, D_MODEL)
+    shifted = latents.clone()
+    shifted[0, 0, 0] = shifted[0, 0, 0] + 3.0
+    assert not torch.allclose(grid, model.predictor(shifted, 0))
+    try:
+        model.predictor(torch.randn(2, GRID_T * GRID_F, D_MODEL), 0)
+    except ValueError:
+        rejected = True
+    else:
+        rejected = False
+    assert rejected
+    mel, visible = _mel(2, seed=2)
+    hidden = visible.clone()
+    hidden[:, 8:18, :] = False
+    encoded, _summary = model.encoder(mel, hidden)
+    prediction = model.project_local(model.predictor(encoded, 0))
+    with torch.no_grad():
+        target = model.project_teacher(model.teacher_predictor(encoded.detach(), 0))
+    anchor = (~hidden) & visible
+    loss_l = local_mld(prediction, target, anchor, visible, 0.1, 1)
+    loss_l.backward()
+    assert model.encoder.latents.grad is not None
+    assert model.predictor.q.weight.grad is not None
+    assert all(param.grad is None for param in model.teacher_encoder.parameters())
+    assert all(param.grad is None for param in model.teacher_predictor.parameters())
+    assert all(param.grad is None for param in model.teacher_local.parameters())
+    fresh = init_perceiver_local(5)
+    frame_valid = torch.ones(2, N_FRAMES, dtype=torch.bool)
+    loss, loss_g, loss_local = perceiver_local_loss(
+        fresh,
+        mel,
+        mel,
+        frame_valid,
+        frame_valid,
+        torch.Generator().manual_seed(9),
+        1.0,
+    )
+    assert torch.isfinite(loss)
+    assert torch.isfinite(loss_g)
+    assert torch.isfinite(loss_local)
+    loss.backward()
+    assert fresh.encoder.patch.weight.grad is not None
+    assert all(param.grad is None for param in fresh.teacher_encoder.parameters())
+    assert isinstance(model.predictor, LatentBankPredictor)
+
+
+def test_anchor_penalty_sums_follow_the_locked_alpha_on_every_cross_block():
+    torch.manual_seed(0)
+    encoder = LoopEarPEncoder()
+    encoder.time_alpha = 0.0
+    mel, visible = _mel(2, seed=3)
+    alpha = 3.1816019504258156e-06
+    rows = content_and_anchor_sums(encoder, mel, visible, alpha)
+    reference = visible_cross_logit_stats(encoder, mel, visible)
+    assert len(rows) == 3
+    assert rows[0]["count"] == reference["count"]
+    assert abs(rows[0]["logit_sq"] - reference["logit_sq"]) / reference["logit_sq"] < 1e-5
+    assert abs(rows[0]["penalty_sq"] - (alpha ** 2) * reference["penalty_sq"]) < 1e-5
+    assert all(row["count"] > 0.0 and row["logit_sq"] > 0.0 for row in rows)

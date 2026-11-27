@@ -1,11 +1,12 @@
 import argparse
+import hashlib
 import json
 import time
 from pathlib import Path
 from typing import Any
 
 import torch
-from safetensors.torch import save_file
+from safetensors.torch import load_file, save_file
 
 from loopear.d.diagnostics import (
     analytic_encoder_flops,
@@ -25,7 +26,15 @@ from loopear.d.objective import (
     sample_freq_mask,
     sample_time_mask,
 )
-from loopear.d.perceiver import analytic_perceiver_flops, init_perceiver, visible_cross_logit_stats
+from loopear.d.perceiver import (
+    LoopEarPEncoder,
+    analytic_perceiver_flops,
+    content_and_anchor_sums,
+    init_perceiver,
+    init_perceiver_local,
+    perceiver_local_loss,
+    visible_cross_logit_stats,
+)
 from loopear.d.spec import (
     CROP_SECONDS,
     ENCODER_PARAMS,
@@ -36,6 +45,7 @@ from loopear.d.spec import (
     SEED,
     TAU_GLOBAL,
     WEIGHT_DECAY,
+    ema_at,
     lr_at,
 )
 from loopear.harness import SpendLedger, write_result_json, write_run_manifest
@@ -465,6 +475,377 @@ def run_perceiver(
     }
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _preserved_weight_paths() -> list[Path]:
+    names = (
+        "loopear_d_h20_global_5000*.safetensors",
+        "loopear_p_h20_global_5000*.safetensors",
+        "loopear_pt_h20_global_5000*.safetensors",
+        "loopear_d_cmp_global_encoder.safetensors",
+        "loopear_d_k1_encoder.safetensors",
+        "loopear_p_encoder.safetensors",
+    )
+    found: list[Path] = []
+    for name in names:
+        found.extend(sorted(Path("results").glob(name)))
+    if len(found) < 8:
+        raise SystemExit("preserved D, P, and P-T encoder files are missing")
+    return found
+
+
+def _rms_row(total: dict[str, float]) -> dict[str, float]:
+    count = float(total["count"])
+    if count <= 0.0:
+        raise SystemExit("anchor measurement saw no visible keys")
+    logit_rms = (total["logit_sq"] / count) ** 0.5
+    penalty_rms = (total["penalty_sq"] / count) ** 0.5
+    if logit_rms <= 0.0:
+        raise SystemExit("content logits were empty")
+    return {
+        "count": count,
+        "content_logit_rms": logit_rms,
+        "content_logit_mean_abs": total["logit_abs"] / count,
+        "anchor_penalty_rms": penalty_rms,
+        "anchor_penalty_mean_abs": total["penalty_abs"] / count,
+        "penalty_rms_over_logit_rms": penalty_rms / logit_rms,
+        "fraction_abs_penalty_exceeds_abs_logit": total["exceed"] / count,
+    }
+
+
+def measure_locked_penalty(cache: MelCache, seed: int, batches: int = 8) -> dict[str, Any]:
+    trained = json.loads(Path("results/loopear_pt_h20_train.json").read_text(encoding="utf-8"))
+    alpha = float(trained["time_alpha_sweep"]["alpha"])
+    weight_path = Path("results/loopear_pt_h20_global_5000_encoder.safetensors")
+    encoder = LoopEarPEncoder()
+    encoder.load_state_dict(load_file(str(weight_path)))
+    encoder.time_alpha = alpha
+    encoder.eval()
+    counted = sum(p.numel() for p in encoder.parameters())
+    if counted != PERCEIVER_ENCODER_PARAMS:
+        raise SystemExit(f"P-T encoder params {counted} != {PERCEIVER_ENCODER_PARAMS}")
+    order = Order(len(cache), 64, seed)
+    keys = ("logit_sq", "logit_abs", "penalty_sq", "penalty_abs", "exceed", "count")
+    blank = lambda: [{key: 0.0 for key in keys} for _ in range(3)]
+    totals = {"time_masked": blank(), "freq_masked": blank()}
+    with torch.no_grad():
+        for _ in range(int(batches)):
+            crops = cache.crops(order.indices(), order.crop_gen)
+            valid1 = _visible(crops["frame_valid1"])
+            valid2 = _visible(crops["frame_valid2"])
+            time_mask = sample_time_mask(valid1.any(dim=-1), order.mask_gen)
+            time_mask = time_mask[:, :, None].expand_as(valid1) & valid1
+            freq_mask = sample_freq_mask(crops["mel2"].shape[0], order.mask_gen)
+            freq_mask = freq_mask[:, None, :].expand_as(valid2) & valid2
+            paired = (
+                ("time_masked", crops["mel1"], ~time_mask & valid1),
+                ("freq_masked", crops["mel2"], ~freq_mask & valid2),
+            )
+            for name, mel, visible in paired:
+                rows = content_and_anchor_sums(encoder, mel, visible, alpha)
+                if len(rows) != 3:
+                    raise SystemExit("expected three cross-attention blocks")
+                for index, row in enumerate(rows):
+                    for key in keys:
+                        totals[name][index][key] += float(row[key])
+    views = {}
+    for name, layers in totals.items():
+        pooled = {key: 0.0 for key in keys}
+        for layer in layers:
+            for key in keys:
+                pooled[key] += layer[key]
+        views[name] = {"layers": [_rms_row(layer) for layer in layers], "pooled": _rms_row(pooled)}
+    both_layers = []
+    for index in range(3):
+        merged = {key: 0.0 for key in keys}
+        for name in ("time_masked", "freq_masked"):
+            for key in keys:
+                merged[key] += totals[name][index][key]
+        both_layers.append(merged)
+    both = {key: 0.0 for key in keys}
+    for layer in both_layers:
+        for key in keys:
+            both[key] += layer[key]
+    return {
+        "task": "loopear_pt_penalty_versus_logits",
+        "alpha": alpha,
+        "alpha_changed": False,
+        "retrained": False,
+        "weights": str(weight_path),
+        "batches": int(batches),
+        "batch_recordings": 64,
+        "seed": int(seed),
+        "views_per_batch": 2,
+        "cross_blocks": 3,
+        "comparison": (
+            "content logits are qk/sqrt(d_head) before the additive penalty, "
+            "on the visible keys of each real training view, at the latents that reach that block"
+        ),
+        "views": views,
+        "layers": [_rms_row(layer) for layer in both_layers],
+        "pooled": _rms_row(both),
+        "gpu_usd": 0.0,
+    }
+
+
+def choose_local_lambda(cache: MelCache, seed: int, batch: int) -> dict[str, Any]:
+    attempts = []
+    for lam in (1.0, 0.1, 0.01, 0.001):
+        model = init_perceiver_local(seed)
+        model.train()
+        order = Order(len(cache), batch, seed)
+        crops = cache.crops(order.indices(), order.crop_gen)
+        loss, loss_g, loss_l = perceiver_local_loss(
+            model,
+            crops["mel1"],
+            crops["mel2"],
+            crops["frame_valid1"],
+            crops["frame_valid2"],
+            order.mask_gen,
+            lam,
+        )
+        loss_finite = bool(torch.isfinite(loss).all())
+        grad_finite = False
+        grad_norm = None
+        if loss_finite:
+            loss.backward()
+            square = 0.0
+            saw = False
+            grad_finite = True
+            for param in model.student_parameters():
+                if param.grad is None:
+                    continue
+                saw = True
+                if not bool(torch.isfinite(param.grad).all()):
+                    grad_finite = False
+                    break
+                square += float(param.grad.detach().float().square().sum())
+            grad_finite = bool(grad_finite and saw)
+            if grad_finite:
+                grad_norm = square ** 0.5
+        attempts.append(
+            {
+                "lambda_local": float(lam),
+                "loss": None if not loss_finite else float(loss.detach()),
+                "loss_g": None if not bool(torch.isfinite(loss_g).all()) else float(loss_g.detach()),
+                "loss_l": None if not bool(torch.isfinite(loss_l).all()) else float(loss_l.detach()),
+                "loss_finite": loss_finite,
+                "grad_finite": grad_finite,
+                "grad_norm": grad_norm,
+            }
+        )
+        del model
+        if loss_finite and grad_finite:
+            return {
+                "requested_lambda": 1.0,
+                "chosen_lambda": float(lam),
+                "scaled": float(lam) != 1.0,
+                "k": 1,
+                "objective": "global_ntxent + lambda * local_mld",
+                "rule": (
+                    "Use lambda 1 unless this one training batch has a non-finite loss or gradient. "
+                    "Then keep the largest of 0.1, 0.01, and 0.001 that is finite. "
+                    "Validation audio is not used."
+                ),
+                "attempts": attempts,
+            }
+    raise SystemExit("no finite local lambda on the one-batch check")
+
+
+def run_perceiver_local(
+    cache: MelCache,
+    steps: int,
+    batch: int,
+    seed: int,
+    log_path: Path,
+    ckpt_path: Path,
+    weight_path: Path,
+    run_id: str,
+    config: dict[str, Any],
+    lambda_local: float,
+    snapshot_every: int | None = None,
+) -> dict[str, Any]:
+    if torch.cuda.is_available():
+        raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
+    if float(lambda_local) <= 0.0:
+        raise SystemExit("P-L requires a positive local weight")
+    probe_model = init_perceiver_local(seed + 1)
+    counted = sum(p.numel() for p in probe_model.encoder.parameters())
+    if counted != PERCEIVER_ENCODER_PARAMS or probe_model.encoder.time_alpha != 0.0:
+        raise SystemExit(f"encoder params {counted} != {PERCEIVER_ENCODER_PARAMS}")
+    probe_opt = torch.optim.AdamW(
+        probe_model.student_parameters(), lr=LR, weight_decay=WEIGHT_DECAY
+    )
+    probe_order = Order(len(cache), batch, seed + 1)
+    write_run_manifest(run_id, config)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    probe = cache.crops(probe_order.indices(), probe_order.crop_gen)
+    probe_model.train()
+    t_probe = time.perf_counter()
+    loss_probe, _probe_g, _probe_l = perceiver_local_loss(
+        probe_model,
+        probe["mel1"],
+        probe["mel2"],
+        probe["frame_valid1"],
+        probe["frame_valid2"],
+        probe_order.mask_gen,
+        lambda_local,
+    )
+    probe_opt.zero_grad(set_to_none=True)
+    loss_probe.backward()
+    torch.nn.utils.clip_grad_norm_(probe_model.student_parameters(), GRAD_CLIP)
+    probe_opt.step()
+    profile = {
+        "sec_per_step": time.perf_counter() - t_probe,
+        "peak_rss_gb": peak_rss_gb(),
+        "loss": float(loss_probe.detach()),
+        "batch": batch,
+    }
+    print(json.dumps({"profile": profile}), flush=True)
+    del probe_model, probe_opt, probe
+    model = init_perceiver_local(seed)
+    if model.encoder.time_alpha != 0.0:
+        raise SystemExit("P-L reinitialized with a nonzero time anchor")
+    opt = torch.optim.AdamW(model.student_parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
+    order = Order(len(cache), batch, seed)
+    init_vec = flat_params(model.encoder).clone()
+    t0 = time.perf_counter()
+    cpu0 = cpu_seconds()
+    rows = []
+    snapshots: list[str] = []
+    stopped_collapse = False
+    with log_path.open("w", encoding="utf-8") as handle:
+        for step in range(int(steps)):
+            batch_tensors = cache.crops(order.indices(), order.crop_gen)
+            model.train()
+            if model.encoder.time_alpha != 0.0:
+                raise RuntimeError("P-L time anchor changed during training")
+            lr = lr_at(step, steps)
+            _set_lr(opt, lr)
+            loss, loss_g, loss_l = perceiver_local_loss(
+                model,
+                batch_tensors["mel1"],
+                batch_tensors["mel2"],
+                batch_tensors["frame_valid1"],
+                batch_tensors["frame_valid2"],
+                order.mask_gen,
+                lambda_local,
+            )
+            if not torch.isfinite(loss):
+                raise RuntimeError("non-finite loss")
+            opt.zero_grad(set_to_none=True)
+            loss.backward()
+            grad_norm = torch.nn.utils.clip_grad_norm_(model.student_parameters(), GRAD_CLIP)
+            opt.step()
+            model.ema_update(ema_at(step, steps))
+            stats = {
+                "step": step,
+                "loss": float(loss.detach()),
+                "loss_g": float(loss_g.detach()),
+                "loss_l": float(loss_l.detach()),
+                "lambda_local": float(lambda_local),
+                "k": 1,
+                "time_alpha": 0.0,
+                "lr": float(lr),
+                "ema": float(ema_at(step, steps)),
+                "grad_norm": float(grad_norm),
+            }
+            if (step + 1) % 100 == 0:
+                snap = _encode_cache(model, cache, min(32, len(cache)))
+                stats["diagnostics"] = snap
+                if _collapsed(snap):
+                    stopped_collapse = True
+            rows.append(stats)
+            handle.write(json.dumps(stats, sort_keys=True) + "\n")
+            finished = step + 1
+            if snapshot_every and finished % int(snapshot_every) == 0 and finished < int(steps):
+                snapshots.append(_snapshot_encoder(model, ckpt_path, finished))
+            if stopped_collapse:
+                print(f"perceiver-l collapsed at step {step}", flush=True)
+                break
+            if step % 10 == 0 or step + 1 == steps:
+                handle.flush()
+                print(
+                    f"perceiver-l step {step} loss {stats['loss']:.4f} "
+                    f"g {stats['loss_g']:.4f} l {stats['loss_l']:.4f}",
+                    flush=True,
+                )
+    wall = time.perf_counter() - t0
+    cpu = cpu_seconds() - cpu0
+    diag = _encode_cache(model, cache, min(32, len(cache)))
+    moved = param_delta_l2(flat_params(model.encoder), init_vec)
+    ckpt_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "step": len(rows),
+            "objective": "global_plus_local",
+            "lambda_local": float(lambda_local),
+            "k": 1,
+            "time_alpha": 0.0,
+            "encoder": model.encoder.state_dict(),
+            "global_head": model.global_head.state_dict(),
+            "predictor": model.predictor.state_dict(),
+            "local_head": model.local_head.state_dict(),
+            "config": config,
+        },
+        ckpt_path,
+    )
+    if weight_path.exists():
+        raise FileExistsError(weight_path)
+    counted = sum(p.numel() for p in model.encoder.parameters())
+    if counted != PERCEIVER_ENCODER_PARAMS or model.encoder.time_alpha != 0.0:
+        raise SystemExit("refusing to save an encoder that is not the unanchored P budget")
+    weight_path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(model.encoder.state_dict(), str(weight_path))
+    losses = [row["loss"] for row in rows]
+    return {
+        "objective": "global_plus_local",
+        "lambda_local": float(lambda_local),
+        "k": 1,
+        "time_alpha": 0.0,
+        "anchored": False,
+        "predictor": "position queries cross-attend to the 32 latents; acoustic patches are not an input",
+        "teacher": "stop-grad EMA of the encoder, the latent predictor, and the local head",
+        "steps": len(rows),
+        "steps_requested": int(steps),
+        "stopped_collapse": stopped_collapse,
+        "batch_recordings": int(batch),
+        "views_per_recording": 2,
+        "negatives_per_anchor": int(2 * (batch - 1)),
+        "denominator_terms_per_anchor": int(1 + 2 * (batch - 1)),
+        "crop_presentations": int(len(rows) * batch),
+        "presented_crop_hours": hours(len(rows) * batch * CROP_SECONDS),
+        "loss_start": losses[0],
+        "loss_end": losses[-1],
+        "loss_min": min(losses),
+        "loss_g_end": rows[-1]["loss_g"],
+        "loss_l_end": rows[-1]["loss_l"],
+        "weights_l2_change": moved,
+        "weights_moved": moved > 0.0,
+        "diagnostics": diag,
+        "collapsed": _collapsed(diag) or stopped_collapse,
+        "wall_s": wall,
+        "cpu_s": cpu,
+        "sec_per_step": wall / max(len(rows), 1),
+        "cpu_hours": hours(cpu),
+        "wall_hours": hours(wall),
+        "profile_step": profile,
+        "peak_rss_gb": peak_rss_gb(),
+        "encoder_path": str(weight_path),
+        "snapshots": snapshots,
+        "encoder_params": counted,
+        "flops": analytic_perceiver_flops(1, 200),
+        "flops_batch": analytic_perceiver_flops(batch, 200),
+        "loopear_d_flops": analytic_encoder_flops(1, 201),
+    }
+
+
 def _launch_prepared(which: str, seed: int) -> None:
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
@@ -501,6 +882,11 @@ def _launch_prepared(which: str, seed: int) -> None:
         ckpt_path = Path("checkpoints/loopear_pt_h20_global_5000.pt")
         weight_path = Path("results/loopear_pt_h20_global_5000_encoder.safetensors")
         report_path = Path("results/loopear_pt_h20_train.json")
+    elif which == "loopear-pl":
+        log_path = Path("results/loopear_pl_h20_global_5000.jsonl")
+        ckpt_path = Path("checkpoints/loopear_pl_h20_global_5000.pt")
+        weight_path = Path("results/loopear_pl_h20_global_5000_encoder.safetensors")
+        report_path = Path("results/loopear_pl_h20_train.json")
     else:
         raise SystemExit(f"unknown arm {which}")
     occupied = [path for path in (log_path, ckpt_path, weight_path, report_path) if path.exists()]
@@ -519,18 +905,71 @@ def _launch_prepared(which: str, seed: int) -> None:
         "steps": 5000,
         "batch": 64,
         "seed": seed,
-        "objective": "global",
+        "objective": "global_plus_local" if which == "loopear-pl" else "global",
         "lambda_local": 0.0,
         "snapshot_every": 1000,
     }
     sweep = None
+    penalty_scale = None
+    lambda_check = None
+    preserved_before = None
     if which == "loopear-pt":
         sweep = select_time_alpha(cache, seed, 64)
         config["time_alpha"] = sweep["alpha"]
         print(json.dumps({"locked_alpha": sweep["alpha"], "factor": sweep["factor"]}), flush=True)
+    before_train = None
+    if which == "loopear-pl":
+        preserved_before = {str(path): _file_sha256(path) for path in _preserved_weight_paths()}
+        before_cpu = cpu_seconds()
+        before_wall = time.perf_counter()
+        scale_path = Path("results/loopear_pt_penalty_scale.json")
+        if scale_path.exists():
+            penalty_scale = json.loads(scale_path.read_text(encoding="utf-8"))
+        else:
+            penalty_scale = measure_locked_penalty(cache, seed, 8)
+            write_result_json(scale_path, penalty_scale)
+        print(
+            json.dumps(
+                {
+                    "penalty_rms_over_logit_rms": penalty_scale["pooled"]["penalty_rms_over_logit_rms"],
+                    "content_logit_rms": penalty_scale["pooled"]["content_logit_rms"],
+                    "anchor_penalty_rms": penalty_scale["pooled"]["anchor_penalty_rms"],
+                    "alpha": penalty_scale["alpha"],
+                    "alpha_changed": False,
+                }
+            ),
+            flush=True,
+        )
+        lambda_check = choose_local_lambda(cache, seed, 64)
+        config["lambda_local"] = lambda_check["chosen_lambda"]
+        config["k"] = 1
+        config["time_alpha"] = 0.0
+        print(json.dumps({"lambda_local": lambda_check["chosen_lambda"], "scaled": lambda_check["scaled"]}), flush=True)
+        before_train = {
+            "cpu_s": cpu_seconds() - before_cpu,
+            "wall_s": time.perf_counter() - before_wall,
+            "cpu_hours": hours(cpu_seconds() - before_cpu),
+        }
     ledger = SpendLedger(Path("ledger/loopear_h20_spend.jsonl"), cap_usd=0.0)
     ledger.record(which, "cpu", 0.0, "no paid GPU")
-    if which in ("loopear-p", "loopear-pt"):
+    if which == "loopear-pl":
+        trained = run_perceiver_local(
+            cache,
+            5000,
+            64,
+            seed,
+            log_path,
+            ckpt_path,
+            weight_path,
+            "loopear_pl_h20_global_5000",
+            config,
+            float(lambda_check["chosen_lambda"]),
+            snapshot_every=1000,
+        )
+        preserved_after = {str(path): _file_sha256(path) for path in _preserved_weight_paths()}
+        if preserved_after != preserved_before:
+            raise SystemExit("a preserved D, P, or P-T encoder changed during P-L")
+    elif which in ("loopear-p", "loopear-pt"):
         trained = run_perceiver(
             cache,
             5000,
@@ -568,10 +1007,14 @@ def _launch_prepared(which: str, seed: int) -> None:
         "dataset_clips": len(rows),
         "dataset_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
         "dataset_id_sha256": digest,
-        "lambda_local": 0.0,
-        "objective": "global",
+        "lambda_local": 0.0 if lambda_check is None else lambda_check["chosen_lambda"],
+        "objective": "global_plus_local" if which == "loopear-pl" else "global",
         "equal_compute_extension": False,
         "time_alpha_sweep": sweep,
+        "penalty_versus_logits": penalty_scale,
+        "lambda_check": lambda_check,
+        "before_train": before_train,
+        "preserved_encoder_files": 0 if preserved_before is None else len(preserved_before),
         "run": trained,
         "fsd50k_test_audio_read": False,
         "sealed_realdesed_test_read": False,
@@ -587,7 +1030,9 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--subset", default="h5")
     parser.add_argument("--prepare-only", action="store_true")
-    parser.add_argument("--launch-prepared", choices=("loopear-d", "loopear-p", "loopear-pt"))
+    parser.add_argument(
+        "--launch-prepared", choices=("loopear-d", "loopear-p", "loopear-pt", "loopear-pl")
+    )
     args = parser.parse_args()
     if args.prepare_only:
         write_plan(None, Path("results/loopear_matched_h20_plan.json"))

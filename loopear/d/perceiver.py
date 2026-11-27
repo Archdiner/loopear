@@ -3,7 +3,16 @@ import torch.nn.functional as F
 from torch import nn
 
 from loopear.d.model import Block, MLPHead, _trunc, patchify
+from loopear.d.objective import (
+    broadcast_time_valid,
+    global_ntxent,
+    local_mld,
+    patch_valid_from_frames,
+    sample_freq_mask,
+    sample_time_mask,
+)
 from loopear.d.spec import (
+    D_LOCAL,
     D_MODEL,
     FFN_RATIO,
     GRID_F,
@@ -13,6 +22,8 @@ from loopear.d.spec import (
     P_CROSS_LAYERS,
     P_SELF_LAYERS,
     PERCEIVER_ENCODER_PARAMS,
+    TAU_GLOBAL,
+    TAU_LOCAL,
 )
 
 
@@ -155,6 +166,166 @@ def init_perceiver(seed: int) -> LoopEarP:
     return LoopEarP()
 
 
+class LatentBankPredictor(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.pos_time = nn.Parameter(torch.empty(GRID_T, D_MODEL))
+        self.pos_freq = nn.Parameter(torch.empty(GRID_F, D_MODEL))
+        self.view_embed = nn.Parameter(torch.empty(2, D_MODEL))
+        self.ln_q = nn.LayerNorm(D_MODEL)
+        self.ln_kv = nn.LayerNorm(D_MODEL)
+        self.q = nn.Linear(D_MODEL, D_MODEL)
+        self.k = nn.Linear(D_MODEL, D_MODEL)
+        self.v = nn.Linear(D_MODEL, D_MODEL)
+        self.proj = nn.Linear(D_MODEL, D_MODEL)
+        self.n_heads = N_HEADS
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        _trunc(self.pos_time)
+        _trunc(self.pos_freq)
+        _trunc(self.view_embed)
+        for layer in (self.q, self.k, self.v, self.proj):
+            _trunc(layer.weight)
+            nn.init.zeros_(layer.bias)
+        for norm in (self.ln_q, self.ln_kv):
+            nn.init.ones_(norm.weight)
+            nn.init.zeros_(norm.bias)
+
+    def forward(self, latents: torch.Tensor, view_index: int) -> torch.Tensor:
+        if latents.ndim != 3 or latents.shape[1:] != (N_LATENTS, D_MODEL):
+            raise ValueError("the local predictor queries the latent bank")
+        batch = latents.shape[0]
+        queries = self.pos_time[:, None, :] + self.pos_freq[None, :, :]
+        queries = queries + self.view_embed[int(view_index)].view(1, 1, D_MODEL)
+        queries = queries.reshape(1, GRID_T * GRID_F, D_MODEL).expand(batch, -1, -1)
+        head_dim = D_MODEL // self.n_heads
+        q = self.q(self.ln_q(queries)).view(batch, GRID_T * GRID_F, self.n_heads, head_dim)
+        k = self.k(self.ln_kv(latents)).view(batch, N_LATENTS, self.n_heads, head_dim)
+        v = self.v(self.ln_kv(latents)).view(batch, N_LATENTS, self.n_heads, head_dim)
+        q = q.permute(0, 2, 1, 3)
+        k = k.permute(0, 2, 1, 3)
+        v = v.permute(0, 2, 1, 3)
+        scores = torch.matmul(q, k.transpose(-2, -1)) * (head_dim ** -0.5)
+        mixed = torch.matmul(torch.softmax(scores, dim=-1), v)
+        mixed = mixed.permute(0, 2, 1, 3).contiguous().view(batch, GRID_T * GRID_F, D_MODEL)
+        return self.proj(mixed).view(batch, GRID_T, GRID_F, D_MODEL)
+
+
+class LoopEarPLocal(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.encoder = LoopEarPEncoder()
+        self.encoder.time_alpha = 0.0
+        self.global_head = MLPHead(D_MODEL, 128, 64)
+        self.predictor = LatentBankPredictor()
+        self.local_head = MLPHead(D_MODEL, D_MODEL, D_LOCAL)
+        self.teacher_encoder = LoopEarPEncoder()
+        self.teacher_encoder.time_alpha = 0.0
+        self.teacher_predictor = LatentBankPredictor()
+        self.teacher_local = MLPHead(D_MODEL, D_MODEL, D_LOCAL)
+        self.reset_teacher()
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        self.teacher_encoder.eval()
+        self.teacher_predictor.eval()
+        self.teacher_local.eval()
+        self.encoder.time_alpha = 0.0
+        self.teacher_encoder.time_alpha = 0.0
+        return self
+
+    def reset_teacher(self) -> None:
+        self.teacher_encoder.load_state_dict(self.encoder.state_dict())
+        self.teacher_predictor.load_state_dict(self.predictor.state_dict())
+        self.teacher_local.load_state_dict(self.local_head.state_dict())
+        self.teacher_encoder.time_alpha = 0.0
+        for module in (self.teacher_encoder, self.teacher_predictor, self.teacher_local):
+            module.eval()
+            for param in module.parameters():
+                param.requires_grad_(False)
+
+    def student_parameters(self) -> list[nn.Parameter]:
+        chosen = []
+        for module in (self.encoder, self.global_head, self.predictor, self.local_head):
+            chosen.extend(param for param in module.parameters() if param.requires_grad)
+        return chosen
+
+    def project_global(self, summary: torch.Tensor) -> torch.Tensor:
+        return F.normalize(self.global_head(summary), dim=-1, eps=1e-6)
+
+    def project_local(self, grid: torch.Tensor) -> torch.Tensor:
+        return F.normalize(self.local_head(grid), dim=-1, eps=1e-6)
+
+    @torch.no_grad()
+    def project_teacher(self, grid: torch.Tensor) -> torch.Tensor:
+        return F.normalize(self.teacher_local(grid), dim=-1, eps=1e-6)
+
+    @torch.no_grad()
+    def ema_update(self, momentum: float) -> None:
+        pairs = (
+            (self.encoder, self.teacher_encoder),
+            (self.predictor, self.teacher_predictor),
+            (self.local_head, self.teacher_local),
+        )
+        for source, target in pairs:
+            for student, teacher in zip(source.parameters(), target.parameters()):
+                teacher.mul_(momentum).add_(student.detach(), alpha=1.0 - momentum)
+        self.teacher_encoder.time_alpha = 0.0
+
+
+def init_perceiver_local(seed: int) -> LoopEarPLocal:
+    from loopear.losses import set_seed
+
+    set_seed(seed)
+    model = LoopEarPLocal()
+    model.encoder.time_alpha = 0.0
+    model.teacher_encoder.time_alpha = 0.0
+    return model
+
+
+def perceiver_local_loss(
+    model: LoopEarPLocal,
+    mel1: torch.Tensor,
+    mel2: torch.Tensor,
+    frame_valid1: torch.Tensor,
+    frame_valid2: torch.Tensor,
+    generator: torch.Generator,
+    lambda_local: float,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    if float(model.encoder.time_alpha) != 0.0 or float(model.teacher_encoder.time_alpha) != 0.0:
+        raise RuntimeError("P-L keeps the ordinary unanchored cross-attention")
+    valid1 = broadcast_time_valid(patch_valid_from_frames(frame_valid1))
+    valid2 = broadcast_time_valid(patch_valid_from_frames(frame_valid2))
+    if bool((valid1.flatten(1).sum(dim=1) == 0).any()) or bool(
+        (valid2.flatten(1).sum(dim=1) == 0).any()
+    ):
+        raise ValueError("a crop has no valid patches")
+    mask1 = sample_time_mask(valid1.any(dim=-1), generator)
+    mask1 = mask1[:, :, None].expand_as(valid1) & valid1
+    mask2 = sample_freq_mask(mel2.shape[0], generator)
+    mask2 = mask2[:, None, :].expand_as(valid2) & valid2
+    latents1, summary1 = model.encoder(mel1, ~mask1 & valid1)
+    latents2, summary2 = model.encoder(mel2, ~mask2 & valid2)
+    loss_g = global_ntxent(
+        model.project_global(summary1),
+        model.project_global(summary2),
+        TAU_GLOBAL,
+    )
+    pred1 = model.project_local(model.predictor(latents1, 0))
+    pred2 = model.project_local(model.predictor(latents2, 1))
+    with torch.no_grad():
+        teacher1, _summary1 = model.teacher_encoder(mel1, valid1)
+        teacher2, _summary2 = model.teacher_encoder(mel2, valid2)
+        target1 = model.project_teacher(model.teacher_predictor(teacher1, 0))
+        target2 = model.project_teacher(model.teacher_predictor(teacher2, 1))
+    loss_l = 0.5 * (
+        local_mld(pred1, target1, mask1, valid1, TAU_LOCAL, 1)
+        + local_mld(pred2, target2, mask2, valid2, TAU_LOCAL, 1)
+    )
+    return loss_g + float(lambda_local) * loss_l, loss_g, loss_l
+
+
 def visible_cross_logit_stats(
     encoder: LoopEarPEncoder, mel: torch.Tensor, visible: torch.Tensor
 ) -> dict[str, float]:
@@ -181,6 +352,48 @@ def visible_cross_logit_stats(
         "penalty_sq": float((kept_penalty * kept_penalty).sum()),
         "count": float(kept_scores.numel()),
     }
+
+
+def content_and_anchor_sums(
+    encoder: LoopEarPEncoder,
+    mel: torch.Tensor,
+    visible: torch.Tensor,
+    alpha: float,
+) -> list[dict[str, float]]:
+    tokens = encoder.patch(patchify(mel))
+    tokens = tokens + encoder.pos_time[None, :, None, :] + encoder.pos_freq[None, None, :, :]
+    batch, time_n, freq_n, width = tokens.shape
+    flat = tokens.reshape(batch, time_n * freq_n, width)
+    key_pad = ~visible.reshape(batch, time_n * freq_n)
+    latents = encoder.latents.view(1, N_LATENTS, width).expand(batch, N_LATENTS, width).clone()
+    latent_pad = torch.zeros(batch, N_LATENTS, dtype=torch.bool, device=latents.device)
+    patch_time, latent_time = patch_and_latent_time()
+    delta2 = (patch_time.view(1, -1) - latent_time.view(-1, 1)).square()
+    rows = []
+    for block, self_block in zip(encoder.cross_blocks, encoder.self_blocks):
+        hidden = block.ln_q(latents)
+        head_dim = width // block.n_heads
+        q = block.q(hidden).view(batch, N_LATENTS, block.n_heads, head_dim).permute(0, 2, 1, 3)
+        k = block.k(flat).view(batch, flat.shape[1], block.n_heads, head_dim).permute(0, 2, 1, 3)
+        scores = torch.matmul(q, k.transpose(-2, -1)) * (head_dim ** -0.5)
+        penalty = (float(alpha) * delta2).to(dtype=scores.dtype, device=scores.device)
+        penalty = penalty.view(1, 1, N_LATENTS, -1).expand_as(scores)
+        keep = (~key_pad).view(batch, 1, 1, flat.shape[1]).expand_as(scores)
+        content = scores[keep]
+        held = penalty[keep]
+        rows.append(
+            {
+                "logit_sq": float((content * content).sum()),
+                "logit_abs": float(content.abs().sum()),
+                "penalty_sq": float((held * held).sum()),
+                "penalty_abs": float(held.abs().sum()),
+                "exceed": float((held.abs() > content.abs()).sum()),
+                "count": float(content.numel()),
+            }
+        )
+        latents = block(latents, flat, key_pad, float(alpha))
+        latents = self_block(latents, latent_pad)
+    return rows
 
 
 def encoder_parameter_count(model: LoopEarPEncoder | None = None) -> int:

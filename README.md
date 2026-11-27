@@ -108,3 +108,12 @@ The equal-wall-clock scores use the existing LoopEar-D snapshots at 2,000 and 3,
 ```
 
 `results/loopear_pt_h20_protocol.json` holds the P-T probe. GPU spend `$0.00`.
+
+P-L is that same unanchored encoder, 32 latents and 685,728 parameters, trained with the global loss plus the existing masked local loss at λ = 1. The local predictor queries the latent bank and does not take the acoustic patches. Teacher targets are stop-grad. The locked P-T penalty, measured on the trained logits before this run and left unchanged, is in `results/loopear_pt_penalty_scale.json`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-pl
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_pl_h20_global_5000_encoder.safetensors --time-alpha 0 --p-reference results/loopear_p_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_l --report results/loopear_pl_h20_protocol.json
+```
+
+`results/loopear_pl_h20_protocol.json` holds the P-L probe. Four-example recognition is the primary score. The energy profile is a diagnostic.
