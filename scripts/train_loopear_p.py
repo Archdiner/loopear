@@ -1298,6 +1298,7 @@ def run_perceiver_local(
     cpu0 = cpu_seconds()
     rows = []
     snapshots: list[str] = []
+    drawn_indices: list[int] = []
     stopped_collapse = False
     with log_path.open("w", encoding="utf-8") as handle:
         for step in range(int(steps)):
@@ -1306,8 +1307,10 @@ def run_perceiver_local(
                 raise RuntimeError("time anchor changed during training")
             lr = lr_at(step, steps)
             _set_lr(opt, lr)
+            indices = order.indices()
+            drawn_indices.extend(indices)
             if float(lambda_time) > 0.0:
-                batch_tensors = cache.crops_with_starts(order.indices(), order.crop_gen)
+                batch_tensors = cache.crops_with_starts(indices, order.crop_gen)
                 loss, loss_g, loss_l, loss_t, time_stats = perceiver_ltc_loss(
                     model,
                     batch_tensors["mel1"],
@@ -1322,7 +1325,7 @@ def run_perceiver_local(
                     time_neighborhood,
                 )
             else:
-                batch_tensors = cache.crops(order.indices(), order.crop_gen)
+                batch_tensors = cache.crops(indices, order.crop_gen)
                 loss, loss_g, loss_l = perceiver_local_loss(
                     model,
                     batch_tensors["mel1"],
@@ -1410,6 +1413,8 @@ def run_perceiver_local(
     weight_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(model.encoder.state_dict(), str(weight_path))
     losses = [row["loss"] for row in rows]
+    encountered = encountered_recordings(cache.rows, drawn_indices)
+    print(json.dumps({"encountered_audio": encountered}), flush=True)
     return {
         "objective": "global_plus_local_plus_time" if float(lambda_time) > 0.0 else "global_plus_local",
         "lambda_local": float(lambda_local),
@@ -1453,11 +1458,35 @@ def run_perceiver_local(
         "flops": analytic_perceiver_flops(1, 200),
         "flops_batch": analytic_perceiver_flops(batch, 200),
         "loopear_d_flops": analytic_encoder_flops(1, 201),
+        "encountered_audio": encountered,
     }
 
 
 FULL_TRAIN_ID_SHA = "1191eb8964745b9ccc089ef10c14ed424e37a46b0dfce730fe2f506a1fa3cd9f"
 LOCKED_PLT_ALPHA = 0.0027896127554686775
+PLT_F_IDENTITY = (
+    "P-LT, the calibrated anchored Perceiver before temporal correspondence. "
+    "Global plus masked local only. No L_time. Random init. 5,000 steps. "
+    "640,000 windows. Full eligible FSD50K train split."
+)
+
+
+def encountered_recordings(
+    rows: list[dict[str, Any]], drawn_indices: list[int]
+) -> dict[str, float]:
+    durations: dict[int, float] = {}
+    for index in drawn_indices:
+        row = rows[index]
+        durations[int(row["freesound_id"])] = float(row["duration_s"])
+    return {
+        "distinct_recordings": float(len(durations)),
+        "distinct_hours": sum(durations.values()) / 3600.0,
+        "draws": float(len(drawn_indices)),
+        "windows": float(len(drawn_indices) * 2),
+        "available_recordings": float(len(rows)),
+        "available_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
+        "never_sampled": float(len(rows) - len(durations)),
+    }
 
 
 def two_crop_exposure(steps: int, batch: int) -> dict[str, float]:
@@ -1800,12 +1829,21 @@ def _launch_prepared(which: str, seed: int) -> None:
         config["lambda_time"] = 0.0
         config["k"] = 1
         config["time_alpha"] = LOCKED_PLT_ALPHA
+        config["recipe"] = "P-LT"
+        config["run_name"] = "P-LT-F"
+        config["identity"] = PLT_F_IDENTITY
+        config["init"] = "random"
+        config["l_time"] = False
+        config["losses"] = "global NT-Xent plus masked local"
+        config["windows"] = 640000
+        config["corpus"] = "full eligible official FSD50K train split"
         lambda_check = {"chosen_lambda": 1.0, "scaled": False, "lambda_time": 0.0}
         before_train = full_prepare
         print(
             json.dumps(
                 {
-                    "unique_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
+                    "identity": PLT_F_IDENTITY,
+                    "available_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
                     "clips": len(rows),
                     "lambda_time": 0.0,
                     "time_alpha": LOCKED_PLT_ALPHA,
@@ -1947,7 +1985,9 @@ def _launch_prepared(which: str, seed: int) -> None:
         "dataset_clips": len(rows),
         "dataset_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
         "dataset_id_sha256": digest,
+        "identity": None if which != "loopear-plt-f" else PLT_F_IDENTITY,
         "two_crop_exposure": None if which != "loopear-plt-f" else two_crop_exposure(5000, 64),
+        "encountered_audio": trained.get("encountered_audio"),
         "full_train_prepare": full_prepare,
         "lambda_local": 0.0 if lambda_check is None else lambda_check["chosen_lambda"],
         "objective": (

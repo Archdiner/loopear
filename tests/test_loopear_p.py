@@ -522,6 +522,19 @@ def test_full_train_selection_and_cache_leave_the_frontend_alone():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     exposure = module.two_crop_exposure(5000, 64)
+    assert "No L_time" in module.PLT_F_IDENTITY
+    assert "640,000 windows" in module.PLT_F_IDENTITY
+    assert "Full eligible FSD50K train split" in module.PLT_F_IDENTITY
+    rows = [
+        {"freesound_id": 1, "duration_s": 3600.0},
+        {"freesound_id": 2, "duration_s": 1800.0},
+        {"freesound_id": 3, "duration_s": 900.0},
+    ]
+    encountered = module.encountered_recordings(rows, [0, 0, 2])
+    assert encountered["distinct_recordings"] == 2
+    assert encountered["distinct_hours"] == 1.25
+    assert encountered["never_sampled"] == 1
+    assert encountered["windows"] == 6
     assert exposure["crop_presentations"] == 640000
     assert exposure["sampled_window_hours"] == 640000 * CROP_SECONDS / 3600.0
     with tempfile.TemporaryDirectory() as tmp:
