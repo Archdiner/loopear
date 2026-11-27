@@ -29,11 +29,14 @@ from loopear.d.objective import (
 from loopear.d.perceiver import (
     LoopEarPEncoder,
     analytic_perceiver_flops,
+    attention_shift_sums,
+    centered_variation_sums,
     content_and_anchor_sums,
     init_perceiver,
     init_perceiver_local,
     perceiver_local_loss,
     visible_cross_logit_stats,
+    within_recording_time_sums,
 )
 from loopear.d.spec import (
     CROP_SECONDS,
@@ -488,6 +491,7 @@ def _preserved_weight_paths() -> list[Path]:
         "loopear_d_h20_global_5000*.safetensors",
         "loopear_p_h20_global_5000*.safetensors",
         "loopear_pt_h20_global_5000*.safetensors",
+        "loopear_pl_h20_global_5000*.safetensors",
         "loopear_d_cmp_global_encoder.safetensors",
         "loopear_d_k1_encoder.safetensors",
         "loopear_p_encoder.safetensors",
@@ -658,6 +662,334 @@ def choose_local_lambda(cache: MelCache, seed: int, batch: int) -> dict[str, Any
     raise SystemExit("no finite local lambda on the one-batch check")
 
 
+_RANK_SUM_KEYS = (
+    "n_queries_with_other_moment",
+    "n_queries_without_other_moment",
+    "n_correct_strictly_best",
+    "n_tied_for_best",
+    "n_worse_than_another_moment",
+    "rank_sum",
+    "correct_cosine_sum",
+    "other_time_cosine_sum",
+    "other_time_pair_count",
+    "n_teacher_pairs",
+    "teacher_cosine_sum",
+    "n_teacher_pairs_below_0_99",
+    "n_teacher_pairs_below_0_50",
+    "n_other_recording_pairs",
+    "other_recording_cosine_sum",
+    "n_queries_with_other_recording",
+    "n_correct_beats_other_recording_max",
+)
+
+
+def _blank_rank() -> dict[str, float]:
+    return {key: 0.0 for key in _RANK_SUM_KEYS}
+
+
+def _add_rank(total: dict[str, float], row: dict[str, float]) -> None:
+    for key in _RANK_SUM_KEYS:
+        total[key] += float(row[key])
+
+
+def _rank_means(total: dict[str, float]) -> dict[str, Any]:
+    def divide(numerator: float, denominator: float) -> float | None:
+        if denominator <= 0.0:
+            return None
+        return numerator / denominator
+
+    queries = total["n_queries_with_other_moment"]
+    return {
+        **total,
+        "fraction_correct_strictly_best": divide(total["n_correct_strictly_best"], queries),
+        "fraction_tied_for_best": divide(total["n_tied_for_best"], queries),
+        "mean_rank": divide(total["rank_sum"], queries),
+        "mean_correct_cosine": divide(total["correct_cosine_sum"], queries),
+        "mean_other_time_cosine": divide(total["other_time_cosine_sum"], total["other_time_pair_count"]),
+        "mean_teacher_offdiag_cosine": divide(total["teacher_cosine_sum"], total["n_teacher_pairs"]),
+        "fraction_teacher_pairs_below_0_99": divide(
+            total["n_teacher_pairs_below_0_99"], total["n_teacher_pairs"]
+        ),
+        "fraction_teacher_pairs_below_0_50": divide(
+            total["n_teacher_pairs_below_0_50"], total["n_teacher_pairs"]
+        ),
+        "mean_other_recording_cosine": divide(
+            total["other_recording_cosine_sum"], total["n_other_recording_pairs"]
+        ),
+        "fraction_correct_beats_other_recording_max": divide(
+            total["n_correct_beats_other_recording_max"], total["n_queries_with_other_recording"]
+        ),
+    }
+
+
+def _view_pack(crops: dict[str, torch.Tensor], generator: torch.Generator) -> tuple[dict[str, Any], ...]:
+    valid1 = _visible(crops["frame_valid1"])
+    valid2 = _visible(crops["frame_valid2"])
+    time_mask = sample_time_mask(valid1.any(dim=-1), generator)
+    time_mask = time_mask[:, :, None].expand_as(valid1) & valid1
+    freq_mask = sample_freq_mask(crops["mel2"].shape[0], generator)
+    freq_mask = freq_mask[:, None, :].expand_as(valid2) & valid2
+    return (
+        {"name": "time_masked", "mel": crops["mel1"], "valid": valid1, "mask": time_mask, "view": 0},
+        {"name": "freq_masked", "mel": crops["mel2"], "valid": valid2, "mask": freq_mask, "view": 1},
+    )
+
+
+def measure_pl_time_rank(cache: MelCache, seed: int, batches: int = 16) -> dict[str, Any]:
+    weight_path = Path("checkpoints/loopear_pl_h20_global_5000.pt")
+    blob = torch.load(weight_path, map_location="cpu", weights_only=False)
+    if any(key.startswith("teacher_") for key in blob):
+        raise SystemExit("P-L checkpoint contains teacher tensors this measurement did not expect")
+    model = init_perceiver_local(0)
+    model.encoder.load_state_dict(blob["encoder"])
+    model.global_head.load_state_dict(blob["global_head"])
+    model.predictor.load_state_dict(blob["predictor"])
+    model.local_head.load_state_dict(blob["local_head"])
+    model.set_time_alpha(0.0)
+    model.reset_teacher()
+    model.eval()
+    counted = sum(p.numel() for p in model.encoder.parameters())
+    if counted != PERCEIVER_ENCODER_PARAMS:
+        raise SystemExit(f"P-L encoder params {counted} != {PERCEIVER_ENCODER_PARAMS}")
+    order = Order(len(cache), 64, seed)
+    pooled = {
+        "all_valid": _blank_rank(),
+        "masked_queries": _blank_rank(),
+    }
+    views: dict[str, dict[str, Any]] = {}
+    with torch.no_grad():
+        for _ in range(int(batches)):
+            crops = cache.crops(order.indices(), order.crop_gen)
+            for view in _view_pack(crops, order.mask_gen):
+                latents, _summary = model.encoder(view["mel"], ~view["mask"] & view["valid"])
+                student = model.project_local(model.predictor(latents, int(view["view"])))
+                teacher_latents, _teacher_summary = model.teacher_encoder(view["mel"], view["valid"])
+                target = model.project_teacher(
+                    model.teacher_predictor(teacher_latents, int(view["view"]))
+                )
+                slot = views.setdefault(
+                    str(view["name"]),
+                    {"all_valid": _blank_rank(), "masked_queries": _blank_rank()},
+                )
+                full = within_recording_time_sums(student, target, view["valid"])
+                masked = within_recording_time_sums(student, target, view["valid"], view["mask"])
+                _add_rank(slot["all_valid"], full)
+                _add_rank(slot["masked_queries"], masked)
+                _add_rank(pooled["all_valid"], full)
+                _add_rank(pooled["masked_queries"], masked)
+    reported_views = {}
+    for name, slot in views.items():
+        reported_views[name] = {
+            "all_valid": _rank_means(slot["all_valid"]),
+            "masked_queries": _rank_means(slot["masked_queries"]),
+        }
+    return {
+        "task": "loopear_pl_within_recording_time_rank",
+        "teacher_weights": (
+            "stop-grad copy of the saved student encoder, predictor, and local head; "
+            "the EMA teacher tensors were not in the P-L checkpoint"
+        ),
+        "ema_tensors_in_checkpoint": False,
+        "student_checkpoint": str(weight_path),
+        "batches": int(batches),
+        "batch_recordings": 64,
+        "seed": int(seed),
+        "same_recording_comparison": "same frequency, other time indices, cosine of L2-normalized local vectors",
+        "other_recording_role": "comparison only, not the claim",
+        "views": reported_views,
+        "pooled": {
+            "all_valid": _rank_means(pooled["all_valid"]),
+            "masked_queries": _rank_means(pooled["masked_queries"]),
+        },
+        "gpu_usd": 0.0,
+    }
+
+
+SOFTMAX_ALPHA_RULE = (
+    "Alpha is the centered content-logit RMS of the trained P-L encoder divided by "
+    "the centered (t_j - mu_i)^2 RMS. Both are measured on eight training batches, "
+    "both masked views, and all three cross-attention blocks. Per-query means are "
+    "removed first because softmax ignores a constant on a query. The seed-42 "
+    "initialization's own centered content RMS is recorded and is not the scale: "
+    "those logits sit far below one, so matching them leaves the softmax nearly "
+    "unchanged. The locked value is then applied to that initialization, and the "
+    "run starts only if the attention distribution moves. There is no eight-step "
+    "loss sweep, and the value is not changed after the check."
+)
+
+
+def _centered_rms(encoder: LoopEarPEncoder, cache: MelCache, seed: int, batches: int) -> dict[str, float]:
+    order = Order(len(cache), 64, seed)
+    content_sq = 0.0
+    penalty_sq = 0.0
+    count = 0.0
+    with torch.no_grad():
+        for _ in range(int(batches)):
+            crops = cache.crops(order.indices(), order.crop_gen)
+            for view in _view_pack(crops, order.mask_gen):
+                stats = centered_variation_sums(
+                    encoder, view["mel"], ~view["mask"] & view["valid"]
+                )
+                content_sq += float(stats["content_centered_sq"])
+                penalty_sq += float(stats["penalty_centered_sq"])
+                count += float(stats["count"])
+    if count <= 0.0 or penalty_sq <= 0.0 or content_sq <= 0.0:
+        raise SystemExit("centered logit variation was empty")
+    return {
+        "content_centered_rms": (content_sq / count) ** 0.5,
+        "penalty_centered_rms": (penalty_sq / count) ** 0.5,
+        "count": count,
+    }
+
+
+def _attention_totals(
+    encoder: LoopEarPEncoder,
+    cache: MelCache,
+    seed: int,
+    batches: int,
+    alpha: float,
+) -> dict[str, float]:
+    order = Order(len(cache), 64, seed)
+    totals = {
+        "tv_sum": 0.0,
+        "argmax_changed": 0.0,
+        "n_queries": 0.0,
+        "constant_offset_tv_sum": 0.0,
+        "removed_mean_tv_sum": 0.0,
+    }
+    with torch.no_grad():
+        for _ in range(int(batches)):
+            crops = cache.crops(order.indices(), order.crop_gen)
+            for view in _view_pack(crops, order.mask_gen):
+                shift = attention_shift_sums(
+                    encoder, view["mel"], ~view["mask"] & view["valid"], alpha
+                )
+                for key in totals:
+                    totals[key] += float(shift[key])
+    if totals["n_queries"] <= 0.0:
+        raise SystemExit("attention check saw no queries")
+    return totals
+
+
+def lock_softmax_alpha(cache: MelCache, seed: int, batches: int = 8) -> dict[str, Any]:
+    trained = LoopEarPEncoder()
+    trained.load_state_dict(load_file("results/loopear_pl_h20_global_5000_encoder.safetensors"))
+    trained.time_alpha = 0.0
+    trained.eval()
+    trained_scale = _centered_rms(trained, cache, seed, batches)
+    alpha = trained_scale["content_centered_rms"] / trained_scale["penalty_centered_rms"]
+    trained_shift = _attention_totals(trained, cache, seed, batches, alpha)
+    trained_queries = trained_shift["n_queries"]
+    trained_tv = trained_shift["tv_sum"] / trained_queries
+    trained_offset = trained_shift["constant_offset_tv_sum"] / trained_queries
+    trained_removed = trained_shift["removed_mean_tv_sum"] / trained_queries
+    if trained_offset > 1e-4:
+        raise SystemExit("a constant logit offset changed the attention")
+    if trained_removed > 1e-4:
+        raise SystemExit("removing the per-query penalty mean changed the attention")
+    if trained_tv < 0.01:
+        raise SystemExit(f"alpha {alpha} does not move trained P-L attention; mean total variation {trained_tv}")
+    model = init_perceiver_local(seed)
+    model.set_time_alpha(0.0)
+    model.eval()
+    init_scale = _centered_rms(model.encoder, cache, seed, batches)
+    init_matched = init_scale["content_centered_rms"] / init_scale["penalty_centered_rms"]
+    init_matched_shift = _attention_totals(model.encoder, cache, seed, batches, init_matched)
+    init_shift = _attention_totals(model.encoder, cache, seed, batches, alpha)
+    init_queries = init_shift["n_queries"]
+    init_tv = init_shift["tv_sum"] / init_queries
+    if init_tv < 0.01:
+        raise SystemExit(f"alpha {alpha} does not move initialization attention; mean total variation {init_tv}")
+    order = Order(len(cache), 64, seed)
+    crops = cache.crops(order.indices(), order.crop_gen)
+    view = _view_pack(crops, order.mask_gen)[0]
+    visible = ~view["mask"] & view["valid"]
+    with torch.no_grad():
+        model.encoder.time_alpha = 0.0
+        plain, _summary = model.encoder(view["mel"], visible)
+        model.encoder.time_alpha = float(alpha)
+        shifted, _summary = model.encoder(view["mel"], visible)
+        moved = not torch.allclose(plain, shifted)
+    if not moved:
+        raise SystemExit("the encoder forward did not change when the locked alpha was applied")
+    return {
+        "task": "loopear_plt_softmax_alpha",
+        "rule": SOFTMAX_ALPHA_RULE,
+        "loss_sweep": False,
+        "retuned_after_check": False,
+        "alpha_source": "trained_pl_centered_content_rms",
+        "batches": int(batches),
+        "batch_recordings": 64,
+        "seed": int(seed),
+        "content_centered_rms": trained_scale["content_centered_rms"],
+        "penalty_centered_rms": trained_scale["penalty_centered_rms"],
+        "alpha": float(alpha),
+        "mean_total_variation": trained_tv,
+        "fraction_argmax_changed": trained_shift["argmax_changed"] / trained_queries,
+        "n_attention_queries": trained_queries,
+        "constant_offset_mean_total_variation": trained_offset,
+        "removed_penalty_mean_total_variation": trained_removed,
+        "init_content_centered_rms": init_scale["content_centered_rms"],
+        "init_penalty_centered_rms": init_scale["penalty_centered_rms"],
+        "init_matched_alpha": float(init_matched),
+        "init_matched_mean_total_variation": init_matched_shift["tv_sum"] / init_matched_shift["n_queries"],
+        "init_mean_total_variation": init_tv,
+        "init_fraction_argmax_changed": init_shift["argmax_changed"] / init_queries,
+        "init_n_attention_queries": init_queries,
+        "encoder_output_changed": True,
+        "gpu_usd": 0.0,
+    }
+
+
+def confirm_local_lambda(cache: MelCache, seed: int, batch: int, time_alpha: float) -> dict[str, Any]:
+    model = init_perceiver_local(seed)
+    model.set_time_alpha(time_alpha)
+    model.train()
+    order = Order(len(cache), batch, seed)
+    crops = cache.crops(order.indices(), order.crop_gen)
+    loss, loss_g, loss_l = perceiver_local_loss(
+        model,
+        crops["mel1"],
+        crops["mel2"],
+        crops["frame_valid1"],
+        crops["frame_valid2"],
+        order.mask_gen,
+        1.0,
+    )
+    finite = bool(torch.isfinite(loss).all())
+    grad_norm = None
+    grad_finite = False
+    if finite:
+        loss.backward()
+        square = 0.0
+        saw = False
+        grad_finite = True
+        for param in model.student_parameters():
+            if param.grad is None:
+                continue
+            saw = True
+            if not bool(torch.isfinite(param.grad).all()):
+                grad_finite = False
+                break
+            square += float(param.grad.detach().float().square().sum())
+        grad_finite = bool(grad_finite and saw)
+        if grad_finite:
+            grad_norm = square ** 0.5
+    del model
+    if not finite or not grad_finite:
+        raise SystemExit("lambda 1 is not finite at the locked alpha; it is not rescaled")
+    return {
+        "requested_lambda": 1.0,
+        "chosen_lambda": 1.0,
+        "scaled": False,
+        "loss": float(loss.detach()),
+        "loss_g": float(loss_g.detach()),
+        "loss_l": float(loss_l.detach()),
+        "grad_norm": grad_norm,
+        "time_alpha": float(time_alpha),
+    }
+
+
 def run_perceiver_local(
     cache: MelCache,
     steps: int,
@@ -670,14 +1002,16 @@ def run_perceiver_local(
     config: dict[str, Any],
     lambda_local: float,
     snapshot_every: int | None = None,
+    time_alpha: float = 0.0,
 ) -> dict[str, Any]:
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
     if float(lambda_local) <= 0.0:
         raise SystemExit("P-L requires a positive local weight")
     probe_model = init_perceiver_local(seed + 1)
+    probe_model.set_time_alpha(time_alpha)
     counted = sum(p.numel() for p in probe_model.encoder.parameters())
-    if counted != PERCEIVER_ENCODER_PARAMS or probe_model.encoder.time_alpha != 0.0:
+    if counted != PERCEIVER_ENCODER_PARAMS or float(probe_model.encoder.time_alpha) != float(time_alpha):
         raise SystemExit(f"encoder params {counted} != {PERCEIVER_ENCODER_PARAMS}")
     probe_opt = torch.optim.AdamW(
         probe_model.student_parameters(), lr=LR, weight_decay=WEIGHT_DECAY
@@ -710,8 +1044,9 @@ def run_perceiver_local(
     print(json.dumps({"profile": profile}), flush=True)
     del probe_model, probe_opt, probe
     model = init_perceiver_local(seed)
-    if model.encoder.time_alpha != 0.0:
-        raise SystemExit("P-L reinitialized with a nonzero time anchor")
+    model.set_time_alpha(time_alpha)
+    if float(model.encoder.time_alpha) != float(time_alpha):
+        raise SystemExit("local perceiver did not keep its time anchor")
     opt = torch.optim.AdamW(model.student_parameters(), lr=LR, weight_decay=WEIGHT_DECAY)
     order = Order(len(cache), batch, seed)
     init_vec = flat_params(model.encoder).clone()
@@ -724,8 +1059,8 @@ def run_perceiver_local(
         for step in range(int(steps)):
             batch_tensors = cache.crops(order.indices(), order.crop_gen)
             model.train()
-            if model.encoder.time_alpha != 0.0:
-                raise RuntimeError("P-L time anchor changed during training")
+            if float(model.encoder.time_alpha) != float(time_alpha):
+                raise RuntimeError("time anchor changed during training")
             lr = lr_at(step, steps)
             _set_lr(opt, lr)
             loss, loss_g, loss_l = perceiver_local_loss(
@@ -751,7 +1086,7 @@ def run_perceiver_local(
                 "loss_l": float(loss_l.detach()),
                 "lambda_local": float(lambda_local),
                 "k": 1,
-                "time_alpha": 0.0,
+                "time_alpha": float(time_alpha),
                 "lr": float(lr),
                 "ema": float(ema_at(step, steps)),
                 "grad_norm": float(grad_norm),
@@ -767,12 +1102,12 @@ def run_perceiver_local(
             if snapshot_every and finished % int(snapshot_every) == 0 and finished < int(steps):
                 snapshots.append(_snapshot_encoder(model, ckpt_path, finished))
             if stopped_collapse:
-                print(f"perceiver-l collapsed at step {step}", flush=True)
+                print(f"local perceiver collapsed at step {step}", flush=True)
                 break
             if step % 10 == 0 or step + 1 == steps:
                 handle.flush()
                 print(
-                    f"perceiver-l step {step} loss {stats['loss']:.4f} "
+                    f"local perceiver step {step} loss {stats['loss']:.4f} "
                     f"g {stats['loss_g']:.4f} l {stats['loss_l']:.4f}",
                     flush=True,
                 )
@@ -787,11 +1122,14 @@ def run_perceiver_local(
             "objective": "global_plus_local",
             "lambda_local": float(lambda_local),
             "k": 1,
-            "time_alpha": 0.0,
+            "time_alpha": float(time_alpha),
             "encoder": model.encoder.state_dict(),
             "global_head": model.global_head.state_dict(),
             "predictor": model.predictor.state_dict(),
             "local_head": model.local_head.state_dict(),
+            "teacher_encoder": model.teacher_encoder.state_dict(),
+            "teacher_predictor": model.teacher_predictor.state_dict(),
+            "teacher_local": model.teacher_local.state_dict(),
             "config": config,
         },
         ckpt_path,
@@ -799,8 +1137,8 @@ def run_perceiver_local(
     if weight_path.exists():
         raise FileExistsError(weight_path)
     counted = sum(p.numel() for p in model.encoder.parameters())
-    if counted != PERCEIVER_ENCODER_PARAMS or model.encoder.time_alpha != 0.0:
-        raise SystemExit("refusing to save an encoder that is not the unanchored P budget")
+    if counted != PERCEIVER_ENCODER_PARAMS or float(model.encoder.time_alpha) != float(time_alpha):
+        raise SystemExit("refusing to save an encoder outside the 685,728-parameter budget")
     weight_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(model.encoder.state_dict(), str(weight_path))
     losses = [row["loss"] for row in rows]
@@ -808,8 +1146,8 @@ def run_perceiver_local(
         "objective": "global_plus_local",
         "lambda_local": float(lambda_local),
         "k": 1,
-        "time_alpha": 0.0,
-        "anchored": False,
+        "time_alpha": float(time_alpha),
+        "anchored": float(time_alpha) != 0.0,
         "predictor": "position queries cross-attend to the 32 latents; acoustic patches are not an input",
         "teacher": "stop-grad EMA of the encoder, the latent predictor, and the local head",
         "steps": len(rows),
@@ -887,6 +1225,11 @@ def _launch_prepared(which: str, seed: int) -> None:
         ckpt_path = Path("checkpoints/loopear_pl_h20_global_5000.pt")
         weight_path = Path("results/loopear_pl_h20_global_5000_encoder.safetensors")
         report_path = Path("results/loopear_pl_h20_train.json")
+    elif which == "loopear-plt":
+        log_path = Path("results/loopear_plt_h20_global_5000.jsonl")
+        ckpt_path = Path("checkpoints/loopear_plt_h20_global_5000.pt")
+        weight_path = Path("results/loopear_plt_h20_global_5000_encoder.safetensors")
+        report_path = Path("results/loopear_plt_h20_train.json")
     else:
         raise SystemExit(f"unknown arm {which}")
     occupied = [path for path in (log_path, ckpt_path, weight_path, report_path) if path.exists()]
@@ -905,7 +1248,7 @@ def _launch_prepared(which: str, seed: int) -> None:
         "steps": 5000,
         "batch": 64,
         "seed": seed,
-        "objective": "global_plus_local" if which == "loopear-pl" else "global",
+        "objective": "global_plus_local" if which in ("loopear-pl", "loopear-plt") else "global",
         "lambda_local": 0.0,
         "snapshot_every": 1000,
     }
@@ -913,6 +1256,8 @@ def _launch_prepared(which: str, seed: int) -> None:
     penalty_scale = None
     lambda_check = None
     preserved_before = None
+    time_rank = None
+    softmax_alpha = None
     if which == "loopear-pt":
         sweep = select_time_alpha(cache, seed, 64)
         config["time_alpha"] = sweep["alpha"]
@@ -950,9 +1295,76 @@ def _launch_prepared(which: str, seed: int) -> None:
             "wall_s": time.perf_counter() - before_wall,
             "cpu_hours": hours(cpu_seconds() - before_cpu),
         }
+    if which == "loopear-plt":
+        preserved_before = {str(path): _file_sha256(path) for path in _preserved_weight_paths()}
+        before_cpu = cpu_seconds()
+        before_wall = time.perf_counter()
+        rank_path = Path("results/loopear_pl_time_rank.json")
+        if rank_path.exists():
+            time_rank = json.loads(rank_path.read_text(encoding="utf-8"))
+        else:
+            time_rank = measure_pl_time_rank(cache, seed, 16)
+            write_result_json(rank_path, time_rank)
+        pooled_rank = time_rank["pooled"]["masked_queries"]
+        print(
+            json.dumps(
+                {
+                    "masked_queries": pooled_rank["n_queries_with_other_moment"],
+                    "fraction_correct_strictly_best": pooled_rank["fraction_correct_strictly_best"],
+                    "mean_correct_cosine": pooled_rank["mean_correct_cosine"],
+                    "mean_other_time_cosine": pooled_rank["mean_other_time_cosine"],
+                    "mean_teacher_offdiag_cosine": pooled_rank["mean_teacher_offdiag_cosine"],
+                }
+            ),
+            flush=True,
+        )
+        alpha_path = Path("results/loopear_plt_alpha.json")
+        if alpha_path.exists():
+            softmax_alpha = json.loads(alpha_path.read_text(encoding="utf-8"))
+        else:
+            softmax_alpha = lock_softmax_alpha(cache, seed, 8)
+            write_result_json(alpha_path, softmax_alpha)
+        print(
+            json.dumps(
+                {
+                    "alpha": softmax_alpha["alpha"],
+                    "mean_total_variation": softmax_alpha["mean_total_variation"],
+                    "fraction_argmax_changed": softmax_alpha["fraction_argmax_changed"],
+                    "loss_sweep": False,
+                }
+            ),
+            flush=True,
+        )
+        lambda_check = confirm_local_lambda(cache, seed, 64, float(softmax_alpha["alpha"]))
+        config["lambda_local"] = 1.0
+        config["k"] = 1
+        config["time_alpha"] = float(softmax_alpha["alpha"])
+        before_train = {
+            "cpu_s": cpu_seconds() - before_cpu,
+            "wall_s": time.perf_counter() - before_wall,
+            "cpu_hours": hours(cpu_seconds() - before_cpu),
+        }
     ledger = SpendLedger(Path("ledger/loopear_h20_spend.jsonl"), cap_usd=0.0)
     ledger.record(which, "cpu", 0.0, "no paid GPU")
-    if which == "loopear-pl":
+    if which == "loopear-plt":
+        trained = run_perceiver_local(
+            cache,
+            5000,
+            64,
+            seed,
+            log_path,
+            ckpt_path,
+            weight_path,
+            "loopear_plt_h20_global_5000",
+            config,
+            1.0,
+            snapshot_every=1000,
+            time_alpha=float(softmax_alpha["alpha"]),
+        )
+        preserved_after = {str(path): _file_sha256(path) for path in _preserved_weight_paths()}
+        if preserved_after != preserved_before:
+            raise SystemExit("a preserved D, P, P-T, or P-L encoder changed during P-LT")
+    elif which == "loopear-pl":
         trained = run_perceiver_local(
             cache,
             5000,
@@ -1008,10 +1420,12 @@ def _launch_prepared(which: str, seed: int) -> None:
         "dataset_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
         "dataset_id_sha256": digest,
         "lambda_local": 0.0 if lambda_check is None else lambda_check["chosen_lambda"],
-        "objective": "global_plus_local" if which == "loopear-pl" else "global",
+        "objective": "global_plus_local" if which in ("loopear-pl", "loopear-plt") else "global",
         "equal_compute_extension": False,
         "time_alpha_sweep": sweep,
         "penalty_versus_logits": penalty_scale,
+        "within_recording_time_rank": time_rank,
+        "softmax_alpha": softmax_alpha,
         "lambda_check": lambda_check,
         "before_train": before_train,
         "preserved_encoder_files": 0 if preserved_before is None else len(preserved_before),
@@ -1031,7 +1445,8 @@ def main() -> None:
     parser.add_argument("--subset", default="h5")
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument(
-        "--launch-prepared", choices=("loopear-d", "loopear-p", "loopear-pt", "loopear-pl")
+        "--launch-prepared",
+        choices=("loopear-d", "loopear-p", "loopear-pt", "loopear-pl", "loopear-plt"),
     )
     args = parser.parse_args()
     if args.prepare_only:

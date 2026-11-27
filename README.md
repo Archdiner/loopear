@@ -117,3 +117,12 @@ P-L is that same unanchored encoder, 32 latents and 685,728 parameters, trained 
 ```
 
 `results/loopear_pl_h20_protocol.json` holds the P-L probe. Four-example recognition is the primary score. The energy profile is a diagnostic.
+
+P-LT keeps that local objective and adds the temporal penalty on the input cross-attention logits. Alpha is the centered content-logit RMS of the trained P-L encoder divided by the centered `(t − μ)^2` RMS. The initialization's own centered RMS is recorded and is not the scale. There is no loss sweep. The locked alpha is in `results/loopear_plt_alpha.json`. The within-recording ranking of the saved P-L student is in `results/loopear_pl_time_rank.json`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-plt
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_plt_h20_global_5000_encoder.safetensors --time-alpha 0.0027896127554686775 --p-reference results/loopear_pl_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_lt --report results/loopear_plt_h20_protocol.json
+```
+
+`results/loopear_plt_h20_protocol.json` holds the P-LT probe. Four-example recognition stays the primary score. The energy profile stays a diagnostic.

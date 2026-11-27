@@ -15,6 +15,8 @@ from loopear.d.perceiver import (
     LoopEarPEncoder,
     analytic_perceiver_flops,
     apply_time_bias,
+    attention_shift_sums,
+    centered_variation_sums,
     content_and_anchor_sums,
     encoder_parameter_count,
     init_perceiver,
@@ -22,6 +24,7 @@ from loopear.d.perceiver import (
     patch_and_latent_time,
     perceiver_local_loss,
     visible_cross_logit_stats,
+    within_recording_time_sums,
 )
 from loopear.d.spec import (
     D_MODEL,
@@ -261,3 +264,72 @@ def test_anchor_penalty_sums_follow_the_locked_alpha_on_every_cross_block():
     assert abs(rows[0]["logit_sq"] - reference["logit_sq"]) / reference["logit_sq"] < 1e-5
     assert abs(rows[0]["penalty_sq"] - (alpha ** 2) * reference["penalty_sq"]) < 1e-5
     assert all(row["count"] > 0.0 and row["logit_sq"] > 0.0 for row in rows)
+
+
+def test_within_recording_rank_counts_the_correct_moment():
+    batch, time_n, freq_n, width = 2, 4, 3, 4
+    teacher = torch.zeros(batch, time_n, freq_n, width)
+    for index in range(time_n):
+        teacher[:, index, :, index] = 1.0
+    student = teacher.clone()
+    valid = torch.ones(batch, time_n, freq_n, dtype=torch.bool)
+    ranked = within_recording_time_sums(student, teacher, valid)
+    assert ranked["n_queries_with_other_moment"] == float(batch * time_n * freq_n)
+    assert ranked["n_correct_strictly_best"] == ranked["n_queries_with_other_moment"]
+    assert ranked["n_teacher_pairs"] == float(batch * freq_n * (time_n * (time_n - 1) // 2))
+    assert ranked["teacher_cosine_sum"] == 0.0
+    assert ranked["n_correct_beats_other_recording_max"] == 0.0
+    assert ranked["n_other_recording_pairs"] == float(batch * (batch - 1) * time_n * freq_n)
+    flat = teacher[:, :1].expand(batch, time_n, freq_n, width).contiguous()
+    tied = within_recording_time_sums(flat, flat, valid)
+    assert tied["n_correct_strictly_best"] == 0.0
+    assert tied["n_tied_for_best"] == tied["n_queries_with_other_moment"]
+    assert tied["n_teacher_pairs_below_0_99"] == 0.0
+    reversed_student = torch.flip(teacher, dims=(1,))
+    missed = within_recording_time_sums(reversed_student, teacher, valid)
+    assert missed["n_correct_strictly_best"] == 0.0
+    assert missed["n_worse_than_another_moment"] == missed["n_queries_with_other_moment"]
+    total = (
+        ranked["n_correct_strictly_best"]
+        + ranked["n_tied_for_best"]
+        + ranked["n_worse_than_another_moment"]
+    )
+    assert total == ranked["n_queries_with_other_moment"]
+
+
+def test_softmax_alpha_matches_centered_variation_and_moves_attention():
+    torch.manual_seed(0)
+    encoder = LoopEarPEncoder()
+    mel, visible = _mel(2, seed=4)
+    scale = centered_variation_sums(encoder, mel, visible)
+    assert scale["count"] > 0.0
+    assert scale["penalty_centered_sq"] > 0.0
+    content_rms = (scale["content_centered_sq"] / scale["count"]) ** 0.5
+    penalty_rms = (scale["penalty_centered_sq"] / scale["count"]) ** 0.5
+    matched = content_rms / penalty_rms
+    matched_shift = attention_shift_sums(encoder, mel, visible, matched)
+    assert matched_shift["n_queries"] > 0.0
+    assert matched_shift["constant_offset_tv_sum"] / matched_shift["n_queries"] < 1e-5
+    assert matched_shift["removed_mean_tv_sum"] / matched_shift["n_queries"] < 1e-5
+    alpha = 1.0 / penalty_rms
+    shift = attention_shift_sums(encoder, mel, visible, alpha)
+    assert shift["tv_sum"] / shift["n_queries"] > 0.05
+    still = attention_shift_sums(encoder, mel, visible, 0.0)
+    assert still["tv_sum"] == 0.0
+    model = init_perceiver_local(1)
+    model.set_time_alpha(float(alpha))
+    model.train()
+    assert model.encoder.time_alpha == alpha
+    assert model.teacher_encoder.time_alpha == alpha
+    assert sum(p.numel() for p in model.encoder.parameters()) == PERCEIVER_ENCODER_PARAMS
+    frame_valid = torch.ones(2, N_FRAMES, dtype=torch.bool)
+    loss, _loss_g, _loss_l = perceiver_local_loss(
+        model, mel, mel, frame_valid, frame_valid, torch.Generator().manual_seed(2), 1.0
+    )
+    assert torch.isfinite(loss)
+    encoder.time_alpha = 0.0
+    with torch.no_grad():
+        plain, _summary = encoder(mel, visible)
+        encoder.time_alpha = float(alpha)
+        moved, _summary = encoder(mel, visible)
+    assert not torch.allclose(plain, moved)
