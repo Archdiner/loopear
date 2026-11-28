@@ -14,6 +14,8 @@ from loopear.d.causal import (
     batch_variance_hinge,
     causal_step_loss,
     chance_nce,
+    chance_nce_combined,
+    chance_nce_within,
     crop_waveform,
     exp1_loss,
     horizon_logits,
@@ -21,12 +23,15 @@ from loopear.d.causal import (
     mix_at_snr,
     pit_cosine_loss,
     sample_snr,
+    sample_splice_plan,
+    splice_cut_bounds,
+    splice_mel_batch,
     temporal_infonce,
     visible_from_frames,
     zero_mel_init_nce,
 )
 from loopear.d.frontend import build_mel, waveform_logmel
-from loopear.d.spec import D_MODEL, ENCODER_PARAMS, GRID_F, GRID_T, N_FRAMES, N_MELS, SR
+from loopear.d.spec import D_MODEL, ENCODER_PARAMS, GRID_F, GRID_T, N_FRAMES, N_MELS, PATCH_FRAMES, SR
 from loopear.losses import set_seed
 
 
@@ -170,19 +175,82 @@ def test_same_time_cross_batch_negatives_are_present_and_self_is_masked():
     wired_pred = F.normalize(z[:, :-1], dim=-1)
     wired_logits, wired_targets = horizon_logits(wired_pred, y_norm, 1, 0.1)
     manual = F.cross_entropy(wired_logits.reshape(-1, 8 + 3), wired_targets.reshape(-1))
-    assert torch.allclose(info["nce"], manual, atol=1e-5)
+    within = F.cross_entropy(wired_logits[:, :, :8].reshape(-1, 8), wired_targets.reshape(-1))
+    assert torch.allclose(info["nce_concat"], manual, atol=1e-5)
+    assert torch.allclose(info["nce_within"], within, atol=1e-5)
+    assert torch.allclose(info["nce"], 0.5 * within + 0.5 * manual, atol=1e-5)
     skipped, skipped_info = exp1_loss(z, teacher, heads, horizons=(12,), temp=0.1, lambda_var=0.0)
     assert float(skipped_info["nce"]) == 0.0
     assert "loss_h12" not in skipped_info
     assert torch.isfinite(skipped)
 
 
+def test_splice_cuts_stay_in_bounds_and_join_two_recordings():
+    lo, hi = splice_cut_bounds(GRID_T)
+    assert lo == math.ceil(0.25 * GRID_T)
+    assert hi == math.floor(0.75 * GRID_T)
+    assert lo >= 0.25 * GRID_T and hi <= 0.75 * GRID_T
+    gen = torch.Generator().manual_seed(42)
+    for _ in range(20):
+        plan = sample_splice_plan(64, GRID_T, gen)
+        assert int(plan["selected"].sum()) == 32
+        assert int(plan["cuts"].min()) >= lo
+        assert int(plan["cuts"].max()) <= hi
+        assert torch.all(plan["partner"] != torch.arange(64))
+    mel = torch.zeros(4, N_FRAMES, N_MELS)
+    for row in range(4):
+        mel[row] = float(row + 1)
+    valid = torch.ones(4, N_FRAMES, dtype=torch.bool)
+    valid[1, 80:] = False
+    spliced, valid_out, plan = splice_mel_batch(mel, valid, torch.Generator().manual_seed(7))
+    assert int(plan["selected"].sum()) == 2
+    for row in range(4):
+        cut = int(plan["cuts"][row]) * PATCH_FRAMES
+        partner = int(plan["partner"][row])
+        assert partner != row
+        assert lo <= int(plan["cuts"][row]) <= hi
+        if bool(plan["selected"][row]):
+            assert torch.equal(spliced[row, :cut], mel[row, :cut])
+            assert torch.equal(spliced[row, cut:], mel[partner, cut:])
+            assert torch.equal(valid_out[row, :cut], valid[row, :cut])
+            assert torch.equal(valid_out[row, cut:], valid[partner, cut:])
+            assert not torch.equal(spliced[row], mel[row])
+        else:
+            assert torch.equal(spliced[row], mel[row])
+            assert torch.equal(valid_out[row], valid[row])
+
+
+def test_loss_is_an_equal_mix_of_within_and_concat():
+    gen = torch.Generator().manual_seed(2)
+    z = torch.randn(4, 10, 6, generator=gen)
+    teacher = torch.randn(4, 10, 6, generator=gen)
+    heads = nn.ModuleList([_Identity()])
+    loss, info = exp1_loss(z, teacher, heads, horizons=(1,), temp=0.1, lambda_var=0.1)
+    y_norm = F.normalize(F.layer_norm(teacher, (6,)), dim=-1)
+    pred = F.normalize(heads[0](z[:, :-1]), dim=-1)
+    logits, targets = horizon_logits(pred, y_norm, 1, 0.1)
+    concat = F.cross_entropy(logits.reshape(-1, 10 + 4), targets.reshape(-1))
+    within = F.cross_entropy(logits[:, :, :10].reshape(-1, 10), targets.reshape(-1))
+    assert not torch.allclose(within, concat)
+    assert torch.allclose(info["nce_within"], within, atol=1e-5)
+    assert torch.allclose(info["nce_concat"], concat, atol=1e-5)
+    assert torch.allclose(info["nce"], 0.5 * within + 0.5 * concat, atol=1e-5)
+    assert torch.allclose(loss, info["nce"] + 0.1 * info["var"], atol=1e-5)
+    flat = z.reshape(-1, 6)
+    var = F.relu(1.0 - torch.sqrt(flat.var(dim=0, unbiased=False) + 1e-4)).mean()
+    assert torch.allclose(info["var"], var, atol=1e-5)
+
+
 def test_zero_mel_at_init_is_near_chance():
     nce = zero_mel_init_nce(64, 42)
-    chance = chance_nce(64, GRID_T)
-    assert abs(chance - math.log(64 + GRID_T - 3)) < 1e-12
+    concat = chance_nce(64, GRID_T)
+    within = chance_nce_within(GRID_T)
+    chance = chance_nce_combined(64, GRID_T)
+    assert abs(concat - math.log(64 + GRID_T - 3)) < 1e-12
+    assert abs(within - math.log(GRID_T - 2)) < 1e-12
+    assert abs(chance - 0.5 * (within + concat)) < 1e-12
     assert abs(nce - chance) < 0.15
-    assert nce > 4.0
+    assert nce > 3.5
 
 
 def test_within_clip_infonce_masks_distance_one_neighbors():

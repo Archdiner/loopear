@@ -5,26 +5,12 @@ from pathlib import Path
 
 import torch
 
-from loopear.d.causal import CausalLoopEarD, causal_step_loss, time_valid_from_frames
+from loopear.d.causal import CausalLoopEarD, causal_step_loss, shuffle_valid_times
 from loopear.d.diagnostics import cpu_seconds, peak_rss_gb
 from loopear.d.frontend import load_frontend_config
 from loopear.d.fsd import MelCache, assert_train_rows, items_for, load_manifest
-from loopear.d.spec import GRID_T, N_MELS, PATCH_FRAMES, SEED
+from loopear.d.spec import GRID_T, SEED
 from loopear.harness import write_result_json
-
-
-def _shuffle_valid_times(mel: torch.Tensor, frame_valid: torch.Tensor, generator: torch.Generator) -> torch.Tensor:
-    if mel.ndim != 3 or mel.shape[1] != GRID_T * PATCH_FRAMES:
-        raise ValueError("mel must be [B, 200, bins]")
-    time_valid = time_valid_from_frames(frame_valid)
-    patches = mel.view(mel.shape[0], GRID_T, PATCH_FRAMES, N_MELS).clone()
-    for row in range(int(mel.shape[0])):
-        slots = time_valid[row].nonzero(as_tuple=False).flatten()
-        if int(slots.numel()) < 2:
-            continue
-        order = torch.randperm(int(slots.numel()), generator=generator)
-        patches[row, slots] = patches[row, slots[order]]
-    return patches.view(mel.shape[0], GRID_T * PATCH_FRAMES, N_MELS)
 
 
 def _mean(rows: list[dict[str, float]], key: str) -> float:
@@ -97,7 +83,7 @@ def main() -> None:
         variants = {
             "real": mel,
             "zeros": torch.zeros_like(mel),
-            "shuffle": _shuffle_valid_times(mel, valid, shuffle_gen),
+            "shuffle": shuffle_valid_times(mel, valid, shuffle_gen),
         }
         for name, clip in variants.items():
             with torch.no_grad():

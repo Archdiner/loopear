@@ -16,10 +16,12 @@ from loopear.d.causal import (
     CausalLoopEarD,
     CausalLoopEarDEncoder,
     causal_step_loss,
-    chance_nce,
+    chance_nce_combined,
     mix_at_snr,
     read_crop_waveform,
     sample_snr,
+    shuffle_valid_times,
+    splice_mel_batch,
     zero_mel_init_nce,
 )
 from loopear.d.causal_probe import score_event_order, teacher_temporal_stats
@@ -35,7 +37,13 @@ from loopear.losses import set_seed
 ROOT = Path(__file__).resolve().parent.parent
 H20_ID_SHA = "13c22b307322c88c09710b953c706b9432f800c21ff90bed834bd4eed82bf017"
 FRONTEND_SHA = "defe151b53153cf1fd125668569d24e4da3a138ec8eedb1a9875c90e30b2570c"
-GATE_STEP = 1000
+PROBE_EVERY = 500
+CHECKPOINT_STEPS = (1000, 3000, 5000)
+PRESERVED_STEMS = (
+    "loopear_dc_notime_h20_1000",
+    "loopear_dc_h20_5000",
+    "loopear_dcp_h20_5000",
+)
 _PREFETCH: subprocess.Popen | None = None
 
 
@@ -300,6 +308,70 @@ def _counts(model: CausalLoopEarD) -> dict[str, int]:
     }
 
 
+def _fixed_probe(cache: MelCache, batch: int, n_batches: int, seed: int) -> list[dict[str, torch.Tensor]]:
+    order_gen = torch.Generator().manual_seed(int(seed))
+    crop_gen = torch.Generator().manual_seed(int(seed) + 17)
+    shuffle_gen = torch.Generator().manual_seed(int(seed) + 23)
+    order: list[int] = []
+    cursor = 0
+    stored: list[dict[str, torch.Tensor]] = []
+    for _ in range(int(n_batches)):
+        if cursor + int(batch) > len(order):
+            order = torch.randperm(len(cache), generator=order_gen).tolist()
+            cursor = 0
+        chosen = order[cursor : cursor + int(batch)]
+        cursor += int(batch)
+        crops = cache.crop_once(chosen, crop_gen)
+        mel = crops["mel"]
+        valid = crops["frame_valid"]
+        stored.append(
+            {
+                "real": mel,
+                "zeros": torch.zeros_like(mel),
+                "shuffle": shuffle_valid_times(mel, valid, shuffle_gen),
+                "valid": valid,
+            }
+        )
+    return stored
+
+
+def _mean_probe(rows: list[dict[str, torch.Tensor]], key: str) -> float:
+    return float(sum(float(row[key]) for row in rows) / len(rows))
+
+
+def _score_probe(model: CausalLoopEarD, stored: list[dict[str, torch.Tensor]]) -> dict[str, float]:
+    training = model.training
+    model.eval()
+    found: dict[str, list[dict[str, torch.Tensor]]] = {"real": [], "zeros": [], "shuffle": []}
+    with torch.no_grad():
+        for batch in stored:
+            for name in found:
+                found[name].append(causal_step_loss(model, batch[name], batch["valid"]))
+    if training:
+        model.train()
+    real = _mean_probe(found["real"], "loss_pred")
+    zeros = _mean_probe(found["zeros"], "loss_pred")
+    shuffled = _mean_probe(found["shuffle"], "loss_pred")
+    real_within = _mean_probe(found["real"], "loss_within")
+    shuffle_within = _mean_probe(found["shuffle"], "loss_within")
+    real_concat = _mean_probe(found["real"], "loss_concat")
+    shuffle_concat = _mean_probe(found["shuffle"], "loss_concat")
+    return {
+        "real_loss_pred": real,
+        "zeros_loss_pred": zeros,
+        "shuffle_loss_pred": shuffled,
+        "gap_nats": shuffled - real,
+        "real_within": real_within,
+        "zeros_within": _mean_probe(found["zeros"], "loss_within"),
+        "shuffle_within": shuffle_within,
+        "gap_within_nats": shuffle_within - real_within,
+        "real_concat": real_concat,
+        "zeros_concat": _mean_probe(found["zeros"], "loss_concat"),
+        "shuffle_concat": shuffle_concat,
+        "gap_concat_nats": shuffle_concat - real_concat,
+    }
+
+
 def run_experiment(
     name: str,
     stem: str,
@@ -320,9 +392,13 @@ def run_experiment(
     opt = torch.optim.AdamW(model.student_parameters(), lr=LR, weight_decay=WEIGHT_DECAY, betas=(0.9, 0.999))
     order = Order(len(cache), batch, seed)
     snr_gen = torch.Generator().manual_seed(seed + 29)
+    splice_gen = torch.Generator().manual_seed(seed + 61)
+    probe_batches = _fixed_probe(cache, batch, 8, seed)
     log_path = Path("results") / f"{stem}.jsonl"
+    probe_path = Path("results") / f"{stem}_probes.jsonl"
     ckpt_path = Path("checkpoints") / f"{stem}.pt"
     _require_fresh(log_path)
+    _require_fresh(probe_path)
     _require_fresh(ckpt_path)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     train_wall = 0.0
@@ -331,7 +407,8 @@ def run_experiment(
     gate_cpu = 0.0
     gate: dict[str, Any] | None = None
     rows: list[dict[str, Any]] = []
-    with log_path.open("w", encoding="utf-8") as handle:
+    loss_probes: list[dict[str, Any]] = []
+    with log_path.open("w", encoding="utf-8") as handle, probe_path.open("w", encoding="utf-8") as probe_handle:
         for step in range(int(steps)):
             cpu0 = cpu_seconds()
             wall0 = time.perf_counter()
@@ -344,10 +421,16 @@ def run_experiment(
                 mix_mel, mix_valid = _mix_batch(
                     waves, crops["frame_valid"], snr_gen, mel_bank, cache.mean, cache.std
                 )
+                mel = crops["mel"]
+                frame_valid = crops["frame_valid"]
+                n_spliced = 0
+            else:
+                mel, frame_valid, plan = splice_mel_batch(crops["mel"], crops["frame_valid"], splice_gen)
+                n_spliced = int(plan["selected"].sum())
             model.train()
             lr = lr_at(step, steps)
             set_lr(opt, lr)
-            out = causal_step_loss(model, crops["mel"], crops["frame_valid"], mix_mel, mix_valid, step)
+            out = causal_step_loss(model, mel, frame_valid, mix_mel, mix_valid, step)
             if not torch.isfinite(out["loss"]):
                 raise RuntimeError(f"{name} non-finite loss at step {step}")
             opt.zero_grad(set_to_none=True)
@@ -357,6 +440,7 @@ def run_experiment(
             momentum = ema_at(step, steps)
             model.ema_update(momentum)
             record = _float_row(out, step, lr, momentum, float(grad_norm))
+            record["n_spliced"] = n_spliced
             rows.append(record)
             handle.write(json.dumps(record, sort_keys=True) + "\n")
             train_wall += time.perf_counter() - wall0
@@ -366,16 +450,23 @@ def run_experiment(
                 handle.flush()
                 print(
                     f"{name} step {step} loss {record['loss']:.4f} "
-                    f"pred {record['loss_pred']:.4f} var {record['loss_var']:.4f} "
-                    f"pit {record['loss_pit']:.4f} lam {record['lambda_mix']:.3f}",
+                    f"pred {record['loss_pred']:.4f} within {record['loss_within']:.4f} "
+                    f"concat {record['loss_concat']:.4f} var {record['loss_var']:.4f}",
                     flush=True,
                 )
-            if finished == GATE_STEP:
-                gate_cpu0 = cpu_seconds()
-                gate_wall0 = time.perf_counter()
-                enc_path, tea_path = _save_encoders(f"{stem}_step{GATE_STEP}", model)
+            if finished % PROBE_EVERY == 0:
+                scored = _score_probe(model, probe_batches)
+                scored["step"] = finished
+                loss_probes.append(scored)
+                probe_handle.write(json.dumps(scored, sort_keys=True) + "\n")
+                probe_handle.flush()
+                print(json.dumps({"probe": scored}), flush=True)
+            saved_teacher = ""
+            saved_encoder = ""
+            if finished in CHECKPOINT_STEPS:
+                saved_encoder, saved_teacher = _save_encoders(f"{stem}_step{finished}", model)
                 _save_checkpoint(
-                    Path("checkpoints") / f"{stem}_step{GATE_STEP}.pt",
+                    Path("checkpoints") / f"{stem}_step{finished}.pt",
                     model,
                     opt,
                     finished,
@@ -383,11 +474,20 @@ def run_experiment(
                     name,
                     config,
                 )
+                print(json.dumps({"checkpoint": finished, "stem": stem}), flush=True)
+            if finished == int(steps):
+                gate_cpu0 = cpu_seconds()
+                gate_wall0 = time.perf_counter()
+                if saved_teacher:
+                    enc_path, tea_path = saved_encoder, saved_teacher
+                else:
+                    enc_path, tea_path = _save_encoders(f"{stem}_step{finished}", model)
                 temporal = teacher_temporal_stats(model.teacher_encoder, cache, 8, batch, seed)
-                event = _event_gate(tea_path, Path("results") / f"{stem}_step{GATE_STEP}_event_order.json")
+                event = _event_gate(tea_path, Path("results") / f"{stem}_event_order.json")
                 gate = {
                     "step": finished,
-                    "kept_training": int(steps) > int(GATE_STEP),
+                    "kept_training": False,
+                    "experiment_2_started": False,
                     "temporal": temporal,
                     "event_order": event,
                     "encoder_weights": enc_path,
@@ -395,7 +495,7 @@ def run_experiment(
                     "wall_s": time.perf_counter() - gate_wall0,
                     "cpu_s": cpu_seconds() - gate_cpu0,
                 }
-                gate_path = Path("results") / f"{stem}_step{GATE_STEP}_gate.json"
+                gate_path = Path("results") / f"{stem}_gate.json"
                 _require_fresh(gate_path)
                 write_result_json(gate_path, gate)
                 gate_wall += float(gate["wall_s"])
@@ -424,6 +524,10 @@ def run_experiment(
         "gate_wall_s": gate_wall,
         "gate_cpu_s": gate_cpu,
         "sec_per_step": None if not rows else train_wall / float(len(rows)),
+        "loss_probes": loss_probes,
+        "probe_log": str(probe_path),
+        "splice": None if separation else "normalized log-mel, 40 ms patch boundary, half the batch",
+        "experiment_2_started": False,
         "gate": gate,
         "encoder_weights": encoder_path,
         "teacher_weights": teacher_path,
@@ -432,6 +536,12 @@ def run_experiment(
         "peak_rss_gb": peak_rss_gb(),
         "gpu_usd": 0.0,
     }
+    final_gap = None if not loss_probes else float(loss_probes[-1]["gap_nats"])
+    event_acc = None if gate is None else (gate.get("event_order") or {}).get("accuracy")
+    summary["final_gap_nats"] = final_gap
+    summary["gap_below_1_nat"] = None if final_gap is None else final_gap < 1.0
+    summary["event_order_accuracy"] = event_acc
+    summary["event_order_at_or_below_chance"] = None if event_acc is None else float(event_acc) <= 0.5
     summary_path = Path("results") / f"{stem}.json"
     _require_fresh(summary_path)
     write_result_json(summary_path, summary)
@@ -513,7 +623,7 @@ def main() -> None:
     torch.set_num_threads(4)
     os.chdir(ROOT)
     init_nce = zero_mel_init_nce(int(args.batch), int(args.seed))
-    init_chance = chance_nce(int(args.batch))
+    init_chance = chance_nce_combined(int(args.batch))
     print(json.dumps({"init_zero_mel_nce": init_nce, "chance_nce": init_chance}), flush=True)
     if init_nce < 3.5 or abs(init_nce - init_chance) > 0.15:
         raise SystemExit(
@@ -545,7 +655,10 @@ def main() -> None:
         "variance_weight": 0.1,
         "neighbor": 1,
         "gpu_usd": 0.0,
-        "objective": "multi-horizon InfoNCE with same-time cross-batch negatives, distance-1 neighbors masked, no learned time position, no global NT-Xent",
+        "objective": "0.5 within-clip InfoNCE plus 0.5 concatenated time and same-time cross-batch InfoNCE, distance-1 neighbors masked, variance hinge 0.1 once, no learned time position, no global NT-Xent",
+        "splice": "normalized log-mel at a 40 ms patch boundary on half the batch",
+        "splice_rate": 0.5,
+        "splice_bounds": [0.25, 0.75],
         "init_zero_mel_nce": init_nce,
         "init_chance_nce": init_chance,
         "time_position": False,
@@ -553,6 +666,8 @@ def main() -> None:
     runs: dict[str, Any] = {}
     probes: dict[str, Any] = {}
     dc_stem = args.stem or "loopear_dc_h20_5000"
+    if dc_stem in PRESERVED_STEMS:
+        raise SystemExit(f"refusing to overwrite preserved run {dc_stem}")
     if args.only in ("both", "dc"):
         batch, probed = choose_batch(int(args.batch), False)
         probes["D-C"] = probed

@@ -22,6 +22,7 @@ from loopear.d.spec import (
     N_LAYERS,
     N_MELS,
     PATCH_DIM,
+    PATCH_FRAMES,
     SR,
 )
 from loopear.losses import set_seed
@@ -274,7 +275,8 @@ def exp1_loss(
     if y_teacher.shape != (b, t, d):
         raise ValueError("y_teacher must match z_student")
     y_norm = F.normalize(F.layer_norm(y_teacher, (d,)), dim=-1)
-    total_nce = z_student.sum() * 0.0
+    total_concat = z_student.sum() * 0.0
+    total_within = z_student.sum() * 0.0
     valid_h = 0
     per_horizon: dict[str, torch.Tensor] = {}
     for h_idx, delta in enumerate(horizons):
@@ -283,20 +285,120 @@ def exp1_loss(
         valid_h += 1
         pred = F.normalize(heads[h_idx](z_student[:, : -int(delta)]), dim=-1)
         logits, targets = horizon_logits(pred, y_norm, int(delta), temp)
-        nce_h = F.cross_entropy(logits.reshape(-1, t + b), targets.reshape(-1))
-        total_nce = total_nce + nce_h
-        per_horizon[f"loss_h{int(delta)}"] = nce_h
-    loss_nce = total_nce / max(valid_h, 1)
+        nce_concat = F.cross_entropy(logits.reshape(-1, t + b), targets.reshape(-1))
+        nce_within = F.cross_entropy(logits[:, :, :t].reshape(-1, t), targets.reshape(-1))
+        total_concat = total_concat + nce_concat
+        total_within = total_within + nce_within
+        per_horizon[f"loss_h{int(delta)}"] = 0.5 * nce_within + 0.5 * nce_concat
+    denom = max(valid_h, 1)
+    loss_concat = total_concat / denom
+    loss_within = total_within / denom
+    loss_nce = 0.5 * loss_within + 0.5 * loss_concat
     z_flat = z_student.reshape(-1, d)
     std = torch.sqrt(z_flat.var(dim=0, unbiased=False) + 1e-4)
     loss_var = F.relu(1.0 - std).mean()
-    info = {"nce": loss_nce, "var": loss_var}
+    info = {
+        "nce": loss_nce,
+        "nce_within": loss_within,
+        "nce_concat": loss_concat,
+        "var": loss_var,
+    }
     info.update(per_horizon)
     return loss_nce + float(lambda_var) * loss_var, info
 
 
 def chance_nce(batch: int, length: int = GRID_T) -> float:
     return math.log(int(batch) + int(length) - 3)
+
+
+def chance_nce_within(length: int = GRID_T) -> float:
+    return math.log(int(length) - 2)
+
+
+def chance_nce_combined(batch: int, length: int = GRID_T) -> float:
+    return 0.5 * chance_nce_within(length) + 0.5 * chance_nce(batch, length)
+
+
+def splice_cut_bounds(length: int, low: float = 0.25, high: float = 0.75) -> tuple[int, int]:
+    if int(length) < 4:
+        raise ValueError("splice length is too short")
+    lo = math.ceil(float(low) * int(length))
+    hi = math.floor(float(high) * int(length))
+    if lo > hi or lo < 1 or hi >= int(length):
+        raise ValueError("splice bounds are empty")
+    return int(lo), int(hi)
+
+
+def sample_splice_plan(
+    batch: int,
+    length: int,
+    generator: torch.Generator,
+    rate: float = 0.5,
+) -> dict[str, torch.Tensor]:
+    if int(batch) < 2:
+        raise ValueError("splicing needs two recordings")
+    n_splice = int(round(float(rate) * int(batch)))
+    perm = torch.randperm(int(batch), generator=generator)
+    selected = torch.zeros(int(batch), dtype=torch.bool)
+    selected[perm[:n_splice]] = True
+    lo, hi = splice_cut_bounds(length)
+    cuts = lo + torch.randint(0, hi - lo + 1, (int(batch),), generator=generator)
+    offset = torch.randint(1, int(batch), (int(batch),), generator=generator)
+    partner = (torch.arange(int(batch)) + offset) % int(batch)
+    return {"selected": selected, "cuts": cuts, "partner": partner}
+
+
+def apply_time_splice(
+    primary: torch.Tensor,
+    partner: torch.Tensor,
+    cuts: torch.Tensor,
+    selected: torch.Tensor,
+) -> torch.Tensor:
+    if primary.shape != partner.shape or primary.ndim < 2:
+        raise ValueError("splice tensors must share shape [B, time, ...]")
+    if cuts.shape != (primary.shape[0],) or selected.shape != (primary.shape[0],):
+        raise ValueError("splice cuts and selection must be [B]")
+    time = torch.arange(primary.shape[1], device=primary.device)
+    take = selected[:, None] & (time[None, :] >= cuts[:, None])
+    for _ in range(primary.ndim - 2):
+        take = take.unsqueeze(-1)
+    return torch.where(take, partner, primary)
+
+
+def splice_mel_batch(
+    mel: torch.Tensor,
+    frame_valid: torch.Tensor,
+    generator: torch.Generator,
+    rate: float = 0.5,
+) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
+    if mel.ndim != 3 or mel.shape[1] != GRID_T * PATCH_FRAMES:
+        raise ValueError("mel must be [B, 200, bins]")
+    if frame_valid.shape != mel.shape[:2]:
+        raise ValueError("frame validity must match the mel time axis")
+    plan = sample_splice_plan(int(mel.shape[0]), GRID_T, generator, rate)
+    frame_cuts = plan["cuts"] * PATCH_FRAMES
+    partner = plan["partner"]
+    spliced = apply_time_splice(mel, mel[partner], frame_cuts, plan["selected"])
+    valid = apply_time_splice(frame_valid, frame_valid[partner], frame_cuts, plan["selected"])
+    return spliced, valid, plan
+
+
+def shuffle_valid_times(
+    mel: torch.Tensor,
+    frame_valid: torch.Tensor,
+    generator: torch.Generator,
+) -> torch.Tensor:
+    if mel.ndim != 3 or mel.shape[1] != GRID_T * PATCH_FRAMES:
+        raise ValueError("mel must be [B, 200, bins]")
+    time_valid = time_valid_from_frames(frame_valid)
+    patches = mel.view(mel.shape[0], GRID_T, PATCH_FRAMES, mel.shape[-1]).clone()
+    for row in range(int(mel.shape[0])):
+        slots = time_valid[row].nonzero(as_tuple=False).flatten()
+        if int(slots.numel()) < 2:
+            continue
+        order = torch.randperm(int(slots.numel()), generator=generator)
+        patches[row, slots] = patches[row, slots[order]]
+    return patches.view(mel.shape[0], GRID_T * PATCH_FRAMES, mel.shape[-1])
 
 
 def zero_mel_init_nce(batch: int = 64, seed: int = 42) -> float:
@@ -423,6 +525,8 @@ def causal_step_loss(
     out = {
         "loss": loss,
         "loss_pred": info["nce"],
+        "loss_within": info["nce_within"],
+        "loss_concat": info["nce_concat"],
         "loss_var": info["var"],
         "loss_pit": loss_pit,
         "lambda_mix": loss.new_tensor(float(lam)),
