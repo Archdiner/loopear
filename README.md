@@ -163,3 +163,9 @@ The next run splices the normalized log-mel, not the waveform. On half of each b
 ```bash
 .venv/bin/python scripts/train_loopear_causal.py --steps 5000 --batch 64 --seed 42 --only dc --stem loopear_dc_splice_h20_5000
 ```
+
+The order-gap run drops the splice and the one-step horizon. Horizons are 4, 10, and 20. There is no order-classification head. Half the negatives are a full time flip and half are a permutation of the 40 ms patches. The student and the stop-gradient teacher both score that scrambled mel with the same predictive loss. The extra term is relu(1 − gap), where the gap is scrambled NCE minus real NCE, and the total is the real predictive term plus that hinge. It trained 5,000 steps on the same prefix. On the fixed probe the gap was 1.028, 1.110, 1.047, 1.377, 1.407, 1.420, 1.145, 1.292, 1.320, and 1.440 nats at steps 500 through 5,000. Silent-clip loss stayed near 4.37 against chance 4.290. At 5,000, STARSS event order is 21/39 forward and 22/39 reversed. Reversed is above 0.5 and above forward, so Experiment 2 was not started. `results/loopear_dc_ordergap_h20_5000_probes.jsonl` holds the curve.
+
+```bash
+.venv/bin/python scripts/train_loopear_causal.py --steps 5000 --batch 64 --seed 42 --only dc --stem loopear_dc_ordergap_h20_5000
+```
