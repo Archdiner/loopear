@@ -1,0 +1,13 @@
+{
+  "config": {
+    "batch": 8,
+    "clips": 32,
+    "objective": "k1",
+    "seed": 42,
+    "steps": 150,
+    "subset": "h5_prefix"
+  },
+  "config_sha256": "10204517247b1c8c4942c4102f625d6043e3a9e8555d258f80c3417c7b4317d4",
+  "created_utc": "2026-11-26T08:48:26.065112+00:00",
+  "run_id": "loopear_d_smoke"
+}

@@ -1,0 +1,16 @@
+{
+  "config": {
+    "batch": 64,
+    "lambda_local": 0.0,
+    "model": "loopear-pt",
+    "objective": "global",
+    "seed": 42,
+    "snapshot_every": 1000,
+    "steps": 5000,
+    "subset": "h20",
+    "time_alpha": 3.1816019504258156e-06
+  },
+  "config_sha256": "83a6e1f4de9244ef49cd1f76154f6be53883a8dbf360e6774ef680ef56c5886c",
+  "created_utc": "2026-11-27T04:29:07.050072+00:00",
+  "run_id": "loopear_pt_h20_global_5000"
+}

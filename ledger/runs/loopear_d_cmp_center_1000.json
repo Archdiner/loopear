@@ -1,0 +1,13 @@
+{
+  "config": {
+    "batch": 64,
+    "matched": true,
+    "objective": "center",
+    "seed": 42,
+    "steps": 1000,
+    "subset": "h5"
+  },
+  "config_sha256": "52656d8eb499103b0a37f5e81733481468f5df5b9be0b65ea96f1c36268b5dec",
+  "created_utc": "2026-11-26T09:12:40.271548+00:00",
+  "run_id": "loopear_d_cmp_center_1000"
+}

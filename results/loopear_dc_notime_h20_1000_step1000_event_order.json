@@ -1,0 +1,32 @@
+{
+  "accuracy": 0.4358974358974359,
+  "chance": 0.5,
+  "n_correct": 17,
+  "n_pairs": 39,
+  "n_pairs_selected": 39,
+  "n_prototype_onsets": {
+    "0": 32,
+    "1": 32,
+    "2": 4,
+    "3": 12,
+    "4": 32,
+    "5": 2,
+    "6": 32,
+    "7": 16,
+    "8": 2,
+    "9": 9,
+    "10": 4,
+    "11": 0,
+    "12": 1
+  },
+  "n_ties": 0,
+  "prototypes": "mean of at most 32 train-split onset vectors per class",
+  "representation": "EMA teacher frequency-pooled encoder output after LayerNorm and L2-norm, at the onset patch",
+  "reversed_audio": {
+    "accuracy": 0.5384615384615384,
+    "n_correct": 21,
+    "n_pairs": 39,
+    "n_ties": 0,
+    "scored_against": "the reversed event order"
+  }
+}
