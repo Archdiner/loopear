@@ -144,3 +144,12 @@ P-LT-F is the P-LT recipe again, not a new loss. It is the calibrated anchored P
 ```
 
 `results/loopear_pltf_full_train.json` holds the run, including the recordings actually drawn. `results/loopear_pltf_full_protocol.json` holds the same probe as P-LT. `results/loopear_pltf_event_order.json` holds the STARSS event-order counts against the saved P-LT EMA. In that file the `pltc` block is P-LT-F.
+
+P-LT-50k is that same P-LT recipe for 50,000 steps, from a fresh seed-42 initialization. It is not a resume of the 5,000-step P-LT-F checkpoint. The learning-rate schedule uses this run's 50,000 steps: 2,500 steps of warmup, then cosine decay from `3e-4` to `1e-6` that reaches the last step. No new loss and no architecture change. A fixed slice of the train split, every freesound id at an index divisible by 64 after sorting, is withheld from sampling and used only for the pretraining loss. FSD50K validation, FSD50K test, and RealDESED test stay closed. Encoder checkpoints are saved at 10,000, 25,000, and 50,000 steps, and the final checkpoint keeps the EMA teacher. The saved P-LT-F result is the 5,000-step point of the curve and is not overwritten. The 10,000, 25,000, and 50,000 scores are a new trajectory with the longer schedule.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-plt-50k
+.venv/bin/python scripts/eval_loopear_protocol.py --p results/loopear_plt50k_full_50000_encoder.safetensors --time-alpha 0.0027896127554686775 --d-global results/loopear_d_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_lt50k_50k --report results/loopear_plt50k_step50000_protocol.json
+```
+
+`results/loopear_plt50k_full_train.json` holds the schedule, the withheld slice, and the recordings actually drawn. The same probe at the three checkpoints is `results/loopear_plt50k_step10000_protocol.json`, `results/loopear_plt50k_step25000_protocol.json`, and `results/loopear_plt50k_step50000_protocol.json`. In the matching event-order files the `pltc` block is that checkpoint and the `plt` block is the saved P-LT-F EMA.

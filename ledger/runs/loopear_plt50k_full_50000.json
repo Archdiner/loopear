@@ -1,0 +1,67 @@
+{
+  "config": {
+    "batch": 64,
+    "corpus": "full eligible official FSD50K train split, minus a fixed withheld slice",
+    "identity": "P-LT-50k is the full-corpus P-LT recipe for 50,000 steps. Calibrated anchored Perceiver. Global NT-Xent plus masked local only. No L_time. Random init, not a resume of the 5,000-step P-LT-F checkpoint. The learning-rate schedule is built for 50,000 steps. A small fixed slice of the train split is withheld for pretraining loss only.",
+    "init": "random",
+    "k": 1,
+    "k1_priors": [
+      0.1,
+      0.8,
+      0.1
+    ],
+    "l_time": false,
+    "lambda_local": 1.0,
+    "lambda_time": 0.0,
+    "losses": "global NT-Xent plus masked local",
+    "model": "loopear-plt-50k",
+    "objective": "global_plus_local",
+    "recipe": "P-LT",
+    "resumed_from": null,
+    "run_name": "P-LT-50k",
+    "schedule": {
+      "base_lr": 0.0003,
+      "formula": "Warmup is max(1, T // 20) steps. Step t in warmup uses base_lr * (t + 1) / warmup. After warmup, cosine decay runs from base_lr to min_lr with progress (t - warmup) / (T - warmup), so the decay is built for this T and reaches the end of the run.",
+      "lr_by_step": {
+        "0": 1.2e-07,
+        "10000": 0.0002819813258053701,
+        "2499": 0.0003,
+        "2500": 0.0003,
+        "25000": 0.00016284561214811367,
+        "49999": 1.000000326981915e-06
+      },
+      "min_lr": 1e-06,
+      "total_steps": 50000,
+      "warmup_steps": 2500,
+      "weight_decay": 0.05
+    },
+    "seed": 42,
+    "snapshot_at": [
+      10000,
+      25000
+    ],
+    "snapshot_every": null,
+    "steps": 50000,
+    "subset": "full_withheld_slice",
+    "time_alpha": 0.0027896127554686775,
+    "withhold": {
+      "fsd50k_test_used": false,
+      "fsd50k_val_used": false,
+      "full_train_clips": 36736,
+      "full_train_hours": 70.29982425009212,
+      "full_train_id_sha256": "1191eb8964745b9ccc089ef10c14ed424e37a46b0dfce730fe2f506a1fa3cd9f",
+      "realdesed_test_used": false,
+      "rule": "Sort the eligible train split by freesound id. Withhold every index divisible by 64. Those recordings are not sampled for training.",
+      "stride": 64,
+      "train_clips": 36162,
+      "train_hours": 69.19982598717841,
+      "train_id_sha256": "a09b8d00dccb831c12e207c5da33288109e0ed1056f7c577b6cca48909231914",
+      "withheld_clips": 574,
+      "withheld_hours": 1.0999982629136906,
+      "withheld_id_sha256": "f1b7d5f6ae5aaf4f7d17394c47b8f1552b804d5a7ce19845da286b573344be74"
+    }
+  },
+  "config_sha256": "4df28ca8b94321351b45e2796ba0bea9c463a0510e5c184c39695f38111804c0",
+  "created_utc": "2026-11-27T21:16:37.193781+00:00",
+  "run_id": "loopear_plt50k_full_50000"
+}

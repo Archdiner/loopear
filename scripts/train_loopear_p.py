@@ -24,10 +24,13 @@ from loopear.d.fsd import (
     audio_path,
     cache_missing_logmels,
     extract_audio,
+    fixed_withhold,
     items_for,
     load_manifest,
     sha256_of_ids,
 )
+from loopear.d.mixture import LIMITATION as PLT_N_LIMITATION
+from loopear.d.mixture import assert_mixture_row, cache_mixture_logmels
 from loopear.d.objective import (
     TIME_NEIGHBORHOOD_PATCHES,
     broadcast_time_valid,
@@ -60,9 +63,11 @@ from loopear.d.spec import (
     SEED,
     TAU_GLOBAL,
     TAU_LOCAL,
+    MIN_LR,
     WEIGHT_DECAY,
     ema_at,
     lr_at,
+    warmup_steps,
 )
 from loopear.harness import SpendLedger, write_result_json, write_run_manifest
 
@@ -506,6 +511,7 @@ def _preserved_weight_paths() -> list[Path]:
         "loopear_pt_h20_global_5000*.safetensors",
         "loopear_pl_h20_global_5000*.safetensors",
         "loopear_plt_h20_global_5000*.safetensors",
+        "loopear_pltf_full_5000*.safetensors",
         "loopear_pltc_h20_global_5000*.safetensors",
         "loopear_d_cmp_global_encoder.safetensors",
         "loopear_d_k1_encoder.safetensors",
@@ -517,6 +523,23 @@ def _preserved_weight_paths() -> list[Path]:
     if len(found) < 8:
         raise SystemExit("preserved D, P, and P-T encoder files are missing")
     return found
+
+
+def _final_checkpoints() -> list[Path]:
+    names = (
+        "checkpoints/loopear_d_h20_global_5000.pt",
+        "checkpoints/loopear_p_h20_global_5000.pt",
+        "checkpoints/loopear_pt_h20_global_5000.pt",
+        "checkpoints/loopear_pl_h20_global_5000.pt",
+        "checkpoints/loopear_plt_h20_global_5000.pt",
+        "checkpoints/loopear_pltc_h20_global_5000.pt",
+        "checkpoints/loopear_pltf_full_5000.pt",
+    )
+    paths = [Path(name) for name in names]
+    missing = [str(path) for path in paths if not path.exists()]
+    if missing:
+        raise SystemExit(f"preserved checkpoints are missing: {missing}")
+    return paths
 
 
 def _rms_row(total: dict[str, float]) -> dict[str, float]:
@@ -1231,6 +1254,9 @@ def run_perceiver_local(
     time_alpha: float = 0.0,
     lambda_time: float = 0.0,
     time_neighborhood: int = TIME_NEIGHBORHOOD_PATCHES,
+    snapshot_at: tuple[int, ...] | None = None,
+    held_cache: MelCache | None = None,
+    score_steps: tuple[int, ...] | None = None,
 ) -> dict[str, Any]:
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
@@ -1299,7 +1325,24 @@ def run_perceiver_local(
     rows = []
     snapshots: list[str] = []
     drawn_indices: list[int] = []
+    heldout_checks: list[dict[str, Any]] = []
     stopped_collapse = False
+
+    def _checkpoint_score(finished_step: int, train_loss: float | None) -> None:
+        if held_cache is None or not score_steps or int(finished_step) not in score_steps:
+            return
+        recent = [row["loss"] for row in rows[-100:]]
+        check = {
+            "step": int(finished_step),
+            "train_loss": train_loss,
+            "train_loss_mean_last_100": None if not recent else sum(recent) / float(len(recent)),
+            "withheld_loss": _held_pretrain_loss(model, held_cache, batch, seed + 7001, lambda_local),
+            "teacher_targets": _teacher_target_uniformity(model, held_cache, 16, seed + 7003),
+        }
+        heldout_checks.append(check)
+        print(json.dumps({"heldout_check": check}), flush=True)
+
+    _checkpoint_score(0, None)
     with log_path.open("w", encoding="utf-8") as handle:
         for step in range(int(steps)):
             model.train()
@@ -1365,10 +1408,31 @@ def run_perceiver_local(
                 if _collapsed(snap):
                     stopped_collapse = True
             rows.append(stats)
-            handle.write(json.dumps(stats, sort_keys=True) + "\n")
             finished = step + 1
             if snapshot_every and finished % int(snapshot_every) == 0 and finished < int(steps):
                 snapshots.append(_snapshot_encoder(model, ckpt_path, finished))
+            if snapshot_at and finished in snapshot_at and finished < int(steps):
+                snapshots.append(_snapshot_encoder(model, ckpt_path, finished))
+                teacher_path = ckpt_path.with_name(f"{ckpt_path.stem}_step{int(finished)}.pt")
+                if teacher_path.exists():
+                    raise FileExistsError(teacher_path)
+                torch.save(
+                    _local_blob(
+                        model,
+                        finished,
+                        config,
+                        lambda_local,
+                        lambda_time,
+                        time_neighborhood,
+                        time_alpha,
+                    ),
+                    teacher_path,
+                )
+                snapshots.append(str(teacher_path))
+            if score_steps and finished in score_steps:
+                _checkpoint_score(finished, float(loss.detach()))
+                stats["heldout"] = heldout_checks[-1]
+            handle.write(json.dumps(stats, sort_keys=True) + "\n")
             if stopped_collapse:
                 print(f"local perceiver collapsed at step {step}", flush=True)
                 break
@@ -1385,24 +1449,7 @@ def run_perceiver_local(
     moved = param_delta_l2(flat_params(model.encoder), init_vec)
     ckpt_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save(
-        {
-            "step": len(rows),
-            "objective": "global_plus_local_plus_time" if float(lambda_time) > 0.0 else "global_plus_local",
-            "lambda_local": float(lambda_local),
-            "lambda_time": float(lambda_time),
-            "time_neighborhood": int(time_neighborhood),
-            "tau_time": float(TAU_LOCAL),
-            "k": 1,
-            "time_alpha": float(time_alpha),
-            "encoder": model.encoder.state_dict(),
-            "global_head": model.global_head.state_dict(),
-            "predictor": model.predictor.state_dict(),
-            "local_head": model.local_head.state_dict(),
-            "teacher_encoder": model.teacher_encoder.state_dict(),
-            "teacher_predictor": model.teacher_predictor.state_dict(),
-            "teacher_local": model.teacher_local.state_dict(),
-            "config": config,
-        },
+        _local_blob(model, len(rows), config, lambda_local, lambda_time, time_neighborhood, time_alpha),
         ckpt_path,
     )
     if weight_path.exists():
@@ -1459,6 +1506,7 @@ def run_perceiver_local(
         "flops_batch": analytic_perceiver_flops(batch, 200),
         "loopear_d_flops": analytic_encoder_flops(1, 201),
         "encountered_audio": encountered,
+        "heldout_checks": heldout_checks,
     }
 
 
@@ -1468,6 +1516,20 @@ PLT_F_IDENTITY = (
     "P-LT, the calibrated anchored Perceiver before temporal correspondence. "
     "Global plus masked local only. No L_time. Random init. 5,000 steps. "
     "640,000 windows. Full eligible FSD50K train split."
+)
+PLT_N_IDENTITY = (
+    "P-LT-N is the saved P-LT recipe on a naturalistic mixture. "
+    "Calibrated anchored Perceiver before temporal correspondence. "
+    "Global NT-Xent plus masked local only. No L_time. Random init. "
+    "5,000 steps. 640,000 windows. About 20 hours of unique audio after exclusions. "
+    "Not the 70.3 hour FSD50K split."
+)
+PLT_50K_IDENTITY = (
+    "P-LT-50k is the full-corpus P-LT recipe for 50,000 steps. "
+    "Calibrated anchored Perceiver. Global NT-Xent plus masked local only. "
+    "No L_time. Random init, not a resume of the 5,000-step P-LT-F checkpoint. "
+    "The learning-rate schedule is built for 50,000 steps. "
+    "A small fixed slice of the train split is withheld for pretraining loss only."
 )
 
 
@@ -1495,6 +1557,137 @@ def two_crop_exposure(steps: int, batch: int) -> dict[str, float]:
         "crop_presentations": float(presentations),
         "sampled_window_hours": presentations * CROP_SECONDS / 3600.0,
         "recording_draws": float(int(steps) * int(batch)),
+    }
+
+
+def learning_rate_schedule(total_steps: int) -> dict[str, Any]:
+    total = int(total_steps)
+    warm = warmup_steps(total)
+    marks = sorted({0, warm - 1, warm, 10000, 25000, total // 2, total - 1})
+    return {
+        "total_steps": total,
+        "warmup_steps": warm,
+        "base_lr": float(LR),
+        "min_lr": float(MIN_LR),
+        "weight_decay": float(WEIGHT_DECAY),
+        "formula": (
+            "Warmup is max(1, T // 20) steps. Step t in warmup uses "
+            "base_lr * (t + 1) / warmup. After warmup, cosine decay runs from "
+            "base_lr to min_lr with progress (t - warmup) / (T - warmup), "
+            "so the decay is built for this T and reaches the end of the run."
+        ),
+        "lr_by_step": {str(step): float(lr_at(step, total)) for step in marks},
+    }
+
+
+WITHHOLD_STRIDE = 64
+PLT_50K_SCORE_STEPS = (0, 10000, 25000, 50000)
+PLT_50K_SNAPSHOT_STEPS = (10000, 25000)
+
+
+def _hours_of(rows: list[dict[str, Any]]) -> float:
+    return sum(float(row["duration_s"]) for row in rows) / 3600.0
+
+
+def _local_blob(
+    model,
+    step: int,
+    config: dict[str, Any],
+    lambda_local: float,
+    lambda_time: float,
+    time_neighborhood: int,
+    time_alpha: float,
+) -> dict[str, Any]:
+    return {
+        "step": int(step),
+        "objective": "global_plus_local_plus_time" if float(lambda_time) > 0.0 else "global_plus_local",
+        "lambda_local": float(lambda_local),
+        "lambda_time": float(lambda_time),
+        "time_neighborhood": int(time_neighborhood),
+        "tau_time": float(TAU_LOCAL),
+        "k": 1,
+        "time_alpha": float(time_alpha),
+        "encoder": model.encoder.state_dict(),
+        "global_head": model.global_head.state_dict(),
+        "predictor": model.predictor.state_dict(),
+        "local_head": model.local_head.state_dict(),
+        "teacher_encoder": model.teacher_encoder.state_dict(),
+        "teacher_predictor": model.teacher_predictor.state_dict(),
+        "teacher_local": model.teacher_local.state_dict(),
+        "config": config,
+    }
+
+
+def _held_pretrain_loss(
+    model,
+    cache: MelCache,
+    batch: int,
+    seed: int,
+    lambda_local: float,
+) -> dict[str, float]:
+    if len(cache) < int(batch):
+        raise RuntimeError("withheld audio is smaller than the training batch")
+    order = Order(len(cache), int(batch), int(seed))
+    n_batches = len(cache) // int(batch)
+    total_loss = 0.0
+    total_g = 0.0
+    total_l = 0.0
+    training = bool(model.training)
+    model.eval()
+    with torch.no_grad():
+        for _ in range(n_batches):
+            crops = cache.crops(order.indices(), order.crop_gen)
+            loss, loss_g, loss_l = perceiver_local_loss(
+                model,
+                crops["mel1"],
+                crops["mel2"],
+                crops["frame_valid1"],
+                crops["frame_valid2"],
+                order.mask_gen,
+                lambda_local,
+            )
+            total_loss += float(loss.detach())
+            total_g += float(loss_g.detach())
+            total_l += float(loss_l.detach())
+    if training:
+        model.train()
+    return {
+        "loss": total_loss / float(n_batches),
+        "loss_g": total_g / float(n_batches),
+        "loss_l": total_l / float(n_batches),
+        "batches": float(n_batches),
+        "clips_scored": float(n_batches * int(batch)),
+    }
+
+
+def _teacher_target_uniformity(model, cache: MelCache, n: int, seed: int) -> dict[str, float]:
+    generator = torch.Generator().manual_seed(int(seed))
+    cosines: list[float] = []
+    ranks: list[float] = []
+    training = bool(model.training)
+    model.eval()
+    with torch.no_grad():
+        for index in range(min(int(n), len(cache))):
+            raw = cache._load(index)
+            crop, valid = crop_logmel(raw, generator)
+            norm = normalize_logmel(crop, cache.mean, cache.std) * valid.unsqueeze(-1)
+            visible = _visible(valid.unsqueeze(0))
+            latents, _summary = model.teacher_encoder(norm.unsqueeze(0), visible)
+            targets = model.project_teacher(model.teacher_predictor(latents, 0))[0]
+            chosen = targets[visible[0]]
+            if int(chosen.shape[0]) < 2:
+                continue
+            stats = embedding_diagnostics(chosen.detach().float().cpu())
+            cosines.append(float(stats["offdiag_cosine_mean"]))
+            ranks.append(float(stats["effective_rank"]))
+    if training:
+        model.train()
+    if not cosines:
+        raise RuntimeError("teacher target uniformity saw no recording")
+    return {
+        "n_recordings": float(len(cosines)),
+        "mean_offdiag_cosine": sum(cosines) / float(len(cosines)),
+        "mean_effective_rank": sum(ranks) / float(len(ranks)),
     }
 
 
@@ -1611,12 +1804,34 @@ def _launch_prepared(which: str, seed: int) -> None:
         ckpt_path = Path("checkpoints/loopear_pltf_full_5000.pt")
         weight_path = Path("results/loopear_pltf_full_5000_encoder.safetensors")
         report_path = Path("results/loopear_pltf_full_train.json")
+    elif which == "loopear-plt-50k":
+        log_path = Path("results/loopear_plt50k_full_50000.jsonl")
+        ckpt_path = Path("checkpoints/loopear_plt50k_full_50000.pt")
+        weight_path = Path("results/loopear_plt50k_full_50000_encoder.safetensors")
+        report_path = Path("results/loopear_plt50k_full_train.json")
+        for extra in (
+            Path("results/loopear_plt50k_full_50000_step10000_encoder.safetensors"),
+            Path("results/loopear_plt50k_full_50000_step25000_encoder.safetensors"),
+            Path("checkpoints/loopear_plt50k_full_50000_step10000.pt"),
+            Path("checkpoints/loopear_plt50k_full_50000_step25000.pt"),
+        ):
+            if extra.exists():
+                raise SystemExit(f"refusing to overwrite {extra}")
+    elif which == "loopear-plt-n":
+        log_path = Path("results/loopear_pltn_h20_5000.jsonl")
+        ckpt_path = Path("checkpoints/loopear_pltn_h20_5000.pt")
+        weight_path = Path("results/loopear_pltn_h20_5000_encoder.safetensors")
+        report_path = Path("results/loopear_pltn_h20_train.json")
     else:
         raise SystemExit(f"unknown arm {which}")
     occupied = [path for path in (log_path, ckpt_path, weight_path, report_path) if path.exists()]
     if occupied:
         raise SystemExit(f"refusing to overwrite {[str(path) for path in occupied]}")
     full_prepare = None
+    mixture_prepare = None
+    held_cache = None
+    schedule = None
+    withhold = None
     if which == "loopear-plt-f":
         rows = items_for(manifest, "full")
         assert_train_rows(rows)
@@ -1632,6 +1847,94 @@ def _launch_prepared(which: str, seed: int) -> None:
             Path("data/manifests/loopear_d_frontend.json"),
             None,
         )
+    elif which == "loopear-plt-50k":
+        full_rows = items_for(manifest, "full")
+        assert_train_rows(full_rows)
+        _refuse_non_train(full_rows)
+        full_digest = sha256_of_ids(full_rows)
+        if full_digest != FULL_TRAIN_ID_SHA or manifest.get("subset_id_sha256", {}).get("full") != FULL_TRAIN_ID_SHA:
+            raise SystemExit(f"full train id sha {full_digest}")
+        for row in full_rows:
+            if row.get("split") != "train" or "val" in str(row.get("shard", "")) or "test" in str(row.get("shard", "")):
+                raise SystemExit("withheld split saw a non-train row")
+        full_prepare = _prepare_full_train(full_rows)
+        train_rows, held_rows = fixed_withhold(full_rows, WITHHOLD_STRIDE)
+        assert_train_rows(train_rows)
+        assert_train_rows(held_rows)
+        _refuse_non_train(train_rows)
+        _refuse_non_train(held_rows)
+        frontend = Path("data/manifests/loopear_d_frontend.json")
+        payload = load_frontend_config(frontend)
+        mean = torch.tensor(payload["mean"], dtype=torch.float32)
+        std = torch.tensor(payload["std"], dtype=torch.float32)
+        cache_dir = Path("cache/loopear_d_mel")
+        cache = MelCache(train_rows, cache_dir, mean, std)
+        held_cache = MelCache(held_rows, cache_dir, mean, std)
+        rows = train_rows
+        digest = sha256_of_ids(train_rows)
+        schedule = learning_rate_schedule(50000)
+        withhold = {
+            "rule": "Sort the eligible train split by freesound id. Withhold every index divisible by 64. Those recordings are not sampled for training.",
+            "stride": WITHHOLD_STRIDE,
+            "full_train_id_sha256": full_digest,
+            "full_train_clips": len(full_rows),
+            "full_train_hours": _hours_of(full_rows),
+            "train_clips": len(train_rows),
+            "train_hours": _hours_of(train_rows),
+            "train_id_sha256": digest,
+            "withheld_clips": len(held_rows),
+            "withheld_hours": _hours_of(held_rows),
+            "withheld_id_sha256": sha256_of_ids(held_rows),
+            "fsd50k_val_used": False,
+            "fsd50k_test_used": False,
+            "realdesed_test_used": False,
+        }
+    elif which == "loopear-plt-n":
+        mixture_path = Path("data/manifests/loopear_pltn_mixture.json")
+        exclusion_path = Path("data/manifests/loopear_pltn_exclusions.json")
+        audit_path = Path("results/loopear_pltn_audit.json")
+        for required in (mixture_path, exclusion_path, audit_path):
+            if not required.exists():
+                raise SystemExit(f"refusing to train before {required} exists")
+        mixture = load_manifest(mixture_path)
+        audit = json.loads(audit_path.read_text(encoding="utf-8"))
+        heard = audit.get("heard")
+        if not isinstance(heard, list) or not heard:
+            raise SystemExit("listening audit has no heard notes")
+        if str(mixture.get("limitation")) != PLT_N_LIMITATION:
+            raise SystemExit("the mixture note does not state the long-scene limitation")
+        rows = list(mixture["items"])
+        for row in rows:
+            assert_mixture_row(row)
+        assert_train_rows(rows)
+        _refuse_non_train(rows)
+        digest = sha256_of_ids(rows)
+        frontend = Path("data/manifests/loopear_d_frontend.json")
+        frontend_before = frontend.read_bytes()
+        cache_cpu = cpu_seconds()
+        cache_wall = time.perf_counter()
+        mel_stats = cache_mixture_logmels(rows, Path("cache/loopear_pltn_mel"))
+        if frontend.read_bytes() != frontend_before:
+            raise SystemExit("the locked frontend config changed while caching")
+        payload = load_frontend_config(frontend)
+        cache = MelCache(
+            rows,
+            Path("cache/loopear_pltn_mel"),
+            torch.tensor(payload["mean"], dtype=torch.float32),
+            torch.tensor(payload["std"], dtype=torch.float32),
+        )
+        mixture_prepare = {
+            "logmel": mel_stats,
+            "frontend_unchanged": True,
+            "cpu_s": cpu_seconds() - cache_cpu,
+            "wall_s": time.perf_counter() - cache_wall,
+            "cpu_hours": hours(cpu_seconds() - cache_cpu),
+            "unique_hours": mixture.get("unique_hours"),
+            "hours_by_source": mixture.get("hours_by_source"),
+            "cap_s": mixture.get("cap_s"),
+            "sampling_rate": mixture.get("sampling_rate"),
+            "audit_clips": len(heard),
+        }
     else:
         cache = trainer._cache(
             manifest,
@@ -1642,7 +1945,15 @@ def _launch_prepared(which: str, seed: int) -> None:
         )
     config = {
         "model": which,
-        "subset": "full" if which == "loopear-plt-f" else "h20",
+        "subset": (
+            "full"
+            if which == "loopear-plt-f"
+            else "full_withheld_slice"
+            if which == "loopear-plt-50k"
+            else "mixture"
+            if which == "loopear-plt-n"
+            else "h20"
+        ),
         "steps": 5000,
         "batch": 64,
         "seed": seed,
@@ -1650,7 +1961,7 @@ def _launch_prepared(which: str, seed: int) -> None:
             "global_plus_local_plus_time"
             if which == "loopear-pltc"
             else "global_plus_local"
-            if which in ("loopear-pl", "loopear-plt", "loopear-plt-f")
+            if which in ("loopear-pl", "loopear-plt", "loopear-plt-f", "loopear-plt-n", "loopear-plt-50k")
             else "global"
         ),
         "lambda_local": 0.0,
@@ -1853,9 +2164,150 @@ def _launch_prepared(which: str, seed: int) -> None:
             ),
             flush=True,
         )
+    if which == "loopear-plt-n":
+        preserved_paths = _preserved_weight_paths() + _final_checkpoints()
+        preserved_before = {str(path): _file_sha256(path) for path in preserved_paths}
+        config["lambda_local"] = 1.0
+        config["lambda_time"] = 0.0
+        config["k"] = 1
+        config["time_alpha"] = LOCKED_PLT_ALPHA
+        config["recipe"] = "P-LT"
+        config["run_name"] = "P-LT-N"
+        config["identity"] = PLT_N_IDENTITY
+        config["init"] = "random"
+        config["l_time"] = False
+        config["losses"] = "global NT-Xent plus masked local"
+        config["windows"] = 640000
+        config["corpus"] = "naturalistic mixture, about 20 hours after exclusions"
+        config["limitation"] = PLT_N_LIMITATION
+        config["cap_s"] = mixture["cap_s"]
+        config["hours_by_source"] = mixture["hours_by_source"]
+        config["unique_hours"] = mixture["unique_hours"]
+        config["sampling_rate"] = mixture["sampling_rate"]
+        config["k1_priors"] = [0.1, 0.8, 0.1]
+        lambda_check = {"chosen_lambda": 1.0, "scaled": False, "lambda_time": 0.0}
+        before_train = mixture_prepare
+        print(
+            json.dumps(
+                {
+                    "identity": PLT_N_IDENTITY,
+                    "available_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
+                    "clips": len(rows),
+                    "lambda_time": 0.0,
+                    "time_alpha": LOCKED_PLT_ALPHA,
+                    "hours_by_source": mixture["hours_by_source"],
+                }
+            ),
+            flush=True,
+        )
+    if which == "loopear-plt-50k":
+        preserved_paths = _preserved_weight_paths() + _final_checkpoints()
+        preserved_before = {str(path): _file_sha256(path) for path in preserved_paths}
+        config["steps"] = 50000
+        config["snapshot_every"] = None
+        config["snapshot_at"] = list(PLT_50K_SNAPSHOT_STEPS)
+        config["lambda_local"] = 1.0
+        config["lambda_time"] = 0.0
+        config["k"] = 1
+        config["k1_priors"] = [0.1, 0.8, 0.1]
+        config["time_alpha"] = LOCKED_PLT_ALPHA
+        config["recipe"] = "P-LT"
+        config["run_name"] = "P-LT-50k"
+        config["identity"] = PLT_50K_IDENTITY
+        config["init"] = "random"
+        config["resumed_from"] = None
+        config["l_time"] = False
+        config["losses"] = "global NT-Xent plus masked local"
+        config["schedule"] = schedule
+        config["withhold"] = withhold
+        config["corpus"] = "full eligible official FSD50K train split, minus a fixed withheld slice"
+        lambda_check = {"chosen_lambda": 1.0, "scaled": False, "lambda_time": 0.0}
+        before_train = full_prepare
+        print(
+            json.dumps(
+                {
+                    "identity": PLT_50K_IDENTITY,
+                    "withheld_hours": withhold["withheld_hours"],
+                    "train_hours": withhold["train_hours"],
+                    "warmup_steps": schedule["warmup_steps"],
+                    "lambda_time": 0.0,
+                    "time_alpha": LOCKED_PLT_ALPHA,
+                }
+            ),
+            flush=True,
+        )
     ledger = SpendLedger(Path("ledger/loopear_h20_spend.jsonl"), cap_usd=0.0)
     ledger.record(which, "cpu", 0.0, "no paid GPU")
-    if which == "loopear-plt-f":
+    if which == "loopear-plt-50k":
+        exposure = two_crop_exposure(50000, 64)
+        trained = run_perceiver_local(
+            cache,
+            50000,
+            64,
+            seed,
+            log_path,
+            ckpt_path,
+            weight_path,
+            "loopear_plt50k_full_50000",
+            config,
+            1.0,
+            snapshot_every=None,
+            time_alpha=LOCKED_PLT_ALPHA,
+            lambda_time=0.0,
+            snapshot_at=PLT_50K_SNAPSHOT_STEPS,
+            held_cache=held_cache,
+            score_steps=PLT_50K_SCORE_STEPS,
+        )
+        trained["two_crop_exposure"] = exposure
+        trained["schedule"] = schedule
+        trained["withhold"] = withhold
+        preserved_after = {str(path): _file_sha256(path) for path in preserved_paths}
+        if preserved_after != preserved_before:
+            raise SystemExit("a preserved encoder or checkpoint changed during P-LT-50k")
+        saved = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        required = ("teacher_encoder", "teacher_predictor", "teacher_local")
+        if any(key not in saved or not isinstance(saved[key], dict) for key in required):
+            raise SystemExit("the trained checkpoint is missing EMA tensors")
+        student = torch.cat([tensor.detach().float().reshape(-1) for tensor in saved["encoder"].values()])
+        teacher = torch.cat(
+            [tensor.detach().float().reshape(-1) for tensor in saved["teacher_encoder"].values()]
+        )
+        if student.shape != teacher.shape or float((student - teacher).abs().sum()) <= 0.0:
+            raise SystemExit("the saved EMA teacher matches the student")
+        del saved, student, teacher
+    elif which == "loopear-plt-n":
+        exposure = two_crop_exposure(5000, 64)
+        trained = run_perceiver_local(
+            cache,
+            5000,
+            64,
+            seed,
+            log_path,
+            ckpt_path,
+            weight_path,
+            "loopear_pltn_h20_5000",
+            config,
+            1.0,
+            snapshot_every=1000,
+            time_alpha=LOCKED_PLT_ALPHA,
+            lambda_time=0.0,
+        )
+        trained["two_crop_exposure"] = exposure
+        preserved_after = {str(path): _file_sha256(path) for path in preserved_paths}
+        if preserved_after != preserved_before:
+            raise SystemExit("a preserved encoder or checkpoint changed during P-LT-N")
+        saved = torch.load(ckpt_path, map_location="cpu", weights_only=False)
+        required = ("teacher_encoder", "teacher_predictor", "teacher_local")
+        if any(key not in saved or not isinstance(saved[key], dict) for key in required):
+            raise SystemExit("the trained checkpoint is missing EMA tensors")
+        student = torch.cat([tensor.detach().float().reshape(-1) for tensor in saved["encoder"].values()])
+        teacher = torch.cat(
+            [tensor.detach().float().reshape(-1) for tensor in saved["teacher_encoder"].values()]
+        )
+        if student.shape != teacher.shape or float((student - teacher).abs().sum()) <= 0.0:
+            raise SystemExit("the saved EMA teacher matches the student")
+        del saved, student, teacher
+    elif which == "loopear-plt-f":
         exposure = two_crop_exposure(5000, 64)
         trained = run_perceiver_local(
             cache,
@@ -1985,16 +2437,31 @@ def _launch_prepared(which: str, seed: int) -> None:
         "dataset_clips": len(rows),
         "dataset_hours": sum(float(row["duration_s"]) for row in rows) / 3600.0,
         "dataset_id_sha256": digest,
-        "identity": None if which != "loopear-plt-f" else PLT_F_IDENTITY,
-        "two_crop_exposure": None if which != "loopear-plt-f" else two_crop_exposure(5000, 64),
+        "identity": (
+            PLT_50K_IDENTITY
+            if which == "loopear-plt-50k"
+            else PLT_N_IDENTITY
+            if which == "loopear-plt-n"
+            else PLT_F_IDENTITY
+            if which == "loopear-plt-f"
+            else None
+        ),
+        "schedule": schedule,
+        "withhold": withhold,
+        "two_crop_exposure": two_crop_exposure(50000, 64)
+        if which == "loopear-plt-50k"
+        else two_crop_exposure(5000, 64)
+        if which in ("loopear-plt-f", "loopear-plt-n")
+        else None,
         "encountered_audio": trained.get("encountered_audio"),
         "full_train_prepare": full_prepare,
+        "mixture_prepare": mixture_prepare,
         "lambda_local": 0.0 if lambda_check is None else lambda_check["chosen_lambda"],
         "objective": (
             "global_plus_local_plus_time"
             if which == "loopear-pltc"
             else "global_plus_local"
-            if which in ("loopear-pl", "loopear-plt", "loopear-plt-f")
+            if which in ("loopear-pl", "loopear-plt", "loopear-plt-f", "loopear-plt-n", "loopear-plt-50k")
             else "global"
         ),
         "equal_compute_extension": False,
@@ -2033,6 +2500,8 @@ def main() -> None:
             "loopear-plt",
             "loopear-pltc",
             "loopear-plt-f",
+            "loopear-plt-n",
+            "loopear-plt-50k",
         ),
     )
     args = parser.parse_args()

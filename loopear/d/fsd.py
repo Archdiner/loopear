@@ -673,5 +673,22 @@ def sha256_of_ids(rows: list[dict[str, Any]]) -> str:
     return hashlib.sha256(blob).hexdigest()
 
 
+def fixed_withhold(rows: list[dict[str, Any]], stride: int = 64) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if int(stride) < 2:
+        raise ValueError("withhold stride must leave a training set")
+    ordered = sorted(rows, key=lambda row: int(row["freesound_id"]))
+    train_rows = [row for index, row in enumerate(ordered) if index % int(stride) != 0]
+    held_rows = [row for index, row in enumerate(ordered) if index % int(stride) == 0]
+    if not train_rows or not held_rows:
+        raise ValueError("withhold split is empty")
+    train_ids = {int(row["freesound_id"]) for row in train_rows}
+    held_ids = {int(row["freesound_id"]) for row in held_rows}
+    if train_ids & held_ids:
+        raise ValueError("withhold split overlaps")
+    if train_ids | held_ids != {int(row["freesound_id"]) for row in ordered}:
+        raise ValueError("withhold split dropped a recording")
+    return train_rows, held_rows
+
+
 def file_sha256(path: Path) -> str:
     return sha256_file(path)
