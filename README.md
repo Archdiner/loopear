@@ -147,11 +147,13 @@ P-LT-F is the P-LT recipe again, not a new loss. It is the calibrated anchored P
 
 ## Causal LoopEar-D
 
-The block-causal encoder drops the class token, so the deployed grid has 682,656 parameters. A query at time t attends to every frequency at times t' ≤ t. Clip summaries are the mean of the grid. Training predicts the EMA teacher's frequency-pooled states with within-clip InfoNCE at horizons 1, 4, and 12. There is no global NT-Xent. CPU only. Cloud GPU spend `$0.00`.
+The block-causal encoder drops the class token and the learned time position. Frequency position stays. A query at time t attends to every frequency at times t' ≤ t, and that mask is the only time order. The grid has 677,856 parameters. Clip summaries are the mean of the grid. Training predicts the EMA teacher's frequency-pooled states with InfoNCE at horizons 1, 4, and 12. The denominator holds other times in the clip, except distance-1 neighbors, and the same future time from the other clips. There is no global NT-Xent. CPU only. Cloud GPU spend `$0.00`.
 
 ```bash
-.venv/bin/python scripts/train_loopear_causal.py --steps 5000 --batch 64 --seed 42 --only both
-.venv/bin/python scripts/probe_causal_position.py
+.venv/bin/python scripts/train_loopear_causal.py --steps 1000 --batch 64 --seed 42 --only dc --stem loopear_dc_notime_h20_1000
+.venv/bin/python scripts/probe_causal_position.py --checkpoint checkpoints/loopear_dc_notime_h20_1000_step1000.pt --report results/loopear_dc_notime_h20_1000_position.json
 ```
 
-The 20.003-hour run was stopped after step 1979. On the step-1,000 checkpoint, eight batches of 64 give predictive loss 0.003943 on real crops, 0.003825 when the mel is replaced by zeros, and 0.003948 when each clip's valid time patches are permuted on the fixed positional grid. That is a position shortcut, so the mixture run was not started. `results/loopear_dc_h20_step1000_position_shortcut.json` holds those three losses. The step-1,000 teacher cosine and the 39-pair STARSS event order are in `results/loopear_dc_h20_5000_step1000_gate.json`.
+The first 20.003-hour run kept a learned time position and was stopped after step 1979. On that step-1,000 checkpoint the predictive loss was 0.003943 on real crops, 0.003825 on zeros, and 0.003948 after a within-clip time shuffle. Those three losses stay in `results/loopear_dc_h20_step1000_position_shortcut.json`.
+
+The follow-up removes the time position. At initialization, zero-mel predictive loss is 4.7097 against chance log(64+50−3) = 4.7095. It trained for 1,000 steps and stopped. On the new step-1,000 checkpoint, eight batches of 64 give predictive loss 3.301 on real crops, 4.784 when the mel is zeros, and 3.674 when each clip's valid time patches are permuted. Zero-mel stays near chance. The shuffled loss falls with the real loss, so a shortcut remains and the mixture run was not started. `results/loopear_dc_notime_h20_1000_position.json` holds those three losses. The step-1,000 teacher cosine, rank, and the 39-pair STARSS event order are in `results/loopear_dc_notime_h20_1000_step1000_gate.json`.
