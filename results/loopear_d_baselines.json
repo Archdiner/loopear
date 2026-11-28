@@ -1,0 +1,346 @@
+{
+  "audioset_audio_downloaded": false,
+  "beats_global_only": {
+    "clip": {
+      "efficientat": {
+        "beats_global_patch_mean": true,
+        "delta_vs_global_patch_mean": 0.19817887769445602,
+        "macro_ap": 0.525787189582694
+      },
+      "usad": {
+        "beats_global_patch_mean": false,
+        "delta_vs_global_patch_mean": -0.015569597908541788,
+        "macro_ap": 0.3120387139796962
+      }
+    },
+    "starss_frame": {
+      "efficientat": {
+        "beats_dsp_frame": false,
+        "beats_global_frame": false,
+        "delta_vs_global_frame": 0.03639210826946915,
+        "label_sensitive": false,
+        "macro_ap": 0.3533045449658238,
+        "raw_above_global_frame": true,
+        "shuffled_macro_ap": 0.3533045449658238
+      },
+      "usad": {
+        "beats_dsp_frame": false,
+        "beats_global_frame": false,
+        "delta_vs_global_frame": 0.02917167924393832,
+        "label_sensitive": false,
+        "macro_ap": 0.346084115940293,
+        "raw_above_global_frame": true,
+        "shuffled_macro_ap": 0.346084115940293
+      }
+    }
+  },
+  "classes": [
+    "Accelerating_and_revving_and_vroom",
+    "Accordion",
+    "Acoustic_guitar",
+    "Aircraft",
+    "Alarm",
+    "Bell",
+    "Car",
+    "Car_passing_by",
+    "Domestic_sounds_and_home_sounds",
+    "Door",
+    "Doorbell",
+    "Engine",
+    "Engine_starting",
+    "Fixed-wing_aircraft_and_airplane",
+    "Guitar",
+    "Human_voice",
+    "Motor_vehicle_(road)",
+    "Motorcycle",
+    "Music",
+    "Musical_instrument",
+    "Plucked_string_instrument",
+    "Race_car_and_auto_racing",
+    "Rail_transport",
+    "Siren",
+    "Speech",
+    "Telephone",
+    "Vehicle",
+    "Vehicle_horn_and_car_horn_and_honking"
+  ],
+  "cpu_hours": 0.022671661944444442,
+  "crop_s": 2.015,
+  "cuda_available": false,
+  "efficientat": {
+    "checkpoint_bytes": 4066513,
+    "checkpoint_sha256": "899a8c6217063f6941793102a2780b3dd788ab11fce468d9cf5f0577c453321c",
+    "commit": "a425fdce92572e602a1d5634799bd9f1f2efa806",
+    "feature_dim": 384,
+    "fmap_freq_on_full_crop": 4,
+    "fmap_time_on_full_crop": 7,
+    "frontend": "32 kHz, preemphasis 0.97, n_fft 1024, win 800, hop 320, 128 Kaldi mels, fmax 15000, eval mode",
+    "head_used": false,
+    "mel_frames_on_full_crop": 202,
+    "n_short_windows": 12,
+    "n_train_windows": 826,
+    "n_val_windows": 480,
+    "name": "mn04_as",
+    "params": 983599,
+    "precision": "checkpoint trained in float16; this run is float32 CPU",
+    "probe": {
+      "input_dim": 384,
+      "probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.8204461164005025
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.525787189582694
+        }
+      },
+      "projected_dim": 96,
+      "shuffled_label_probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.5130397964745737
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.15802970190135573
+        }
+      }
+    },
+    "published_audioset_map": 0.432
+  },
+  "few_shot_unfamiliar": {
+    "n_unfamiliar_primaries": 24,
+    "reason": "no primary val label is absent from the 5h subset with at least 6 clips",
+    "scored": false,
+    "status": "null"
+  },
+  "fsd50k_test_audio_read": false,
+  "global_only_reference": {
+    "cls_macro_ap": 0.2826253579094654,
+    "patch_mean_macro_ap": 0.32760831188823797,
+    "source": "results/loopear_d_eval_global.json",
+    "starss_dsp_macro_ap": 0.3624344590083978,
+    "starss_frame_macro_ap": 0.31691243669635466
+  },
+  "gpu_usd": 0.0,
+  "max_windows": 4,
+  "mps_available": false,
+  "n_classes": 28,
+  "n_train_clips": 256,
+  "n_val_clips": 160,
+  "payload_sha256": "56ca02966899efeac4b35e7625d3155bfdebaadc8fcdf755b2de4501deae47ef",
+  "peak_rss_gb": 1.1724815368652344,
+  "readout": "fixed Gaussian projection to 96, seed 42, then Linear, AdamW lr 1e-2, 250 steps, seed 42",
+  "sealed_realdesed_test_read": false,
+  "starss": {
+    "alignment": "linear interpolation of native frames onto 50 steps of 40 ms",
+    "cosine": {
+      "efficientat": {
+        "different_room_cosine_mean": 0.7672389646371206,
+        "n_diff_pairs": 6,
+        "n_same_pairs": 0,
+        "same_room_cosine_mean": null
+      },
+      "usad": {
+        "different_room_cosine_mean": 0.9337258040904999,
+        "n_diff_pairs": 6,
+        "n_same_pairs": 0,
+        "same_room_cosine_mean": null
+      }
+    },
+    "files": [
+      "fold4_room10_mix001",
+      "fold4_room15_mix001",
+      "fold4_room16_mix001",
+      "fold4_room2_mix001"
+    ],
+    "frame_macro_ap": {
+      "efficientat": {
+        "input_dim": 384,
+        "probe": {
+          "lr": 0.01,
+          "probe_params": 1261,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 2,
+            "classes_skipped": 11,
+            "macro_ap": 1.0
+          },
+          "val": {
+            "classes_scored": 3,
+            "classes_skipped": 10,
+            "macro_ap": 0.3533045449658238
+          }
+        },
+        "projected_dim": 96,
+        "shuffled_label_probe": {
+          "lr": 0.01,
+          "probe_params": 1261,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 2,
+            "classes_skipped": 11,
+            "macro_ap": 0.5838981021706037
+          },
+          "val": {
+            "classes_scored": 3,
+            "classes_skipped": 10,
+            "macro_ap": 0.3533045449658238
+          }
+        }
+      },
+      "usad": {
+        "input_dim": 384,
+        "probe": {
+          "lr": 0.01,
+          "probe_params": 1261,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 2,
+            "classes_skipped": 11,
+            "macro_ap": 0.9871700528430858
+          },
+          "val": {
+            "classes_scored": 3,
+            "classes_skipped": 10,
+            "macro_ap": 0.346084115940293
+          }
+        },
+        "projected_dim": 96,
+        "shuffled_label_probe": {
+          "lr": 0.01,
+          "probe_params": 1261,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 2,
+            "classes_skipped": 11,
+            "macro_ap": 0.562641805176461
+          },
+          "val": {
+            "classes_scored": 3,
+            "classes_skipped": 10,
+            "macro_ap": 0.346084115940293
+          }
+        }
+      }
+    },
+    "limit": "four fold4 files, at most six non-overlapping 2.015 s windows each; labels are the same 100 ms STARSS frames rasterized onto the 40 ms grid; USAD frames are 20 ms encoder steps and EfficientAT frames are the last feature map, about 320 ms native stride, both interpolated to 50 steps; the 527-way EfficientAT head is not the probe",
+    "manifest_rewritten": false,
+    "n_classes": 13,
+    "n_train_frames": 600,
+    "n_val_frames": 600,
+    "native_efficientat_fmap_time": 7,
+    "native_usad_frames_on_full_crop": 100,
+    "onset": {
+      "efficientat": {
+        "background_mean": 0.026994941756129265,
+        "fraction_above_background": 0.5555555555555556,
+        "mean_peak_minus_background": 0.024868763155407377,
+        "n_onsets": 9,
+        "tolerance_frames": 2,
+        "tolerance_s": 0.08
+      },
+      "usad": {
+        "background_mean": 0.059639785438776016,
+        "fraction_above_background": 0.3333333333333333,
+        "mean_peak_minus_background": 0.001431564903921551,
+        "n_onsets": 9,
+        "tolerance_frames": 2,
+        "tolerance_s": 0.08
+      }
+    },
+    "rooms": [
+      "room10",
+      "room15",
+      "room16",
+      "room2"
+    ],
+    "same_room_extra": {
+      "efficientat_cosine": 0.9724976420402527,
+      "ids": [
+        "fold4_room10_mix001",
+        "fold4_room10_mix003"
+      ],
+      "same_group": true,
+      "usad_cosine": 0.9958381652832031
+    },
+    "status": "measured",
+    "train_files": [
+      "fold4_room10_mix001",
+      "fold4_room15_mix001"
+    ],
+    "val_files": [
+      "fold4_room16_mix001",
+      "fold4_room2_mix001"
+    ]
+  },
+  "task": "loopear_d_frozen_baselines",
+  "training_steps": 0,
+  "usad": {
+    "feature_dim": 384,
+    "n_short_windows": 12,
+    "n_train_windows": 826,
+    "n_val_windows": 480,
+    "name": "MIT-SLS/USAD2-Small",
+    "native_frames_on_full_crop": 100,
+    "params": 24760256,
+    "probe": {
+      "input_dim": 384,
+      "probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.3567323461283993
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.3120387139796962
+        }
+      },
+      "projected_dim": 96,
+      "shuffled_label_probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.18150275854925615
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.1593649233748474
+        }
+      }
+    },
+    "snapshot": "513277f85c2a5dcb07d0cb3ce0981e1d622c97d8"
+  },
+  "val_label_prevalence": 0.12678571045398712,
+  "wall_hours": 0.006312960755277698,
+  "window_rule": "same non-overlapping 200-frame spans as encode_logmel_windows, mean pooled",
+  "written_utc": "2026-11-26T10:08:47.113865+00:00"
+}

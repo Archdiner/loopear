@@ -1,0 +1,199 @@
+{
+  "dataset_clips": 7405,
+  "dataset_hours": 20.003473918346895,
+  "dataset_id_sha256": "13c22b307322c88c09710b953c706b9432f800c21ff90bed834bd4eed82bf017",
+  "equal_compute_extension": false,
+  "fsd50k_test_audio_read": false,
+  "gpu_usd": 0.0,
+  "lambda_local": 0.0,
+  "model": "loopear-pt",
+  "objective": "global",
+  "payload_sha256": "46ccbdea2610aa8818025692acb99e4b6a113788ab477f488ae0106fd4a0a520",
+  "run": {
+    "batch_recordings": 64,
+    "collapsed": false,
+    "cpu_hours": 0.6166173094444445,
+    "cpu_s": 2219.822314,
+    "crop_presentations": 320000,
+    "denominator_terms_per_anchor": 127,
+    "diagnostics": {
+      "n_crops": 32,
+      "summary": {
+        "collapsed": false,
+        "dim": 96,
+        "effective_rank": 13.307247161865234,
+        "finite": true,
+        "n": 32,
+        "offdiag_cosine_mean": 0.5347617864608765,
+        "singular_max": 13.945448875427246,
+        "singular_min": 1.342087102784717e-06,
+        "variance_mean": 0.1718430370092392,
+        "variance_min": 0.03304774686694145
+      },
+      "within_crop_latent_effective_rank_mean": 13.114898711442947,
+      "within_crop_latent_offdiag_cosine_mean": 0.3749838722869754
+    },
+    "encoder_path": "results/loopear_pt_h20_global_5000_encoder.safetensors",
+    "flops": {
+      "batch": 1.0,
+      "cross_layers": 3.0,
+      "cross_score_bytes_one_layer": 102400.0,
+      "gemm_flops_mul_add": 72056832.0,
+      "gemm_gflops": 0.072056832,
+      "gemm_macs": 36028416.0,
+      "input_tokens": 200.0,
+      "latents": 32.0,
+      "self_layers": 3.0,
+      "self_score_bytes_one_layer": 16384.0
+    },
+    "flops_batch": {
+      "batch": 64.0,
+      "cross_layers": 3.0,
+      "cross_score_bytes_one_layer": 6553600.0,
+      "gemm_flops_mul_add": 4611637248.0,
+      "gemm_gflops": 4.611637248,
+      "gemm_macs": 2305818624.0,
+      "input_tokens": 200.0,
+      "latents": 32.0,
+      "self_layers": 3.0,
+      "self_score_bytes_one_layer": 1048576.0
+    },
+    "lambda_local": 0.0,
+    "loopear_d_flops": {
+      "batch": 1.0,
+      "gemm_flops_mul_add": 362289408.0,
+      "gemm_gflops": 0.362289408,
+      "gemm_macs": 181144704.0,
+      "tokens_with_cls": 201.0
+    },
+    "loss_end": 1.2767713069915771,
+    "loss_min": 0.7036932706832886,
+    "loss_start": 4.202882289886475,
+    "negatives_per_anchor": 126,
+    "objective": "global",
+    "peak_rss_gb": 1.2214164733886719,
+    "presented_crop_hours": 179.11111111111111,
+    "profile_step": {
+      "batch": 64,
+      "loss": 4.4229912757873535,
+      "peak_rss_gb": 1.1441459655761719,
+      "sec_per_step": 0.09514785200008191
+    },
+    "sec_per_step": 0.11119686412660013,
+    "snapshots": [
+      "results/loopear_pt_h20_global_5000_step1000_encoder.safetensors",
+      "results/loopear_pt_h20_global_5000_step2000_encoder.safetensors",
+      "results/loopear_pt_h20_global_5000_step3000_encoder.safetensors",
+      "results/loopear_pt_h20_global_5000_step4000_encoder.safetensors"
+    ],
+    "steps": 5000,
+    "steps_requested": 5000,
+    "stopped_collapse": false,
+    "time_alpha": 3.1816019504258156e-06,
+    "views_per_recording": 2,
+    "wall_hours": 0.1544400890647224,
+    "wall_s": 555.9843206330006,
+    "weights_l2_change": 15.355186462402344,
+    "weights_moved": true
+  },
+  "sealed_realdesed_test_read": false,
+  "task": "loopear_h20_train",
+  "time_alpha_sweep": {
+    "alpha": 3.1816019504258156e-06,
+    "alpha_unit": 1.2726407801703262e-05,
+    "anchors": "linspace across the 50 time patches, one anchor per latent",
+    "batch_recordings": 64,
+    "batches": 4,
+    "candidates": [
+      {
+        "alpha": 0.0,
+        "eligible": false,
+        "factor": 0.0,
+        "losses": [
+          4.202744483947754,
+          4.567249298095703,
+          4.191699028015137,
+          4.3924560546875,
+          4.24348258972168,
+          4.184887409210205,
+          4.194513320922852,
+          4.231767654418945
+        ],
+        "mean_loss": 4.276099979877472
+      },
+      {
+        "alpha": 3.1816019504258156e-06,
+        "eligible": true,
+        "factor": 0.25,
+        "losses": [
+          4.202882289886475,
+          4.567296028137207,
+          4.191612243652344,
+          4.392457962036133,
+          4.243522644042969,
+          4.184840202331543,
+          4.194514274597168,
+          4.231756687164307
+        ],
+        "mean_loss": 4.276110291481018
+      },
+      {
+        "alpha": 6.363203900851631e-06,
+        "eligible": true,
+        "factor": 0.5,
+        "losses": [
+          4.203019618988037,
+          4.567376136779785,
+          4.191437721252441,
+          4.392423629760742,
+          4.24354362487793,
+          4.184828758239746,
+          4.194526672363281,
+          4.231761932373047
+        ],
+        "mean_loss": 4.276114761829376
+      },
+      {
+        "alpha": 1.2726407801703262e-05,
+        "eligible": true,
+        "factor": 1.0,
+        "losses": [
+          4.20329475402832,
+          4.567432403564453,
+          4.191287040710449,
+          4.3925042152404785,
+          4.243598937988281,
+          4.184854507446289,
+          4.1945648193359375,
+          4.23176383972168
+        ],
+        "mean_loss": 4.276162564754486
+      },
+      {
+        "alpha": 2.5452815603406525e-05,
+        "eligible": true,
+        "factor": 2.0,
+        "losses": [
+          4.20384407043457,
+          4.567564964294434,
+          4.19103479385376,
+          4.392651557922363,
+          4.243748188018799,
+          4.184784889221191,
+          4.19460391998291,
+          4.231741905212402
+        ],
+        "mean_loss": 4.276246786117554
+      }
+    ],
+    "factor": 0.25,
+    "logit_rms": 0.008298075250103539,
+    "penalty_rms": 652.0359381374649,
+    "retuned_after_eval": false,
+    "rule": "On four training batches, measure the RMS of the first cross-attention logits and the RMS of (t_j - mu_i)^2. Candidates set alpha so that RMS of alpha*(t_j - mu_i)^2 is 0.25, 0.5, 1, or 2 times the logit RMS. Each candidate trains eight AdamW steps from seed 42 on the 20-hour cache. Lock the eligible candidate with the lowest mean global NT-Xent loss. Alpha 0 is recorded and is not eligible. Validation audio is not used. The locked value is not changed after the probe.",
+    "seed": 42,
+    "steps": 8,
+    "time_units": "patch index, 0 on the first time patch and GRID_T-1 on the last"
+  },
+  "written_utc": "2026-11-27T04:38:23.268958+00:00"
+}

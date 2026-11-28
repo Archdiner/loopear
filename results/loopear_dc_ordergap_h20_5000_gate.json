@@ -1,0 +1,36 @@
+{
+  "cpu_s": 6.227898000001005,
+  "encoder_weights": "results/loopear_dc_ordergap_h20_5000_step5000_encoder.safetensors",
+  "event_order": {
+    "accuracy": 0.5384615384615384,
+    "n_correct": 21,
+    "n_pairs": 39,
+    "reversed_audio": {
+      "accuracy": 0.5641025641025641,
+      "n_correct": 22,
+      "n_pairs": 39
+    }
+  },
+  "experiment_2_allowed": false,
+  "experiment_2_started": false,
+  "kept_training": false,
+  "payload_sha256": "04868938177a9d80b9803f0ddea4d1be8b32d5b33c8f9090ea194e022d4e80dd",
+  "step": 5000,
+  "teacher_weights": "results/loopear_dc_ordergap_h20_5000_step5000_teacher.safetensors",
+  "temporal": {
+    "batch": 64,
+    "mean_within_crop_effective_rank": 27.233170805498958,
+    "min_within_crop_effective_rank": 2.4970602989196777,
+    "n_batches": 8,
+    "n_crops": 512,
+    "n_per_frequency_pairs": 2191052,
+    "n_pooled_pairs": 547763,
+    "n_ranked_crops": 512,
+    "representation": "EMA teacher grid after the encoder LayerNorm; pooled cosine is the L2 frequency mean",
+    "seed": 10049,
+    "teacher_offdiag_temporal_cosine": 0.5619690193340916,
+    "teacher_per_frequency_offdiag_cosine": 0.5643103104695827
+  },
+  "wall_s": 1.6438137760014797,
+  "written_utc": "2026-11-28T06:35:39.880916+00:00"
+}

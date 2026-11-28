@@ -1,0 +1,14 @@
+{
+  "config": {
+    "batch": 64,
+    "lambda_local": 0.0,
+    "model": "loopear-p",
+    "objective": "global",
+    "seed": 42,
+    "steps": 1000,
+    "subset": "h5"
+  },
+  "config_sha256": "0640ab7e8cc988f02556684b581673a54b38ced618c097b0af84998ee2f972b0",
+  "created_utc": "2026-11-26T15:19:44.411275+00:00",
+  "run_id": "loopear_p_global_1000"
+}

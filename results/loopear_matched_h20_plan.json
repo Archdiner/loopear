@@ -1,0 +1,47 @@
+{
+  "arms": [
+    {
+      "command": ".venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-d",
+      "encoder_out": "results/loopear_d_h20_global_5000_encoder.safetensors",
+      "lambda_local": 0.0,
+      "model": "loopear-d",
+      "objective": "global",
+      "overwrites_existing_checkpoints": false
+    },
+    {
+      "command": ".venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-p",
+      "encoder_out": "results/loopear_p_h20_global_5000_encoder.safetensors",
+      "lambda_local": 0.0,
+      "model": "loopear-p",
+      "objective": "global",
+      "overwrites_existing_checkpoints": false
+    }
+  ],
+  "batch_recordings": 64,
+  "dataset_clips": 7405,
+  "dataset_hours": 20.003473918346895,
+  "dataset_id_sha256": "13c22b307322c88c09710b953c706b9432f800c21ff90bed834bd4eed82bf017",
+  "gpu_usd": 0.0,
+  "hours_are_not_steps": "The corpus is 20.003 hours (7405 clips). 5000 steps at batch 64 are 320000 crop presentations, not 20 hours of optimization.",
+  "lambda_local": 0.0,
+  "latency_projection": {
+    "note": "The 20-hour mel cache is not built. This projection ignores cache creation.",
+    "projected_wall_hours_5000_steps": 0.1862862343027776,
+    "sec_per_step_from_h5_batch64": 0.13412608869799988
+  },
+  "launched": false,
+  "local_objective_in_code": true,
+  "negatives_per_anchor": 126,
+  "objective": "global",
+  "payload_sha256": "be5d70a80dcb57402be4e445647b26ec25562863109e8958ef21a56310e6e760",
+  "reference_h5": {
+    "clips": 1680,
+    "hours": 5.0007959164265126,
+    "id_sha256": "a037735c2de95840b260671070a09095d563d9a7411e8475025d29cc80899460"
+  },
+  "seed": 42,
+  "steps": 5000,
+  "task": "loopear_matched_h20_plan",
+  "views_per_recording": 2,
+  "written_utc": "2026-11-26T15:21:58.882841+00:00"
+}

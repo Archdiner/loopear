@@ -1,0 +1,269 @@
+{
+  "before_train": {
+    "cpu_hours": 0.0011363169444444444,
+    "cpu_s": 4.09073,
+    "wall_s": 1.0532168939971598
+  },
+  "dataset_clips": 7405,
+  "dataset_hours": 20.003473918346895,
+  "dataset_id_sha256": "13c22b307322c88c09710b953c706b9432f800c21ff90bed834bd4eed82bf017",
+  "equal_compute_extension": false,
+  "fsd50k_test_audio_read": false,
+  "gpu_usd": 0.0,
+  "lambda_check": {
+    "attempts": [
+      {
+        "grad_finite": true,
+        "grad_norm": 30.483213472086213,
+        "lambda_local": 1.0,
+        "loss": 7.20417594909668,
+        "loss_finite": true,
+        "loss_g": 4.202744483947754,
+        "loss_l": 3.001431465148926
+      }
+    ],
+    "chosen_lambda": 1.0,
+    "k": 1,
+    "objective": "global_ntxent + lambda * local_mld",
+    "requested_lambda": 1.0,
+    "rule": "Use lambda 1 unless this one training batch has a non-finite loss or gradient. Then keep the largest of 0.1, 0.01, and 0.001 that is finite. Validation audio is not used.",
+    "scaled": false
+  },
+  "lambda_local": 1.0,
+  "model": "loopear-pl",
+  "objective": "global_plus_local",
+  "payload_sha256": "fa633bc20532dd217ad5510cf929f15b7b990d1184f82dde9dc7e466b906c45f",
+  "penalty_versus_logits": {
+    "alpha": 3.1816019504258156e-06,
+    "alpha_changed": false,
+    "batch_recordings": 64,
+    "batches": 8,
+    "comparison": "content logits are qk/sqrt(d_head) before the additive penalty, on the visible keys of each real training view, at the latents that reach that block",
+    "cross_blocks": 3,
+    "gpu_usd": 0.0,
+    "layers": [
+      {
+        "anchor_penalty_mean_abs": 0.0013389804723337342,
+        "anchor_penalty_rms": 0.0020735961106436423,
+        "content_logit_mean_abs": 1.3210755641804188,
+        "content_logit_rms": 2.0136521338865316,
+        "count": 10773504.0,
+        "fraction_abs_penalty_exceeds_abs_logit": 0.0011584903110445775,
+        "penalty_rms_over_logit_rms": 0.0010297687846616353
+      },
+      {
+        "anchor_penalty_mean_abs": 0.0013389804723337342,
+        "anchor_penalty_rms": 0.0020735961106436423,
+        "content_logit_mean_abs": 2.520710079561858,
+        "content_logit_rms": 4.251125575691508,
+        "count": 10773504.0,
+        "fraction_abs_penalty_exceeds_abs_logit": 0.0007964910951905712,
+        "penalty_rms_over_logit_rms": 0.0004877757840184106
+      },
+      {
+        "anchor_penalty_mean_abs": 0.0013389804723337342,
+        "anchor_penalty_rms": 0.0020735961106436423,
+        "content_logit_mean_abs": 1.0312362248856082,
+        "content_logit_rms": 1.7614837021768959,
+        "count": 10773504.0,
+        "fraction_abs_penalty_exceeds_abs_logit": 0.001686452244320882,
+        "penalty_rms_over_logit_rms": 0.0011771872246567074
+      }
+    ],
+    "pooled": {
+      "anchor_penalty_mean_abs": 0.0013389804723337342,
+      "anchor_penalty_rms": 0.0020735961106436423,
+      "content_logit_mean_abs": 1.6243406228759618,
+      "content_logit_rms": 2.899982092452702,
+      "count": 32320512.0,
+      "fraction_abs_penalty_exceeds_abs_logit": 0.0012138112168520103,
+      "penalty_rms_over_logit_rms": 0.0007150375569698323
+    },
+    "retrained": false,
+    "seed": 42,
+    "task": "loopear_pt_penalty_versus_logits",
+    "views": {
+      "freq_masked": {
+        "layers": [
+          {
+            "anchor_penalty_mean_abs": 0.001339681624387163,
+            "anchor_penalty_rms": 0.002074959146930676,
+            "content_logit_mean_abs": 1.3249924015433847,
+            "content_logit_rms": 2.0183425833146744,
+            "count": 5984768.0,
+            "fraction_abs_penalty_exceeds_abs_logit": 0.0011540965330652752,
+            "penalty_rms_over_logit_rms": 0.0010280510177429947
+          },
+          {
+            "anchor_penalty_mean_abs": 0.001339681624387163,
+            "anchor_penalty_rms": 0.002074959146930676,
+            "content_logit_mean_abs": 2.533916749153852,
+            "content_logit_rms": 4.255145681505105,
+            "count": 5984768.0,
+            "fraction_abs_penalty_exceeds_abs_logit": 0.0007859953802720507,
+            "penalty_rms_over_logit_rms": 0.00048763527790586324
+          },
+          {
+            "anchor_penalty_mean_abs": 0.001339681624387163,
+            "anchor_penalty_rms": 0.002074959146930676,
+            "content_logit_mean_abs": 1.0607613256687645,
+            "content_logit_rms": 1.8068266429104847,
+            "count": 5984768.0,
+            "fraction_abs_penalty_exceeds_abs_logit": 0.0016179407455727607,
+            "penalty_rms_over_logit_rms": 0.0011483996846472643
+          }
+        ],
+        "pooled": {
+          "anchor_penalty_mean_abs": 0.001339681624387163,
+          "anchor_penalty_rms": 0.002074959146930676,
+          "content_logit_mean_abs": 1.639890158788667,
+          "content_logit_rms": 2.9123068789755013,
+          "count": 17954304.0,
+          "fraction_abs_penalty_exceeds_abs_logit": 0.0011860108863033622,
+          "penalty_rms_over_logit_rms": 0.0007124795679707388
+        }
+      },
+      "time_masked": {
+        "layers": [
+          {
+            "anchor_penalty_mean_abs": 0.0013381042009392588,
+            "anchor_penalty_rms": 0.002071891382574531,
+            "content_logit_mean_abs": 1.3161804597288302,
+            "content_logit_rms": 2.0077747960579866,
+            "count": 4788736.0,
+            "fraction_abs_penalty_exceeds_abs_logit": 0.001163981476531594,
+            "penalty_rms_over_logit_rms": 0.0010319341524967986
+          },
+          {
+            "anchor_penalty_mean_abs": 0.0013381042009392588,
+            "anchor_penalty_rms": 0.002071891382574531,
+            "content_logit_mean_abs": 2.5042049196280605,
+            "content_logit_rms": 4.246096059735714,
+            "count": 4788736.0,
+            "fraction_abs_penalty_exceeds_abs_logit": 0.0008096082139420507,
+            "penalty_rms_over_logit_rms": 0.000487952074900418
+          },
+          {
+            "anchor_penalty_mean_abs": 0.0013381042009392588,
+            "anchor_penalty_rms": 0.002071891382574531,
+            "content_logit_mean_abs": 0.9943369515985011,
+            "content_logit_rms": 1.7031196817010434,
+            "count": 4788736.0,
+            "fraction_abs_penalty_exceeds_abs_logit": 0.0017720751363198973,
+            "penalty_rms_over_logit_rms": 0.0012165271794082992
+          }
+        ],
+        "pooled": {
+          "anchor_penalty_mean_abs": 0.0013381042009392588,
+          "anchor_penalty_rms": 0.002071891382574531,
+          "content_logit_mean_abs": 1.6049074436517974,
+          "content_logit_rms": 2.884505043064079,
+          "count": 14366208.0,
+          "fraction_abs_penalty_exceeds_abs_logit": 0.001248554942264514,
+          "penalty_rms_over_logit_rms": 0.0007182831548714002
+        }
+      }
+    },
+    "views_per_batch": 2,
+    "weights": "results/loopear_pt_h20_global_5000_encoder.safetensors"
+  },
+  "preserved_encoder_files": 18,
+  "run": {
+    "anchored": false,
+    "batch_recordings": 64,
+    "collapsed": false,
+    "cpu_hours": 1.1411476194444445,
+    "cpu_s": 4108.13143,
+    "crop_presentations": 320000,
+    "denominator_terms_per_anchor": 127,
+    "diagnostics": {
+      "n_crops": 32,
+      "summary": {
+        "collapsed": false,
+        "dim": 96,
+        "effective_rank": 14.630227088928223,
+        "finite": true,
+        "n": 32,
+        "offdiag_cosine_mean": 0.461403489112854,
+        "singular_max": 12.88669490814209,
+        "singular_min": 9.89899831438379e-07,
+        "variance_mean": 0.1663527637720108,
+        "variance_min": 0.039122045040130615
+      },
+      "within_crop_latent_effective_rank_mean": 15.171102434396744,
+      "within_crop_latent_offdiag_cosine_mean": 0.31290586199611425
+    },
+    "encoder_params": 685728,
+    "encoder_path": "results/loopear_pl_h20_global_5000_encoder.safetensors",
+    "flops": {
+      "batch": 1.0,
+      "cross_layers": 3.0,
+      "cross_score_bytes_one_layer": 102400.0,
+      "gemm_flops_mul_add": 72056832.0,
+      "gemm_gflops": 0.072056832,
+      "gemm_macs": 36028416.0,
+      "input_tokens": 200.0,
+      "latents": 32.0,
+      "self_layers": 3.0,
+      "self_score_bytes_one_layer": 16384.0
+    },
+    "flops_batch": {
+      "batch": 64.0,
+      "cross_layers": 3.0,
+      "cross_score_bytes_one_layer": 6553600.0,
+      "gemm_flops_mul_add": 4611637248.0,
+      "gemm_gflops": 4.611637248,
+      "gemm_macs": 2305818624.0,
+      "input_tokens": 200.0,
+      "latents": 32.0,
+      "self_layers": 3.0,
+      "self_score_bytes_one_layer": 1048576.0
+    },
+    "k": 1,
+    "lambda_local": 1.0,
+    "loopear_d_flops": {
+      "batch": 1.0,
+      "gemm_flops_mul_add": 362289408.0,
+      "gemm_gflops": 0.362289408,
+      "gemm_macs": 181144704.0,
+      "tokens_with_cls": 201.0
+    },
+    "loss_end": 1.5687971115112305,
+    "loss_g_end": 1.3189795017242432,
+    "loss_l_end": 0.24981755018234253,
+    "loss_min": 0.8752732276916504,
+    "loss_start": 7.20417594909668,
+    "negatives_per_anchor": 126,
+    "objective": "global_plus_local",
+    "peak_rss_gb": 1.5432510375976562,
+    "predictor": "position queries cross-attend to the 32 latents; acoustic patches are not an input",
+    "presented_crop_hours": 179.11111111111111,
+    "profile_step": {
+      "batch": 64,
+      "loss": 7.142167568206787,
+      "peak_rss_gb": 1.1862144470214844,
+      "sec_per_step": 0.20020785099768545
+    },
+    "sec_per_step": 0.20565937263380038,
+    "snapshots": [
+      "results/loopear_pl_h20_global_5000_step1000_encoder.safetensors",
+      "results/loopear_pl_h20_global_5000_step2000_encoder.safetensors",
+      "results/loopear_pl_h20_global_5000_step3000_encoder.safetensors",
+      "results/loopear_pl_h20_global_5000_step4000_encoder.safetensors"
+    ],
+    "steps": 5000,
+    "steps_requested": 5000,
+    "stopped_collapse": false,
+    "teacher": "stop-grad EMA of the encoder, the latent predictor, and the local head",
+    "time_alpha": 0.0,
+    "views_per_recording": 2,
+    "wall_hours": 0.28563801754694496,
+    "wall_s": 1028.2968631690019,
+    "weights_l2_change": 16.129789352416992,
+    "weights_moved": true
+  },
+  "sealed_realdesed_test_read": false,
+  "task": "loopear_h20_train",
+  "time_alpha_sweep": null,
+  "written_utc": "2026-11-27T08:33:41.532736+00:00"
+}

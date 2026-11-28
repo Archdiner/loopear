@@ -1,0 +1,31 @@
+{
+  "audio_reused": 0,
+  "audio_written": 5725,
+  "clips": 7405,
+  "existing_mel_unchanged": 8,
+  "frontend_rewritten": false,
+  "frontend_sha256": "defe151b53153cf1fd125668569d24e4da3a138ec8eedb1a9875c90e30b2570c",
+  "fsd50k_test_audio_read": false,
+  "gpu_usd": 0.0,
+  "hours": 20.003473918346895,
+  "id_sha256": "13c22b307322c88c09710b953c706b9432f800c21ff90bed834bd4eed82bf017",
+  "max_duration_gap_s": 4.232025146500007e-05,
+  "mel_files": 7405,
+  "mel_written": 5725,
+  "norm_refit": false,
+  "payload_sha256": "691b447dcf58993caac19bac15df690a5389dce98901619104045e891428e40c",
+  "recompute_ids": [
+    171023,
+    176214,
+    181137,
+    184941,
+    213205,
+    213956,
+    232663,
+    240358
+  ],
+  "recompute_max_abs": 0.00390625,
+  "sealed_realdesed_test_read": false,
+  "task": "loopear_h20_mel_cache",
+  "written_utc": "2026-11-26T16:22:41.466026+00:00"
+}
