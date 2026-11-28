@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import numpy as np
@@ -16,11 +17,14 @@ from loopear.d.spec import (
     GRID_F,
     GRID_T,
     HOP_SAMPLES,
+    N_FRAMES,
     N_HEADS,
     N_LAYERS,
+    N_MELS,
     PATCH_DIM,
     SR,
 )
+from loopear.losses import set_seed
 
 HORIZONS: tuple[int, ...] = (1, 4, 12)
 TAU: float = 0.1
@@ -31,7 +35,7 @@ MIX_SNR_LOW: float = -5.0
 MIX_SNR_HIGH: float = 5.0
 LAMBDA_MIX_MAX: float = 0.5
 LAMBDA_MIX_RAMP: int = 1000
-CAUSAL_ENCODER_PARAMS: int = ENCODER_PARAMS - D_MODEL
+CAUSAL_ENCODER_PARAMS: int = ENCODER_PARAMS - D_MODEL - GRID_T * D_MODEL
 
 
 def lambda_mix_at(step: int, ramp_steps: int = LAMBDA_MIX_RAMP, maximum: float = LAMBDA_MIX_MAX) -> float:
@@ -50,7 +54,6 @@ class CausalLoopEarDEncoder(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.patch = nn.Linear(PATCH_DIM, D_MODEL)
-        self.pos_time = nn.Parameter(torch.empty(GRID_T, D_MODEL))
         self.pos_freq = nn.Parameter(torch.empty(GRID_F, D_MODEL))
         self.blocks = nn.ModuleList(
             [Block(D_MODEL, N_HEADS, FFN_RATIO) for _ in range(N_LAYERS)]
@@ -61,7 +64,6 @@ class CausalLoopEarDEncoder(nn.Module):
     def reset_parameters(self) -> None:
         _trunc(self.patch.weight)
         nn.init.zeros_(self.patch.bias)
-        _trunc(self.pos_time)
         _trunc(self.pos_freq)
         for block in self.blocks:
             for mod in block.modules():
@@ -84,8 +86,7 @@ class CausalLoopEarDEncoder(nn.Module):
             raise ValueError("visible must be boolean")
         if not bool(visible.flatten(1).any(dim=1).all()):
             raise ValueError("a crop has no visible patches")
-        tokens = self.patch(patchify(mel))
-        tokens = tokens + self.pos_time[None, :, None, :] + self.pos_freq[None, None, :, :]
+        tokens = self._add_positions(self.patch(patchify(mel)))
         b, t, f, d = tokens.shape
         flat = tokens.reshape(b, t * f, d)
         vis = visible.reshape(b, t * f)
@@ -97,6 +98,9 @@ class CausalLoopEarDEncoder(nn.Module):
         flat = flat.masked_fill(~vis.unsqueeze(-1), 0.0)
         grid = flat.view(b, t, f, d)
         return grid, clip_summary(grid, visible)
+
+    def _add_positions(self, tokens: torch.Tensor) -> torch.Tensor:
+        return tokens + self.pos_freq[None, None, :, :]
 
 
 def clip_summary(grid: torch.Tensor, visible: torch.Tensor) -> torch.Tensor:
@@ -232,31 +236,78 @@ def batch_variance_hinge(grid: torch.Tensor, visible: torch.Tensor, target: floa
     return torch.relu(float(target) - std).mean()
 
 
-def predictive_loss(
-    student_grid: torch.Tensor,
-    teacher_grid: torch.Tensor,
-    valid_time: torch.Tensor,
+def horizon_logits(
+    pred: torch.Tensor,
+    y_norm: torch.Tensor,
+    delta: int,
+    temp: float = TAU,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    b, t, _d = y_norm.shape
+    t_len = t - int(delta)
+    if pred.shape[:2] != (b, t_len) or pred.shape[-1] != y_norm.shape[-1]:
+        raise ValueError("pred must be [B, T - delta, D]")
+    if temp <= 0.0:
+        raise ValueError("temperature must be positive")
+    logits_time = torch.bmm(pred, y_norm.transpose(1, 2)) / temp
+    target_idx = torch.arange(int(delta), t, device=pred.device)
+    all_idx = torch.arange(t, device=pred.device).unsqueeze(0)
+    dist = (all_idx - target_idx.unsqueeze(1)).abs()
+    logits_time = logits_time.masked_fill((dist == 1).unsqueeze(0), -1e9)
+    y_fut = y_norm[:, int(delta) :, :]
+    logits_batch = torch.einsum("btd,ctd->btc", pred, y_fut) / temp
+    eye = torch.eye(b, dtype=torch.bool, device=pred.device)
+    logits_batch = logits_batch.masked_fill(eye[:, None, :], -1e9)
+    logits = torch.cat([logits_time, logits_batch], dim=-1)
+    targets = target_idx.unsqueeze(0).expand(b, t_len)
+    return logits, targets
+
+
+def exp1_loss(
+    z_student: torch.Tensor,
+    y_teacher: torch.Tensor,
     heads: nn.ModuleList,
     horizons: tuple[int, ...] = HORIZONS,
-    tau: float = TAU,
-) -> tuple[torch.Tensor, dict[str, float]]:
-    pooled = frequency_pool(student_grid)
-    target = teacher_target(teacher_grid)
-    terms = []
-    counts: dict[str, float] = {}
-    for horizon, head in zip(horizons, heads):
-        pred = l2_normalize(head(pooled))
-        loss_h, n_h = temporal_infonce(pred, target.detach(), valid_time, int(horizon), tau)
-        counts[f"n_h{int(horizon)}"] = float(n_h)
-        counts[f"loss_h{int(horizon)}"] = float(loss_h.detach()) if n_h else 0.0
-        if n_h:
-            terms.append(loss_h)
-    if not terms:
-        total = student_grid.sum() * 0.0
-    else:
-        total = torch.stack(terms).mean()
-    counts["n_horizons"] = float(len(terms))
-    return total, counts
+    temp: float = TAU,
+    lambda_var: float = VAR_WEIGHT,
+) -> tuple[torch.Tensor, dict[str, torch.Tensor]]:
+    b, t, d = z_student.shape
+    if y_teacher.shape != (b, t, d):
+        raise ValueError("y_teacher must match z_student")
+    y_norm = F.normalize(F.layer_norm(y_teacher, (d,)), dim=-1)
+    total_nce = z_student.sum() * 0.0
+    valid_h = 0
+    per_horizon: dict[str, torch.Tensor] = {}
+    for h_idx, delta in enumerate(horizons):
+        if int(delta) >= t - 2:
+            continue
+        valid_h += 1
+        pred = F.normalize(heads[h_idx](z_student[:, : -int(delta)]), dim=-1)
+        logits, targets = horizon_logits(pred, y_norm, int(delta), temp)
+        nce_h = F.cross_entropy(logits.reshape(-1, t + b), targets.reshape(-1))
+        total_nce = total_nce + nce_h
+        per_horizon[f"loss_h{int(delta)}"] = nce_h
+    loss_nce = total_nce / max(valid_h, 1)
+    z_flat = z_student.reshape(-1, d)
+    std = torch.sqrt(z_flat.var(dim=0, unbiased=False) + 1e-4)
+    loss_var = F.relu(1.0 - std).mean()
+    info = {"nce": loss_nce, "var": loss_var}
+    info.update(per_horizon)
+    return loss_nce + float(lambda_var) * loss_var, info
+
+
+def chance_nce(batch: int, length: int = GRID_T) -> float:
+    return math.log(int(batch) + int(length) - 3)
+
+
+def zero_mel_init_nce(batch: int = 64, seed: int = 42) -> float:
+    set_seed(int(seed))
+    model = CausalLoopEarD(separation=False)
+    model.eval()
+    mel = torch.zeros(int(batch), N_FRAMES, N_MELS)
+    valid = torch.ones(int(batch), N_FRAMES, dtype=torch.bool)
+    with torch.no_grad():
+        out = causal_step_loss(model, mel, valid)
+    return float(out["loss_pred"])
 
 
 def pit_cosine_loss(
@@ -343,21 +394,19 @@ def causal_step_loss(
     step: int = 0,
 ) -> dict[str, torch.Tensor]:
     visible = visible_from_frames(frame_valid)
-    valid_time = time_valid_from_frames(frame_valid)
     student_grid, _summary = model.encoder(mel, visible)
     with torch.no_grad():
         teacher_grid, _teacher_summary = model.teacher_encoder(mel, visible)
-    loss_pred, counts = predictive_loss(
-        student_grid, teacher_grid, valid_time, model.horizons
-    )
-    loss_var = batch_variance_hinge(student_grid, visible)
-    loss = loss_pred + float(VAR_WEIGHT) * loss_var
+    z_student = frequency_pool(student_grid)
+    y_teacher = frequency_pool(teacher_grid)
+    loss, info = exp1_loss(z_student, y_teacher, model.horizons)
     loss_pit = loss.new_zeros(())
     lam = 0.0
     if mix_mel is not None:
         if model.sep_heads is None or mix_frame_valid is None:
             raise ValueError("mixture loss needs separation heads and a validity mask")
         lam = lambda_mix_at(step)
+        valid_time = time_valid_from_frames(frame_valid)
         mix_visible = visible_from_frames(mix_frame_valid)
         mix_time = time_valid_from_frames(mix_frame_valid)
         mix_grid, _mix_summary = model.encoder(mix_mel, mix_visible)
@@ -370,13 +419,17 @@ def causal_step_loss(
         pit_valid = mix_time & valid_time & other_valid
         loss_pit = pit_cosine_loss(pred1, pred2, target, other, pit_valid)
         loss = loss + float(lam) * loss_pit
+    b, t, _d = z_student.shape
     out = {
         "loss": loss,
-        "loss_pred": loss_pred,
-        "loss_var": loss_var,
+        "loss_pred": info["nce"],
+        "loss_var": info["var"],
         "loss_pit": loss_pit,
         "lambda_mix": loss.new_tensor(float(lam)),
     }
-    for key, value in counts.items():
-        out[key] = loss.new_tensor(float(value))
+    for delta in HORIZONS:
+        n_h = 0 if int(delta) >= t - 2 else b * (t - int(delta))
+        out[f"n_h{int(delta)}"] = loss.new_tensor(float(n_h))
+        key = f"loss_h{int(delta)}"
+        out[key] = info[key] if key in info else loss.new_zeros(())
     return out

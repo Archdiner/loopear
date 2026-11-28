@@ -16,16 +16,18 @@ from loopear.d.causal import (
     CausalLoopEarD,
     CausalLoopEarDEncoder,
     causal_step_loss,
+    chance_nce,
     mix_at_snr,
     read_crop_waveform,
     sample_snr,
+    zero_mel_init_nce,
 )
 from loopear.d.causal_probe import score_event_order, teacher_temporal_stats
 from loopear.d.diagnostics import cpu_seconds, hours, peak_rss_gb
 from loopear.d.frontend import build_mel, load_frontend_config, normalize_logmel, waveform_logmel
 from loopear.d.fsd import MelCache, assert_train_rows, audio_path, items_for, load_manifest, sha256_of_ids
 from loopear.d.loop import capture_rng, set_lr
-from loopear.d.spec import GRAD_CLIP, LR, N_FRAMES, SEED, WEIGHT_DECAY, ema_at, lr_at
+from loopear.d.spec import ENCODER_PARAMS, GRAD_CLIP, LR, N_FRAMES, SEED, WEIGHT_DECAY, ema_at, lr_at
 from loopear.harness import SpendLedger, write_result_json
 from loopear.losses import set_seed
 
@@ -385,7 +387,7 @@ def run_experiment(
                 event = _event_gate(tea_path, Path("results") / f"{stem}_step{GATE_STEP}_event_order.json")
                 gate = {
                     "step": finished,
-                    "kept_training": True,
+                    "kept_training": int(steps) > int(GATE_STEP),
                     "temporal": temporal,
                     "event_order": event,
                     "encoder_weights": enc_path,
@@ -483,6 +485,7 @@ def main() -> None:
     parser.add_argument("--batch", type=int, default=64)
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--only", choices=("both", "dc", "dcp"), default="both")
+    parser.add_argument("--stem", default="")
     parser.add_argument("--gate-teacher", default="")
     parser.add_argument("--gate-report", default="")
     parser.add_argument("--prefetch-starss", action="store_true")
@@ -509,6 +512,13 @@ def main() -> None:
         return
     torch.set_num_threads(4)
     os.chdir(ROOT)
+    init_nce = zero_mel_init_nce(int(args.batch), int(args.seed))
+    init_chance = chance_nce(int(args.batch))
+    print(json.dumps({"init_zero_mel_nce": init_nce, "chance_nce": init_chance}), flush=True)
+    if init_nce < 3.5 or abs(init_nce - init_chance) > 0.15:
+        raise SystemExit(
+            f"init control failed: zero-mel nce {init_nce:.4f} vs chance {init_chance:.4f}"
+        )
     ledger = SpendLedger(Path("ledger/loopear_causal_spend.jsonl"), cap_usd=0.0)
     ledger.record("loopear_causal", "cpu", 0.0, "no paid GPU")
     wall0 = time.perf_counter()
@@ -535,15 +545,19 @@ def main() -> None:
         "variance_weight": 0.1,
         "neighbor": 1,
         "gpu_usd": 0.0,
-        "objective": "within-clip temporal InfoNCE on the EMA teacher frequency pool, no global NT-Xent",
+        "objective": "multi-horizon InfoNCE with same-time cross-batch negatives, distance-1 neighbors masked, no learned time position, no global NT-Xent",
+        "init_zero_mel_nce": init_nce,
+        "init_chance_nce": init_chance,
+        "time_position": False,
     }
     runs: dict[str, Any] = {}
     probes: dict[str, Any] = {}
+    dc_stem = args.stem or "loopear_dc_h20_5000"
     if args.only in ("both", "dc"):
         batch, probed = choose_batch(int(args.batch), False)
         probes["D-C"] = probed
         runs["D-C"] = run_experiment(
-            "D-C", "loopear_dc_h20_5000", False, cache, audio_root, mel_bank,
+            "D-C", dc_stem, False, cache, audio_root, mel_bank,
             int(args.steps), batch, int(args.seed), config,
         )
     if args.only in ("both", "dcp"):
@@ -561,7 +575,9 @@ def main() -> None:
         "wall_s": time.perf_counter() - wall0,
         "corpus": corpus,
         "encoder_params": CAUSAL_ENCODER_PARAMS,
-        "dense_encoder_params_with_class_token": CAUSAL_ENCODER_PARAMS + 96,
+        "dense_encoder_params_with_class_token": ENCODER_PARAMS,
+        "init_zero_mel_nce": init_nce,
+        "init_chance_nce": init_chance,
         "probes": probes,
         "runs": runs,
         "fsd50k_test_audio_read": False,

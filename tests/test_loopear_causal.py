@@ -1,5 +1,8 @@
+import math
+
 import torch
 import torch.nn.functional as F
+from torch import nn
 
 from loopear.d.causal import (
     CAUSAL_ENCODER_PARAMS,
@@ -10,13 +13,17 @@ from loopear.d.causal import (
     CausalLoopEarDEncoder,
     batch_variance_hinge,
     causal_step_loss,
+    chance_nce,
     crop_waveform,
+    exp1_loss,
+    horizon_logits,
     lambda_mix_at,
     mix_at_snr,
     pit_cosine_loss,
     sample_snr,
     temporal_infonce,
     visible_from_frames,
+    zero_mel_init_nce,
 )
 from loopear.d.frontend import build_mel, waveform_logmel
 from loopear.d.spec import D_MODEL, ENCODER_PARAMS, GRID_F, GRID_T, N_FRAMES, N_MELS, SR
@@ -71,8 +78,11 @@ def test_waveform_slice_matches_the_mel_crop():
 def test_causal_encoder_drops_the_class_token_and_keeps_the_grid():
     encoder = CausalLoopEarDEncoder()
     n_params = sum(p.numel() for p in encoder.parameters())
-    assert n_params == CAUSAL_ENCODER_PARAMS == ENCODER_PARAMS - D_MODEL
-    assert "cls" not in dict(encoder.named_parameters())
+    assert n_params == CAUSAL_ENCODER_PARAMS == ENCODER_PARAMS - D_MODEL - GRID_T * D_MODEL
+    named = dict(encoder.named_parameters())
+    assert "cls" not in named
+    assert "pos_time" not in named
+    assert "pos_freq" in named
     mel, frame_valid = _mel(2)
     visible = visible_from_frames(frame_valid)
     grid, summary = encoder(mel, visible)
@@ -111,6 +121,68 @@ def test_attention_is_block_causal_and_keeps_every_patch():
     assert not torch.allclose(reference[:, 6], with_past[:, 6], atol=1e-4)
     assert torch.allclose(reference[:, 6], with_later[:, 6], atol=1e-5)
     assert torch.count_nonzero(reference[:, 5]) == 0
+
+
+def test_pos_time_is_not_in_the_residual():
+    encoder = CausalLoopEarDEncoder()
+    assert not hasattr(encoder, "pos_time")
+    tokens = torch.randn(2, GRID_T, GRID_F, D_MODEL)
+    added = encoder._add_positions(tokens)
+    assert torch.equal(added, tokens + encoder.pos_freq[None, None, :, :])
+    assert not torch.allclose(encoder.pos_freq[0], encoder.pos_freq[1])
+    encoder.eval()
+    mel = torch.zeros(1, N_FRAMES, N_MELS)
+    visible = torch.ones(1, GRID_T, GRID_F, dtype=torch.bool)
+    grid, _summary = encoder(mel, visible)
+    assert torch.allclose(grid, grid[:, :1].expand_as(grid), atol=1e-4)
+
+
+class _Identity(nn.Module):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return x
+
+
+def test_same_time_cross_batch_negatives_are_present_and_self_is_masked():
+    b, t, d = 4, 10, 8
+    delta = 1
+    gen = torch.Generator().manual_seed(0)
+    pred = F.normalize(torch.randn(b, t - delta, d, generator=gen), dim=-1)
+    y = F.normalize(torch.randn(b, t, d, generator=gen), dim=-1)
+    logits, targets = horizon_logits(pred, y, delta, temp=0.1)
+    assert tuple(logits.shape) == (b, t - delta, t + b)
+    rows = torch.arange(b)
+    assert torch.all(logits[rows, :, t + rows] <= -1e8)
+    other = logits[0, :, t + 1]
+    assert torch.all(other > -1e8)
+    manual_other = torch.einsum("td,td->t", pred[0], y[1, delta:]) / 0.1
+    assert torch.allclose(other, manual_other, atol=1e-5)
+    assert float(logits[0, 0, 0]) <= -1e8
+    assert float(logits[0, 0, 2]) <= -1e8
+    assert float(logits[0, 0, delta]) > -1e8
+    positive = torch.dot(pred[0, 0], y[0, delta]) / 0.1
+    assert torch.allclose(logits[0, 0, delta], positive, atol=1e-5)
+    assert int(targets[0, 0]) == delta
+    z = F.normalize(torch.randn(3, 8, 4, generator=gen), dim=-1)
+    teacher = F.normalize(torch.randn(3, 8, 4, generator=gen), dim=-1)
+    heads = nn.ModuleList([_Identity(), _Identity(), _Identity()])
+    _loss, info = exp1_loss(z, teacher, heads, horizons=(1,), temp=0.1, lambda_var=0.0)
+    y_norm = F.normalize(F.layer_norm(teacher, (4,)), dim=-1)
+    wired_pred = F.normalize(z[:, :-1], dim=-1)
+    wired_logits, wired_targets = horizon_logits(wired_pred, y_norm, 1, 0.1)
+    manual = F.cross_entropy(wired_logits.reshape(-1, 8 + 3), wired_targets.reshape(-1))
+    assert torch.allclose(info["nce"], manual, atol=1e-5)
+    skipped, skipped_info = exp1_loss(z, teacher, heads, horizons=(12,), temp=0.1, lambda_var=0.0)
+    assert float(skipped_info["nce"]) == 0.0
+    assert "loss_h12" not in skipped_info
+    assert torch.isfinite(skipped)
+
+
+def test_zero_mel_at_init_is_near_chance():
+    nce = zero_mel_init_nce(64, 42)
+    chance = chance_nce(64, GRID_T)
+    assert abs(chance - math.log(64 + GRID_T - 3)) < 1e-12
+    assert abs(nce - chance) < 0.15
+    assert nce > 4.0
 
 
 def test_within_clip_infonce_masks_distance_one_neighbors():

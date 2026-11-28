@@ -1,4 +1,6 @@
+import argparse
 import json
+import math
 from pathlib import Path
 
 import torch
@@ -29,19 +31,31 @@ def _mean(rows: list[dict[str, float]], key: str) -> float:
     return float(sum(row[key] for row in rows) / len(rows))
 
 
+PRESERVED_REPORT = Path("results/loopear_dc_h20_step1000_position_shortcut.json")
+PRESERVED_CHECKPOINT = Path("checkpoints/loopear_dc_h20_5000_step1000.pt")
+
+
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--report", required=True)
+    parser.add_argument("--batches", type=int, default=8)
+    parser.add_argument("--batch", type=int, default=64)
+    args = parser.parse_args()
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
     torch.set_num_threads(2)
-    report = Path("results/loopear_dc_h20_step1000_position_shortcut.json")
+    report = Path(args.report)
+    checkpoint = Path(args.checkpoint)
+    if report.resolve() == PRESERVED_REPORT.resolve() or checkpoint.resolve() == PRESERVED_CHECKPOINT.resolve():
+        raise SystemExit("refusing to overwrite the preserved step-1000 shortcut artifacts")
     if report.exists():
         raise SystemExit(f"refusing to overwrite {report}")
     cpu0 = cpu_seconds()
-    blob = torch.load(
-        "checkpoints/loopear_dc_h20_5000_step1000.pt",
-        map_location="cpu",
-        weights_only=False,
-    )
+    blob = torch.load(checkpoint, map_location="cpu", weights_only=False)
+    student = blob["student_encoder"]
+    if any(str(key) == "pos_time" or str(key).endswith(".pos_time") for key in student):
+        raise SystemExit("checkpoint still has pos_time")
     if int(blob["step"]) != 1000:
         raise SystemExit(f"checkpoint step is {blob['step']}")
     model = CausalLoopEarD(separation=False)
@@ -64,8 +78,8 @@ def main() -> None:
     shuffle_gen = torch.Generator().manual_seed(SEED + 23)
     order: list[int] = []
     cursor = 0
-    batch = 64
-    batches = 8
+    batch = int(args.batch)
+    batches = int(args.batches)
     found = {"real": [], "zeros": [], "shuffle": []}
     n_full = 0
     n_crops = 0
@@ -116,11 +130,14 @@ def main() -> None:
     real = summary["real"]["loss_pred"]
     zeros = summary["zeros"]["loss_pred"]
     shuffled = summary["shuffle"]["loss_pred"]
-    destroyed_near = zeros < 0.05 and shuffled < 0.05
-    destroyed_jump = zeros > 1.0 and shuffled > 1.0 and real < 0.05
+    chance = math.log(batch + GRID_T - 3)
+    fell = real < chance - 1.0
+    zeros_fell = zeros < chance - 1.0
+    shuffle_fell = shuffled < chance - 1.0
+    shortcut_remains = fell and (zeros_fell or shuffle_fell)
     payload = {
-        "task": "loopear_dc_position_shortcut",
-        "checkpoint": "checkpoints/loopear_dc_h20_5000_step1000.pt",
+        "task": "loopear_dc_notime_position_check",
+        "checkpoint": str(checkpoint),
         "step": 1000,
         "batches": batches,
         "batch": batch,
@@ -128,17 +145,20 @@ def main() -> None:
         "n_crops": n_crops,
         "n_fully_valid_crops": n_full,
         "gpu_usd": 0.0,
+        "chance_nce": chance,
         "conditions": {
             "real": "cached normalized crop",
             "zeros": "mel replaced by zeros, frame validity unchanged",
-            "shuffle": "within each clip, valid 40 ms time patches are permuted; invalid slots and the positional grid stay put",
+            "shuffle": "within each clip, valid 40 ms time patches are permuted; invalid slots stay put",
         },
         "summary": summary,
         "real_loss_pred": real,
         "zeros_loss_pred": zeros,
         "shuffle_loss_pred": shuffled,
-        "destroyed_near_0.004": destroyed_near,
-        "destroyed_jumps_and_real_stays_low": destroyed_jump,
+        "real_dropped": fell,
+        "zeros_near_chance": abs(zeros - chance) < 0.75,
+        "shuffle_near_chance": abs(shuffled - chance) < 0.75,
+        "shortcut_remains": shortcut_remains,
         "cpu_s": cpu_seconds() - cpu0,
         "peak_rss_gb": peak_rss_gb(),
     }
@@ -148,8 +168,8 @@ def main() -> None:
         "real_loss_pred": real,
         "zeros_loss_pred": zeros,
         "shuffle_loss_pred": shuffled,
-        "destroyed_near_0.004": destroyed_near,
-        "destroyed_jumps_and_real_stays_low": destroyed_jump,
+        "chance_nce": chance,
+        "shortcut_remains": shortcut_remains,
     }), flush=True)
 
 
