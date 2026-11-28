@@ -23,6 +23,8 @@ from loopear.d.causal import (
     make_order_negative,
     mix_at_snr,
     MultiHorizonPredictor,
+    OrderHead,
+    order_bce,
     order_gap_hinge,
     pit_cosine_loss,
     sample_snr,
@@ -300,23 +302,39 @@ def test_order_gap_hinge_is_zero_at_one_nat_and_positive_at_a_third():
     assert float(closed.grad) == 0.0
 
 
-def test_step_loss_is_the_real_nce_plus_the_order_hinge():
+def test_order_head_pools_time_and_averages_the_two_bce_terms():
+    head = OrderHead(4)
+    z = torch.randn(3, 5, 4)
+    flat = head(z)
+    assert tuple(flat.shape) == (3,)
+    manual = head.fc2(F.gelu(head.fc1(head.ln(z.mean(dim=1)))))[:, 0]
+    assert torch.allclose(flat, manual)
+    pos = torch.tensor([1.5, -0.25])
+    neg = torch.tensor([-2.0, 0.4])
+    expect = 0.5 * (
+        F.binary_cross_entropy_with_logits(pos, torch.ones_like(pos))
+        + F.binary_cross_entropy_with_logits(neg, torch.zeros_like(neg))
+    )
+    assert torch.allclose(order_bce(pos, neg), expect)
+
+
+def test_step_loss_is_predictive_nce_plus_half_the_order_bce():
     set_seed(3)
     torch.manual_seed(3)
     model = CausalLoopEarD()
     mel, frame_valid = _mel(2, seed=3)
     out = causal_step_loss(model, mel, frame_valid)
-    gap = out["loss_perm"] - out["loss_pred"]
-    assert torch.allclose(out["gap"], gap)
-    assert torch.allclose(out["loss_order"], F.relu(1.0 - gap))
-    assert torch.allclose(out["loss"], out["loss_pred"] + out["loss_order"])
+    assert "loss_perm" not in out
+    assert "gap" not in out
     assert torch.allclose(out["loss_pred"], 0.5 * out["loss_within"] + 0.5 * out["loss_concat"])
+    assert torch.allclose(out["loss"], out["loss_pred"] + 0.5 * out["loss_order"])
     if float(out["loss_var"]) > 1e-6:
-        with_var = out["loss_pred"] + 0.1 * out["loss_var"] + out["loss_order"]
+        with_var = out["loss_pred"] + 0.1 * out["loss_var"] + 0.5 * out["loss_order"]
         assert not torch.allclose(out["loss"], with_var)
     out["loss"].backward()
     assert model.encoder.patch.weight.grad is not None
     assert model.predictor.heads[0].fc1.weight.grad is not None
+    assert model.order_head.fc2.weight.grad is not None
     assert all(param.grad is None for param in model.teacher_encoder.parameters())
 
 
@@ -388,7 +406,7 @@ def test_variance_hinge_and_pit_and_snr_and_ramp():
     assert HORIZONS == (4, 10, 20)
 
 
-def test_step_isolates_the_teacher_and_has_no_global_head():
+def test_step_isolates_the_teacher_and_trains_only_the_order_head():
     set_seed(11)
     model = CausalLoopEarD(separation=False)
     assert not hasattr(model, "teacher_local")
@@ -403,13 +421,17 @@ def test_step_isolates_the_teacher_and_has_no_global_head():
     assert float(out["n_h4"]) == 4 * 46
     assert float(out["n_h10"]) == 4 * 40
     assert float(out["n_h20"]) == 4 * 30
-    assert not hasattr(model, "order_head")
+    assert isinstance(model.order_head, OrderHead)
+    head_ids = {id(param) for param in model.order_head.parameters()}
+    teacher_ids = {id(param) for param in model.teacher_encoder.parameters()}
+    assert head_ids.isdisjoint(teacher_ids)
     out["loss"].backward()
     assert model.encoder.patch.weight.grad is not None
     assert all(p.grad is None for p in model.teacher_encoder.parameters())
     with torch.no_grad():
         model.encoder.patch.weight.add_(0.05)
     before = [p.detach().clone() for p in model.teacher_encoder.parameters()]
+    head_before = [p.detach().clone() for p in model.order_head.parameters()]
     model.ema_update(0.5)
     moved = False
     for old, teacher, student in zip(before, model.teacher_encoder.parameters(), model.encoder.parameters()):
@@ -418,6 +440,8 @@ def test_step_isolates_the_teacher_and_has_no_global_head():
             moved = True
         expect = 0.5 * old + 0.5 * student.detach()
         assert torch.allclose(teacher, expect)
+    for old, new in zip(head_before, model.order_head.parameters()):
+        assert torch.equal(old, new)
     assert moved
 
 

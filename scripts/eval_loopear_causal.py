@@ -404,8 +404,247 @@ def _close(left: float | None, right: float | None) -> bool | None:
     return abs(float(left) - float(right)) <= 1e-4
 
 
+def _encode_summary(rows, encoder, mean, std, mel_bank, proto) -> dict[str, Any]:
+    n = len(rows)
+    sums = np.zeros((n, D_MODEL), dtype=np.float64)
+    counts = np.zeros(n, dtype=np.float64)
+    pending: list[dict[str, Any]] = []
+    n_windows = 0
+    n_short = 0
+
+    def _flush() -> None:
+        nonlocal pending
+        if not pending:
+            return
+        mel = torch.stack([item["norm"] for item in pending])
+        valid = torch.stack([item["valid"] for item in pending])
+        visible = _visible(valid)
+        ok = visible.flatten(1).any(dim=1)
+        if not bool(ok.all()):
+            kept = [pending[index] for index, flag in enumerate(ok.tolist()) if flag]
+            pending = []
+            if not kept:
+                return
+            pending.extend(kept)
+            _flush()
+            return
+        with torch.inference_mode():
+            _grid, summary = encoder(mel, visible)
+        for local, item in enumerate(pending):
+            owner = int(item["owner"])
+            counts[owner] += 1.0
+            sums[owner] += summary[local].detach().float().cpu().numpy()
+        pending = []
+
+    for row_index, row in enumerate(rows):
+        if row["split"] == "test":
+            raise PermissionError("protocol tried to read the sealed FSD50K test split")
+        wav = proto._read_flac(audio_path(Path("data/raw/fsd50k"), row))
+        spec = waveform_logmel(torch.from_numpy(wav), mel_bank)
+        starts, _center = clip_window_starts(int(spec.shape[0]), N_FRAMES, TAG_WINDOWS)
+        for start in starts:
+            norm, valid = proto._window(spec, start, mean, std)
+            if not bool(valid.any()):
+                continue
+            left = int(start) * HOP_SAMPLES
+            right = min(int(wav.shape[0]), left + CROP_SAMPLES)
+            if right <= left:
+                continue
+            n_windows += 1
+            if right - left < CROP_SAMPLES:
+                n_short += 1
+            pending.append({"owner": row_index, "norm": norm, "valid": valid})
+            if len(pending) >= ENCODE_BATCH:
+                _flush()
+        if row_index % 128 == 127:
+            print(f"fsd clips {row_index + 1}/{n}", flush=True)
+    _flush()
+    denom = np.clip(counts, 1.0, None)
+    means = {"summary": (sums / denom[:, None]).astype(np.float32)}
+    return {
+        "means": means,
+        "n_windows": n_windows,
+        "n_short_windows": n_short,
+        "n_empty_clips": int((counts == 0).sum()),
+    }
+
+
+def _starss_time(encoder, mean, std, mel_bank, proto) -> dict[str, Any]:
+    manifest = load_manifest(Path("data/manifests/starss23.json"))
+    clips = []
+    for row in manifest["items"]:
+        if row["split"] not in ("train", "val"):
+            raise PermissionError(f"STARSS manifest row {row['id']} is {row['split']}")
+        if "realdesed" in str(row["id"]).lower() or "fsd50k" in str(row["id"]).lower():
+            raise PermissionError(row["id"])
+        wav_src = hf_hub_download(
+            "labhamlet/STARSS23", "original_audios/" + row["id"] + ".wav", repo_type="dataset"
+        )
+        if "realdesed" in wav_src.lower() or "fsd50k" in wav_src.lower():
+            raise PermissionError(wav_src)
+        csv_src = proto._label_csv(row["id"])
+        wav = load_mono_audio(wav_src, target_sr=SR, channel=0)
+        spec = waveform_logmel(torch.from_numpy(wav), mel_bank)
+        events = proto._parse_events(Path(csv_src).read_text(encoding="utf-8"))
+        duration = float(wav.shape[0]) / float(SR)
+        starts = event_window_starts(duration, [(idx * 0.1, cls) for idx, cls in events], max_windows=6)
+        windows = []
+        for start_s in starts:
+            sample = int(round(start_s * SR))
+            sample = min(sample, max(int(wav.shape[0]) - 1, 0))
+            if sample + CROP_SAMPLES > int(wav.shape[0]):
+                sample = max(int(wav.shape[0]) - CROP_SAMPLES, 0)
+            frame = sample // HOP_SAMPLES
+            norm, valid = proto._window(spec, frame, mean, std)
+            if not bool(valid.any()):
+                continue
+            visible = _visible(valid.unsqueeze(0))
+            if not bool(visible.flatten(1).any()):
+                continue
+            with torch.inference_mode():
+                grid, _summary = encoder(norm.unsqueeze(0), visible)
+            labels = rasterize_starss_frames_50hz(
+                events,
+                float(sample) / float(SR),
+                GRID_T,
+                len(STARSS23_CLASSES),
+                hop_e=0.04,
+                label_hop_s=0.1,
+            )
+            windows.append({"time": frequency_pool(grid)[0].detach().float().cpu(), "y": labels})
+        clips.append({"id": row["id"], "split": row["split"], "windows": windows})
+        print(f"starss {row['id']} windows {len(windows)}", flush=True)
+    train_clips = [clip for clip in clips if clip["split"] == "train"]
+    val_clips = [clip for clip in clips if clip["split"] == "val"]
+
+    def _collect(group):
+        xs = []
+        ys = []
+        files = []
+        y_windows = []
+        for file_index, clip in enumerate(group):
+            for window in clip["windows"]:
+                xs.append(window["time"])
+                ys.append(window["y"])
+                files.append(np.full(window["y"].shape[0], file_index, dtype=np.int64))
+                y_windows.append(window["y"])
+        if not xs:
+            raise RuntimeError("STARSS split produced no windows")
+        return torch.cat(xs, dim=0), np.concatenate(ys, axis=0), np.concatenate(files, axis=0), y_windows
+
+    x_train, y_train, files_train, _train_windows = _collect(train_clips)
+    x_val, y_val, files_val, window_labels = _collect(val_clips)
+    keep, detail = starss_keep(y_train, y_val, files_train, files_val, min_files=2, min_frames=40)
+    names = [STARSS23_CLASSES[row["class_index"]] for row in detail]
+    for row, name in zip(detail, names):
+        row["class"] = name
+    if int(keep.sum()) == 0:
+        scored = {"status": "null", "reason": "no class met the support rule"}
+    else:
+        y_tr = torch.from_numpy(y_train[:, keep])
+        y_va = torch.from_numpy(y_val[:, keep])
+        label_windows = [window[:, keep] for window in window_labels]
+        x_tr = fixed_project(x_train, D_MODEL, SEED)
+        x_va = fixed_project(x_val, D_MODEL, SEED)
+        real = proto._scores(x_tr, y_tr, x_va, SEED)
+        perm = torch.Generator().manual_seed(SEED + 7)
+        order = torch.randperm(y_tr.shape[0], generator=perm)
+        shuffled = proto._scores(x_tr, y_tr[order], x_va, SEED)
+        real_ap = macro_average_precision(y_va.numpy(), real)
+        shuffled_ap = macro_average_precision(y_va.numpy(), shuffled)
+        score_windows = []
+        cursor = 0
+        for window in window_labels:
+            n_frames = window.shape[0]
+            score_windows.append(real[cursor : cursor + n_frames])
+            cursor += n_frames
+        scored = {
+            "status": "measured",
+            "val": real_ap,
+            "shuffled_label_probe": shuffled_ap,
+            "onset_within_windows": proto._onset_within_windows(label_windows, score_windows),
+            "probe_params": int(D_MODEL * int(keep.sum()) + int(keep.sum())),
+        }
+    return {
+        "train_files": [clip["id"] for clip in train_clips],
+        "val_files": [clip["id"] for clip in val_clips],
+        "n_train_frames": int(y_train.shape[0]),
+        "n_val_frames": int(y_val.shape[0]),
+        "n_classes_scored": int(keep.sum()),
+        "classes": detail,
+        "models": {"time": scored},
+        "frame_axis": "50 patch steps of 40 ms from the frequency-pooled causal grid",
+    }
+
+
+def score_causal_control(encoder_path: Path, report_path: Path) -> dict[str, Any]:
+    if torch.cuda.is_available():
+        raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
+    if report_path.exists():
+        raise SystemExit(f"refusing to overwrite {report_path}")
+    if not encoder_path.exists():
+        raise SystemExit(f"missing weights {encoder_path}")
+    torch.set_num_threads(4)
+    os.chdir(ROOT)
+    proto = _protocol()
+    manifest = load_manifest(Path("data/manifests/fsd50k_loopear_d.json"))
+    train_rows = items_for(manifest, "h5")
+    val_rows = proto._official_val(manifest, VAL_CLIPS)
+    for row in train_rows + val_rows:
+        if row["split"] == "test":
+            raise PermissionError("protocol tried to read the sealed FSD50K test split")
+    _ensure_audio(train_rows + val_rows)
+    config = load_frontend_config(Path("data/manifests/loopear_d_frontend.json"))
+    mean = torch.tensor(config["mean"], dtype=torch.float32)
+    std = torch.tensor(config["std"], dtype=torch.float32)
+    mel_bank = build_mel()
+    encoder = _load_causal(encoder_path)
+    rows = train_rows + val_rows
+    print(f"encoding {len(train_rows)} development clips and {len(val_rows)} val clips", flush=True)
+    encoded = _encode_summary(rows, encoder, mean, std, mel_bank, proto)
+    if encoded["n_windows"] != EXPECTED_WINDOWS or encoded["n_short_windows"] != EXPECTED_SHORT or encoded["n_empty_clips"] != 0:
+        raise SystemExit(
+            f"FSD windowing does not match the saved protocol: {encoded['n_windows']} windows, "
+            f"{encoded['n_short_windows']} short, {encoded['n_empty_clips']} empty"
+        )
+    tag, few = _tag_block(encoded, train_rows, val_rows, proto)
+    star = _starss_time(encoder, mean, std, mel_bank, proto)
+    if star["n_train_frames"] != EXPECTED_STARSS_TRAIN or star["n_val_frames"] != EXPECTED_STARSS_VAL:
+        raise SystemExit(
+            f"STARSS frames {star['n_train_frames']}/{star['n_val_frames']} do not match 7200/4200"
+        )
+    onset = star["models"]["time"]["onset_within_windows"]
+    payload = {
+        "encoder": str(encoder_path),
+        "representation": "causal encoder clip summary for tags; frequency-pooled time grid for STARSS",
+        "tag_ap": tag["summary"]["probe"]["val"]["macro_ap"],
+        "tag_shuffled": tag["summary"]["shuffled_label_probe"]["val"]["macro_ap"],
+        "four_example_ap": few["models"]["summary"]["macro_ap"],
+        "four_example_shuffled": few["models"]["summary"]["shuffled_support_macro_ap"],
+        "four_example_classes": few.get("n_classes"),
+        "starss_frame_ap": star["models"]["time"]["val"]["macro_ap"],
+        "starss_shuffled": star["models"]["time"]["shuffled_label_probe"]["macro_ap"],
+        "onset_lift": onset["mean_lift"],
+        "onset_above_background": onset["n_above_background"],
+        "n_onsets": onset["n_onsets"],
+        "n_windows": encoded["n_windows"],
+        "n_short_windows": encoded["n_short_windows"],
+        "starss_train_frames": star["n_train_frames"],
+        "starss_val_frames": star["n_val_frames"],
+        "starss_classes": star["n_classes_scored"],
+        "fsd50k_test_audio_read": False,
+        "sealed_realdesed_test_read": False,
+        "dipco_scored": False,
+        "gpu_usd": 0.0,
+    }
+    write_result_json(report_path, payload)
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--control-encoder", default="")
+    parser.add_argument("--control-report", default="")
     parser.add_argument("--dc", default="results/loopear_dc_h20_5000_encoder.safetensors")
     parser.add_argument("--dcp", default="results/loopear_dcp_h20_5000_encoder.safetensors")
     parser.add_argument("--dc-teacher", default="results/loopear_dc_h20_5000_teacher.safetensors")
@@ -414,6 +653,17 @@ def main() -> None:
     parser.add_argument("--plt", default="results/loopear_plt_h20_global_5000_encoder.safetensors")
     parser.add_argument("--report", default="results/loopear_causal_h20_protocol.json")
     args = parser.parse_args()
+    if args.control_encoder:
+        if not args.control_report:
+            raise SystemExit("control scoring needs --control-report")
+        payload = score_causal_control(Path(args.control_encoder), Path(args.control_report))
+        print(json.dumps({
+            "tag_ap": payload["tag_ap"],
+            "four_example_ap": payload["four_example_ap"],
+            "starss_frame_ap": payload["starss_frame_ap"],
+            "onset_lift": payload["onset_lift"],
+        }), flush=True)
+        return
     if torch.cuda.is_available():
         raise SystemExit("cuda is visible; refusing to start rather than risk GPU spend")
     report = Path(args.report)

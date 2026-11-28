@@ -142,6 +142,27 @@ class HorizonMLP(nn.Module):
         return self.fc2(F.gelu(self.fc1(self.ln(x))))
 
 
+class OrderHead(nn.Module):
+    def __init__(self, dim: int = D_MODEL) -> None:
+        super().__init__()
+        self.ln = nn.LayerNorm(dim)
+        self.fc1 = nn.Linear(dim, dim)
+        self.fc2 = nn.Linear(dim, 1)
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        nn.init.ones_(self.ln.weight)
+        nn.init.zeros_(self.ln.bias)
+        _trunc(self.fc1.weight)
+        nn.init.zeros_(self.fc1.bias)
+        _trunc(self.fc2.weight)
+        nn.init.zeros_(self.fc2.bias)
+
+    def forward(self, z_time: torch.Tensor) -> torch.Tensor:
+        pooled = z_time.mean(dim=1)
+        return self.fc2(F.gelu(self.fc1(self.ln(pooled))))[:, 0]
+
+
 class MultiHorizonPredictor(nn.Module):
     def __init__(self, horizons: tuple[int, ...] = HORIZONS) -> None:
         super().__init__()
@@ -159,6 +180,7 @@ class CausalLoopEarD(nn.Module):
         self.encoder = CausalLoopEarDEncoder()
         self.teacher_encoder = CausalLoopEarDEncoder()
         self.predictor = MultiHorizonPredictor(HORIZONS)
+        self.order_head = OrderHead(D_MODEL)
         self.sep_heads = nn.ModuleList([HorizonMLP(), HorizonMLP()]) if separation else None
         self.reset_teacher()
 
@@ -174,7 +196,7 @@ class CausalLoopEarD(nn.Module):
             param.requires_grad_(False)
 
     def student_parameters(self) -> list[nn.Parameter]:
-        modules: list[nn.Module] = [self.encoder, self.predictor]
+        modules: list[nn.Module] = [self.encoder, self.predictor, self.order_head]
         if self.sep_heads is not None:
             modules.append(self.sep_heads)
         params: list[nn.Parameter] = []
@@ -331,6 +353,31 @@ def chance_nce_combined(batch: int, length: int = GRID_T) -> float:
 
 def order_gap_hinge(gap: torch.Tensor) -> torch.Tensor:
     return F.relu(1.0 - gap)
+
+
+def order_bce(logits_pos: torch.Tensor, logits_neg: torch.Tensor) -> torch.Tensor:
+    positive = F.binary_cross_entropy_with_logits(logits_pos, torch.ones_like(logits_pos))
+    negative = F.binary_cross_entropy_with_logits(logits_neg, torch.zeros_like(logits_neg))
+    return 0.5 * (positive + negative)
+
+
+@torch.no_grad()
+def predictive_nce(
+    model: CausalLoopEarD,
+    mel: torch.Tensor,
+    frame_valid: torch.Tensor,
+) -> torch.Tensor:
+    visible = visible_from_frames(frame_valid)
+    student_grid, _summary = model.encoder(mel, visible)
+    teacher_grid, _teacher_summary = model.teacher_encoder(mel, visible)
+    _total, info = exp1_loss(
+        frequency_pool(student_grid),
+        frequency_pool(teacher_grid),
+        model.predictor.heads,
+        horizons=model.predictor.horizons,
+        lambda_var=0.0,
+    )
+    return info["nce"]
 
 
 def make_order_negative(
@@ -549,25 +596,17 @@ def causal_step_loss(
     y_teacher = frequency_pool(teacher_grid)
     horizons = model.predictor.horizons
     _real_total, info = exp1_loss(z_student, y_teacher, model.predictor.heads, horizons=horizons)
+    nce_real = info["nce"]
     scrambled = make_order_negative(mel, PATCH_FRAMES, frame_valid)
     if not isinstance(scrambled, tuple):
         raise RuntimeError("order negative did not return the validity mask")
     mel_perm, valid_perm = scrambled
     visible_perm = visible_from_frames(valid_perm)
     student_perm, _perm_summary = model.encoder(mel_perm, visible_perm)
-    with torch.no_grad():
-        teacher_perm, _teacher_perm_summary = model.teacher_encoder(mel_perm, visible_perm)
-    _perm_total, info_perm = exp1_loss(
-        frequency_pool(student_perm),
-        frequency_pool(teacher_perm),
-        model.predictor.heads,
-        horizons=horizons,
-    )
-    nce_real = info["nce"]
-    nce_perm = info_perm["nce"]
-    gap = nce_perm - nce_real
-    loss_order = order_gap_hinge(gap)
-    loss = nce_real + loss_order
+    logits_pos = model.order_head(z_student)
+    logits_neg = model.order_head(frequency_pool(student_perm))
+    loss_order = order_bce(logits_pos, logits_neg)
+    loss = nce_real + 0.5 * loss_order
     loss_pit = loss.new_zeros(())
     lam = 0.0
     if mix_mel is not None:
@@ -591,8 +630,6 @@ def causal_step_loss(
     out = {
         "loss": loss,
         "loss_pred": nce_real,
-        "loss_perm": nce_perm,
-        "gap": gap,
         "loss_order": loss_order,
         "loss_within": info["nce_within"],
         "loss_concat": info["nce_concat"],
