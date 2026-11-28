@@ -1,0 +1,93 @@
+{
+  "fsd50k_test_audio_read": false,
+  "gpu_usd": 0.0,
+  "kettle_benchmark": [],
+  "payload_sha256": "eb25ac365bbcd7a9f83d21bb761833dde57d9fbd3c5539b9de87b1cf1ca03898",
+  "rows": [
+    {
+      "checkpoint": "results/loopear_dc_ordergap_h20_5000_teacher.safetensors",
+      "event_order": {
+        "accuracy": 0.5384615384615384,
+        "chance": 0.5,
+        "n_correct": 21,
+        "n_pairs": 39,
+        "n_pairs_selected": 39,
+        "n_prototype_onsets": {
+          "0": 32,
+          "1": 32,
+          "10": 4,
+          "11": 0,
+          "12": 1,
+          "2": 4,
+          "3": 12,
+          "4": 32,
+          "5": 2,
+          "6": 32,
+          "7": 16,
+          "8": 2,
+          "9": 9
+        },
+        "n_ties": 0,
+        "prototypes": "mean of at most 32 train-split onset vectors per class",
+        "representation": "EMA teacher frequency-pooled encoder output after LayerNorm and L2-norm, at the onset patch",
+        "reversed_audio": {
+          "accuracy": 0.5641025641025641,
+          "n_correct": 22,
+          "n_pairs": 39,
+          "n_ties": 0,
+          "scored_against": "the reversed event order"
+        }
+      },
+      "four_example_ap": 0.0841064564971643,
+      "frame_ap": 0.27021800406733076,
+      "fsd_windows": 6676,
+      "half_concat": {
+        "accuracy": 0.48717948717948717,
+        "chance": 0.5,
+        "label": "half-concat of the two time-axis means, same class-mean preference",
+        "n_correct": 19,
+        "n_pairs": 39,
+        "n_ties": 0,
+        "preference": "scripts/eval_loopear_event_order.py _prefers_first on those two halves",
+        "prototypes": "the same onset-patch class means as the patch score",
+        "representation": "L2 mean of teacher_target over the first half of the crop concatenated with the L2 mean over the second half",
+        "reversed_audio": {
+          "accuracy": 0.5384615384615384,
+          "n_correct": 21,
+          "n_pairs": 39,
+          "n_ties": 0,
+          "scored_against": "the reversed event order"
+        }
+      },
+      "onset_lift": 0.36422432012085876,
+      "splice": {
+        "accuracy": 0.994,
+        "chance": 0.5,
+        "label": "500-pair FSD50K train splice, [A | B] against [B | A], half-concat preference",
+        "n_correct": 994,
+        "n_directed": 1000,
+        "n_pairs": 500,
+        "n_pairs_both": 494,
+        "n_pairs_built": 500,
+        "n_skipped": 0,
+        "n_ties": 0,
+        "pair_accuracy": 0.988,
+        "seed": 42,
+        "split": "train"
+      },
+      "starss": {
+        "frame_ap": 0.27021800406733076,
+        "n_classes_scored": 8,
+        "n_onsets": 130,
+        "n_train_frames": 7200,
+        "n_val_frames": 4200,
+        "onset_lift": 0.36422432012085876
+      },
+      "tag_ap": 0.13955850658968666
+    }
+  ],
+  "sealed_realdesed_test_read": false,
+  "table": "| probe | FSD50K tag AP | four-example AP | STARSS23 frame AP | onset lift | event order | half-concat | 500-pair |\n| --- | --- | --- | --- | --- | --- | --- | --- |\n| loopear_dc_ordergap_h20_5000_teacher.safetensors | 0.1396 | 0.0841 | 0.2702 | 0.3642 | 21/39 | 19/39 | 994/1000 |\n| mug-tap + boiling kettle | absent | absent | absent | absent | absent | absent | absent |",
+  "task": "probe_audit",
+  "written_utc": "2026-11-28T07:20:38.407276+00:00"
+}

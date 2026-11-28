@@ -4,6 +4,13 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from loopear.d.order_probe import (
+    build_splice_pairs,
+    half_concat,
+    preference_from_concat,
+    score_splice_batch,
+    splice_halves,
+)
 from loopear.d.causal import (
     CAUSAL_ENCODER_PARAMS,
     HORIZONS,
@@ -435,3 +442,86 @@ def test_mixture_step_uses_two_heads_and_a_ramped_weight():
     assert model.sep_heads[0].fc1.weight.grad is not None
     assert model.sep_heads[1].fc2.weight.grad is not None
     assert all(p.grad is None for p in model.teacher_encoder.parameters())
+
+
+def _train_rows(n: int) -> list[dict]:
+    return [{"split": "train", "freesound_id": index, "id": f"fsd-{index}"} for index in range(n)]
+
+
+def test_splice_pairs_are_train_only_and_repeatable():
+    rows = _train_rows(60)
+    first = build_splice_pairs(rows, n_pairs=500, seed=42)
+    second = build_splice_pairs(rows, n_pairs=500, seed=42)
+    assert first == second
+    assert len(first) == 500
+    keys = set()
+    for pair in first:
+        left = int(pair["index_a"])
+        right = int(pair["index_b"])
+        assert left != right
+        assert pair["freesound_a"] == left
+        assert pair["freesound_b"] == right
+        key = (left, right) if left < right else (right, left)
+        assert key not in keys
+        keys.add(key)
+    refused = False
+    try:
+        build_splice_pairs(rows + [{"split": "val", "freesound_id": 1, "id": "val"}], n_pairs=1, seed=42)
+    except PermissionError:
+        refused = True
+    assert refused
+    refused_test = False
+    try:
+        build_splice_pairs(rows + [{"split": "test", "freesound_id": 2, "id": "test"}], n_pairs=1, seed=42)
+    except PermissionError:
+        refused_test = True
+    assert refused_test
+
+
+def test_splice_halves_swap_the_same_two_clips():
+    mel_a = torch.arange(N_FRAMES * N_MELS, dtype=torch.float32).reshape(N_FRAMES, N_MELS)
+    mel_b = mel_a + 1000
+    valid = torch.ones(N_FRAMES, dtype=torch.bool)
+    ab_mel, ab_valid, ba_mel, ba_valid = splice_halves(mel_a, valid, mel_b, valid)
+    mid = N_FRAMES // 2
+    assert torch.equal(ab_mel[:mid], mel_a[:mid])
+    assert torch.equal(ab_mel[mid:], mel_b[:mid])
+    assert torch.equal(ba_mel[:mid], mel_b[:mid])
+    assert torch.equal(ba_mel[mid:], mel_a[:mid])
+    assert torch.equal(ab_valid, valid)
+    assert torch.equal(ba_valid, valid)
+
+
+def test_half_concat_preference_on_a_tiny_batch():
+    pooled = torch.zeros(2, 4, 3)
+    pooled[0, :2, 0] = 1.0
+    pooled[0, 2:, 1] = 1.0
+    pooled[1, :2, 1] = 1.0
+    pooled[1, 2:, 0] = 1.0
+    packed = half_concat(pooled)
+    assert tuple(packed.shape) == (2, 6)
+    assert torch.allclose(packed[0, :3], torch.tensor([1.0, 0.0, 0.0]))
+    assert torch.allclose(packed[0, 3:], torch.tensor([0.0, 1.0, 0.0]))
+    proto_a = torch.tensor([[1.0, 0.0, 0.0], [1.0, 0.0, 0.0]])
+    proto_b = torch.tensor([[0.0, 1.0, 0.0], [0.0, 1.0, 0.0]])
+    assert preference_from_concat(packed, proto_a, proto_b) == [True, False]
+    tie = torch.zeros(6)
+    tie[0] = 1.0
+    tie[3] = 1.0
+    assert preference_from_concat(tie, proto_a[0], proto_b[0]) is None
+
+
+def test_splice_score_runs_on_a_tiny_batch():
+    set_seed(42)
+    encoder = CausalLoopEarDEncoder()
+    encoder.eval()
+    generator = torch.Generator().manual_seed(42)
+    mel_a = torch.randn(2, N_FRAMES, N_MELS, generator=generator)
+    mel_b = torch.randn(2, N_FRAMES, N_MELS, generator=generator)
+    valid = torch.ones(2, N_FRAMES, dtype=torch.bool)
+    scored = score_splice_batch(encoder, mel_a, valid, mel_b, valid)
+    assert scored["n_pairs"] == 2
+    assert scored["n_directed"] == 4
+    assert scored["n_skipped"] == 0
+    assert scored["n_correct"] + scored["n_ties"] <= scored["n_directed"]
+    assert 0.0 <= float(scored["accuracy"]) <= 1.0
