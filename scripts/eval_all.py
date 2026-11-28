@@ -1,7 +1,6 @@
 import argparse
 import importlib.util
 import json
-import os
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +12,7 @@ from safetensors.torch import load_file
 from loopear.data import STARSS23_CLASSES, rasterize_starss_frames_50hz
 from loopear.d.causal import CausalLoopEarDEncoder, frequency_pool
 from loopear.d.causal_probe import score_event_order, score_half_concat_event_order
+from loopear.d.esc50_stress import load_esc50_train, score_esc50_ood
 from loopear.d.frontend import build_mel, load_frontend_config, waveform_logmel
 from loopear.d.fsd import MelCache, audio_path, extract_audio, items_for, load_manifest
 from loopear.d.objective import broadcast_time_valid, patch_valid_from_frames
@@ -25,14 +25,11 @@ from loopear.harness import write_result_json
 
 
 ROOT = Path(__file__).resolve().parent.parent
-STORE = Path("/cursor/stores/bc-01a213ed-7a8a-7981-b509-7012340964c4")
 ENCODE_BATCH = 16
 EXPECTED_WINDOWS = 6676
 EXPECTED_SHORT = 329
 EXPECTED_STARSS_TRAIN = 7200
 EXPECTED_STARSS_VAL = 4200
-KETTLE_NEEDLES = ("mugtap", "boilingkettle")
-SKIP_WALK = {".git", ".venv", "__pycache__", ".pytest_cache", "cache", "checkpoints", "node_modules"}
 
 
 def _protocol():
@@ -248,23 +245,6 @@ def _starss(encoder, mean, std, mel_bank, proto) -> dict[str, Any]:
     }
 
 
-def _fold(name: str) -> str:
-    return name.lower().replace("-", "").replace("_", "").replace(" ", "")
-
-
-def find_kettle_benchmark(*roots: Path) -> list[str]:
-    found = []
-    for root in roots:
-        if not root.exists():
-            continue
-        for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [name for name in dirnames if name not in SKIP_WALK and not name.startswith(".")]
-            for name in dirnames + filenames:
-                if any(needle in _fold(name) for needle in KETTLE_NEEDLES):
-                    found.append(str(Path(dirpath) / name))
-    return found
-
-
 def _cell(value: Any) -> str:
     if value is None:
         return "absent"
@@ -289,6 +269,7 @@ def _markdown(rows: list[dict[str, str]]) -> str:
         "event order",
         "half-concat",
         "500-pair",
+        "ESC-50 OOD",
     ]
     lines = [
         "| " + " | ".join(headers) + " |",
@@ -299,7 +280,7 @@ def _markdown(rows: list[dict[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def score_checkpoint(path: Path, proto, mean, std, mel_bank, cache) -> dict[str, Any]:
+def score_checkpoint(path: Path, proto, mean, std, mel_bank, cache, esc50) -> dict[str, Any]:
     encoder = load_encoder(path)
     print("patch event order", flush=True)
     order = score_event_order(encoder)
@@ -340,6 +321,12 @@ def score_checkpoint(path: Path, proto, mean, std, mel_bank, cache) -> dict[str,
     tag, few = _tag_and_few(encoded, train_rows, val_rows, proto)
     print("STARSS frame probe", flush=True)
     star = _starss(encoder, mean, std, mel_bank, proto)
+    print("ESC-50 polyphonic stress", flush=True)
+    ood = score_esc50_ood(encoder, esc50, mean, std, mel_bank)
+    print(
+        json.dumps({"esc50_ood": f"{ood['n_correct']}/{ood['n_clips']}", "accuracy": ood["accuracy"], "by_snr": ood["by_snr"]}),
+        flush=True,
+    )
     return {
         "checkpoint": str(path),
         "tag_ap": tag["probe"]["val"]["macro_ap"],
@@ -350,6 +337,7 @@ def score_checkpoint(path: Path, proto, mean, std, mel_bank, cache) -> dict[str,
         "half_concat": half,
         "splice": splice,
         "starss": star,
+        "esc50_ood": ood,
         "fsd_windows": encoded["n_windows"],
     }
 
@@ -385,19 +373,7 @@ def _row_from_score(name: str, score: dict[str, Any]) -> dict[str, str]:
         "event order": _ratio(order["n_correct"], order["n_pairs"]),
         "half-concat": _ratio(half["n_correct"], half["n_pairs"]),
         "500-pair": _ratio(splice["n_correct"], splice["n_directed"]),
-    }
-
-
-def _absent_row(name: str) -> dict[str, str]:
-    return {
-        "probe": name,
-        "FSD50K tag AP": "absent",
-        "four-example AP": "absent",
-        "STARSS23 frame AP": "absent",
-        "onset lift": "absent",
-        "event order": "absent",
-        "half-concat": "absent",
-        "500-pair": "absent",
+        "ESC-50 OOD": _ratio(score["esc50_ood"]["n_correct"], score["esc50_ood"]["n_clips"]),
     }
 
 
@@ -415,19 +391,16 @@ def main() -> None:
     manifest = load_manifest(Path("data/manifests/fsd50k_loopear_d.json"))
     train_rows = items_for(manifest, "h20")
     cache = MelCache(train_rows, Path("cache/loopear_d_mel"), mean, std)
-    kettle = find_kettle_benchmark(ROOT, STORE)
+    print("loading ashraq/esc50 train", flush=True)
+    esc50 = load_esc50_train(ROOT / "data" / "esc50_cache")
     table_rows = []
     payload = []
     for raw in args.checkpoints:
         path = Path(raw)
         print(f"scoring {path}", flush=True)
-        score = score_checkpoint(path, proto, mean, std, mel_bank, cache)
+        score = score_checkpoint(path, proto, mean, std, mel_bank, cache, esc50)
         payload.append(score)
         table_rows.append(_row_from_score(path.name, score))
-    if kettle:
-        table_rows.append(_absent_row("mug-tap + boiling kettle present at " + kettle[0]))
-    else:
-        table_rows.append(_absent_row("mug-tap + boiling kettle"))
     table = _markdown(table_rows)
     print(table, flush=True)
     saved = []
@@ -442,7 +415,6 @@ def main() -> None:
             "gpu_usd": 0.0,
             "fsd50k_test_audio_read": False,
             "sealed_realdesed_test_read": False,
-            "kettle_benchmark": kettle,
             "rows": saved,
             "table": table,
         },
