@@ -18,18 +18,25 @@ from loopear.d.causal import (
     chance_nce_within,
     crop_waveform,
     exp1_loss,
+    frequency_pool,
     horizon_logits,
+    l2_normalize,
     lambda_mix_at,
     make_order_negative,
     mix_at_snr,
     MultiHorizonPredictor,
+    OrderHead,
+    mix_maximum_frames,
+    order_bce,
     order_gap_hinge,
     pit_cosine_loss,
     sample_snr,
     sample_splice_plan,
     splice_cut_bounds,
     splice_mel_batch,
+    teacher_target,
     temporal_infonce,
+    time_valid_from_frames,
     visible_from_frames,
     zero_mel_init_nce,
 )
@@ -300,23 +307,61 @@ def test_order_gap_hinge_is_zero_at_one_nat_and_positive_at_a_third():
     assert float(closed.grad) == 0.0
 
 
-def test_step_loss_is_the_real_nce_plus_the_order_hinge():
+def test_order_bce_averages_the_forward_and_negative_targets():
+    positive = torch.tensor([0.0, 2.0])
+    negative = torch.tensor([0.0, -1.0])
+    got = order_bce(positive, negative)
+    expect = 0.5 * (
+        F.binary_cross_entropy_with_logits(positive, torch.ones_like(positive))
+        + F.binary_cross_entropy_with_logits(negative, torch.zeros_like(negative))
+    )
+    assert torch.allclose(got, expect)
+    head = OrderHead()
+    z = torch.randn(2, 7, D_MODEL)
+    pooled = z.mean(dim=1)
+    manual = head.fc2(F.gelu(head.fc1(head.norm(pooled)))).squeeze(-1)
+    assert head(z).shape == (2,)
+    assert torch.equal(head(z), manual)
+
+
+def test_maximum_mix_takes_half_the_rows_and_half_the_frames():
+    generator = torch.Generator().manual_seed(8)
+    mel = torch.arange(8 * 20 * 2, dtype=torch.float32).view(8, 20, 2)
+    mixed, selected, frame_take = mix_maximum_frames(mel, generator)
+    partner = torch.roll(mel, shifts=1, dims=0)
+    assert int(selected.sum()) == 4
+    assert int(frame_take.sum()) == 4 * 10
+    assert int(frame_take[~selected].sum()) == 0
+    for row in range(8):
+        if not bool(selected[row]):
+            assert torch.equal(mixed[row], mel[row])
+            continue
+        taken = frame_take[row]
+        assert int(taken.sum()) == 10
+        assert torch.equal(mixed[row, taken], torch.maximum(mel[row, taken], partner[row, taken]))
+        assert torch.equal(mixed[row, ~taken], mel[row, ~taken])
+
+
+def test_step_loss_is_nce_plus_half_order_plus_half_pit():
     set_seed(3)
     torch.manual_seed(3)
     model = CausalLoopEarD()
-    mel, frame_valid = _mel(2, seed=3)
-    out = causal_step_loss(model, mel, frame_valid)
-    gap = out["loss_perm"] - out["loss_pred"]
-    assert torch.allclose(out["gap"], gap)
-    assert torch.allclose(out["loss_order"], F.relu(1.0 - gap))
-    assert torch.allclose(out["loss"], out["loss_pred"] + out["loss_order"])
+    mel, frame_valid = _mel(4, seed=3)
+    out = causal_step_loss(model, mel, frame_valid, generator=torch.Generator().manual_seed(3))
+    total = out["loss_pred"] + 0.5 * out["loss_order"] + 0.5 * out["loss_pit"]
+    assert torch.allclose(out["loss"], total)
     assert torch.allclose(out["loss_pred"], 0.5 * out["loss_within"] + 0.5 * out["loss_concat"])
-    if float(out["loss_var"]) > 1e-6:
-        with_var = out["loss_pred"] + 0.1 * out["loss_var"] + out["loss_order"]
-        assert not torch.allclose(out["loss"], with_var)
+    assert float(out["lambda_pit"]) == 0.5
+    assert float(out["n_mixed"]) == 2.0
+    assert float(out["loss_pit"]) > 0.0
+    with_var = out["loss_pred"] + 0.1 * out["loss_var"] + out["loss_order"]
+    assert not torch.allclose(out["loss"], with_var)
     out["loss"].backward()
     assert model.encoder.patch.weight.grad is not None
     assert model.predictor.heads[0].fc1.weight.grad is not None
+    assert model.order_head.fc2.weight.grad is not None
+    assert model.head_1.weight.grad is not None
+    assert model.head_2.weight.grad is not None
     assert all(param.grad is None for param in model.teacher_encoder.parameters())
 
 
@@ -393,17 +438,19 @@ def test_step_isolates_the_teacher_and_has_no_global_head():
     model = CausalLoopEarD(separation=False)
     assert not hasattr(model, "teacher_local")
     assert model.sep_heads is None
+    assert isinstance(model.order_head, OrderHead)
+    assert isinstance(model.head_1, nn.Linear)
+    assert isinstance(model.head_2, nn.Linear)
     for left, right in zip(model.encoder.parameters(), model.teacher_encoder.parameters()):
         assert torch.equal(left, right)
         assert right.requires_grad is False
     mel, frame_valid = _mel(4, seed=11)
-    out = causal_step_loss(model, mel, frame_valid)
+    out = causal_step_loss(model, mel, frame_valid, generator=torch.Generator().manual_seed(11))
     assert torch.isfinite(out["loss"])
-    assert float(out["lambda_mix"]) == 0.0
+    assert float(out["lambda_pit"]) == 0.5
     assert float(out["n_h4"]) == 4 * 46
     assert float(out["n_h10"]) == 4 * 40
     assert float(out["n_h20"]) == 4 * 30
-    assert not hasattr(model, "order_head")
     out["loss"].backward()
     assert model.encoder.patch.weight.grad is not None
     assert all(p.grad is None for p in model.teacher_encoder.parameters())
@@ -421,17 +468,50 @@ def test_step_isolates_the_teacher_and_has_no_global_head():
     assert moved
 
 
-def test_mixture_step_uses_two_heads_and_a_ramped_weight():
+def test_pit_uses_linear_heads_on_mixed_rows_only():
     set_seed(13)
-    model = CausalLoopEarD(separation=True)
+    model = CausalLoopEarD()
     mel, frame_valid = _mel(4, seed=13)
-    mix = mel + 0.2 * torch.roll(mel, 1, 0)
-    early = causal_step_loss(model, mel, frame_valid, mix, frame_valid, step=0)
-    late = causal_step_loss(model, mel, frame_valid, mix, frame_valid, step=1000)
-    assert float(early["lambda_mix"]) == 0.0
-    assert float(late["lambda_mix"]) == 0.5
-    assert torch.isfinite(late["loss_pit"])
-    late["loss"].backward()
-    assert model.sep_heads[0].fc1.weight.grad is not None
-    assert model.sep_heads[1].fc2.weight.grad is not None
+    waveform_mix = mel + 0.2 * torch.roll(mel, 1, 0)
+    out = causal_step_loss(
+        model,
+        mel,
+        frame_valid,
+        waveform_mix,
+        frame_valid,
+        step=0,
+        generator=torch.Generator().manual_seed(13),
+    )
+    assert float(out["lambda_pit"]) == 0.5
+    assert float(out["n_mixed"]) == 2.0
+    assert torch.isfinite(out["loss_pit"])
+    mixed, selected, _taken = mix_maximum_frames(mel, torch.Generator().manual_seed(13))
+    rows = selected.nonzero(as_tuple=False).flatten()
+    visible = visible_from_frames(frame_valid)
+    with torch.no_grad():
+        _student, _summary = model.encoder(mel, visible)
+        teacher_grid, _teacher_summary = model.teacher_encoder(mel, visible)
+        mix_grid, _mix_summary = model.encoder(mixed[rows], visible[rows])
+        pred1 = l2_normalize(model.head_1(frequency_pool(mix_grid)))
+        pred2 = l2_normalize(model.head_2(frequency_pool(mix_grid)))
+        target = teacher_target(teacher_grid)
+        partner = torch.roll(target, shifts=1, dims=0)
+        valid_time = time_valid_from_frames(frame_valid)
+        partner_valid = torch.roll(valid_time, shifts=1, dims=0)
+        manual = pit_cosine_loss(pred1, pred2, target[rows], partner[rows], (valid_time & partner_valid)[rows])
+    assert torch.allclose(out["loss_pit"], manual)
+    ignored = causal_step_loss(
+        model,
+        mel,
+        frame_valid,
+        torch.zeros_like(mel),
+        frame_valid,
+        step=1000,
+        generator=torch.Generator().manual_seed(13),
+    )
+    assert torch.allclose(ignored["loss_pit"], out["loss_pit"])
+    assert torch.allclose(ignored["loss_pred"], out["loss_pred"])
+    out["loss"].backward()
+    assert model.head_1.weight.grad is not None
+    assert model.head_2.weight.grad is not None
     assert all(p.grad is None for p in model.teacher_encoder.parameters())

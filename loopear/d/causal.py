@@ -142,6 +142,19 @@ class HorizonMLP(nn.Module):
         return self.fc2(F.gelu(self.fc1(self.ln(x))))
 
 
+class OrderHead(nn.Module):
+    def __init__(self, dim: int = D_MODEL) -> None:
+        super().__init__()
+        self.norm = nn.LayerNorm(dim)
+        self.fc1 = nn.Linear(dim, dim)
+        self.fc2 = nn.Linear(dim, 1)
+
+    def forward(self, z_time: torch.Tensor) -> torch.Tensor:
+        pooled = z_time.mean(dim=1)
+        hidden = F.gelu(self.fc1(self.norm(pooled)))
+        return self.fc2(hidden).squeeze(-1)
+
+
 class MultiHorizonPredictor(nn.Module):
     def __init__(self, horizons: tuple[int, ...] = HORIZONS) -> None:
         super().__init__()
@@ -159,7 +172,10 @@ class CausalLoopEarD(nn.Module):
         self.encoder = CausalLoopEarDEncoder()
         self.teacher_encoder = CausalLoopEarDEncoder()
         self.predictor = MultiHorizonPredictor(HORIZONS)
-        self.sep_heads = nn.ModuleList([HorizonMLP(), HorizonMLP()]) if separation else None
+        self.order_head = OrderHead()
+        self.head_1 = nn.Linear(D_MODEL, D_MODEL)
+        self.head_2 = nn.Linear(D_MODEL, D_MODEL)
+        self.sep_heads = None
         self.reset_teacher()
 
     def train(self, mode: bool = True) -> "CausalLoopEarD":
@@ -174,9 +190,13 @@ class CausalLoopEarD(nn.Module):
             param.requires_grad_(False)
 
     def student_parameters(self) -> list[nn.Parameter]:
-        modules: list[nn.Module] = [self.encoder, self.predictor]
-        if self.sep_heads is not None:
-            modules.append(self.sep_heads)
+        modules: list[nn.Module] = [
+            self.encoder,
+            self.predictor,
+            self.order_head,
+            self.head_1,
+            self.head_2,
+        ]
         params: list[nn.Parameter] = []
         for module in modules:
             params.extend(p for p in module.parameters() if p.requires_grad)
@@ -533,6 +553,63 @@ def read_crop_waveform(path: Path, start_frame: int) -> torch.Tensor:
     return torch.from_numpy(out)
 
 
+def order_bce(logits_pos: torch.Tensor, logits_neg: torch.Tensor) -> torch.Tensor:
+    if logits_pos.shape != logits_neg.shape or logits_pos.ndim != 1:
+        raise ValueError("order logits must be [B]")
+    positive = F.binary_cross_entropy_with_logits(logits_pos, torch.ones_like(logits_pos))
+    negative = F.binary_cross_entropy_with_logits(logits_neg, torch.zeros_like(logits_neg))
+    return 0.5 * (positive + negative)
+
+
+def mix_maximum_frames(
+    mel: torch.Tensor,
+    generator: torch.Generator | None = None,
+    batch_rate: float = 0.5,
+    time_rate: float = 0.5,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    if mel.ndim != 3:
+        raise ValueError("mel must be [B, frames, bins]")
+    batch, frames, _bins = mel.shape
+    n_mix = int(round(float(batch_rate) * int(batch)))
+    n_frames = int(round(float(time_rate) * int(frames)))
+    partner = torch.roll(mel, shifts=1, dims=0)
+    if generator is None:
+        perm = torch.randperm(int(batch))
+    else:
+        perm = torch.randperm(int(batch), generator=generator)
+    selected = torch.zeros(int(batch), dtype=torch.bool)
+    if n_mix > 0:
+        selected[perm[:n_mix]] = True
+    frame_take = torch.zeros(int(batch), int(frames), dtype=torch.bool)
+    if n_mix > 0 and n_frames > 0:
+        for row in selected.nonzero(as_tuple=False).flatten().tolist():
+            if generator is None:
+                choice = torch.randperm(int(frames))[:n_frames]
+            else:
+                choice = torch.randperm(int(frames), generator=generator)[:n_frames]
+            frame_take[row, choice] = True
+    mixed = torch.where(frame_take.unsqueeze(-1), torch.maximum(mel, partner), mel)
+    return mixed, selected, frame_take
+
+
+def predictive_nce(
+    model: CausalLoopEarD,
+    mel: torch.Tensor,
+    frame_valid: torch.Tensor,
+) -> torch.Tensor:
+    visible = visible_from_frames(frame_valid)
+    student_grid, _summary = model.encoder(mel, visible)
+    with torch.no_grad():
+        teacher_grid, _teacher_summary = model.teacher_encoder(mel, visible)
+    _total, info = exp1_loss(
+        frequency_pool(student_grid),
+        frequency_pool(teacher_grid),
+        model.predictor.heads,
+        horizons=model.predictor.horizons,
+    )
+    return info["nce"]
+
+
 def causal_step_loss(
     model: CausalLoopEarD,
     mel: torch.Tensor,
@@ -540,7 +617,9 @@ def causal_step_loss(
     mix_mel: torch.Tensor | None = None,
     mix_frame_valid: torch.Tensor | None = None,
     step: int = 0,
+    generator: torch.Generator | None = None,
 ) -> dict[str, torch.Tensor]:
+    del mix_mel, mix_frame_valid, step
     visible = visible_from_frames(frame_valid)
     student_grid, _summary = model.encoder(mel, visible)
     with torch.no_grad():
@@ -555,50 +634,36 @@ def causal_step_loss(
     mel_perm, valid_perm = scrambled
     visible_perm = visible_from_frames(valid_perm)
     student_perm, _perm_summary = model.encoder(mel_perm, visible_perm)
-    with torch.no_grad():
-        teacher_perm, _teacher_perm_summary = model.teacher_encoder(mel_perm, visible_perm)
-    _perm_total, info_perm = exp1_loss(
-        frequency_pool(student_perm),
-        frequency_pool(teacher_perm),
-        model.predictor.heads,
-        horizons=horizons,
-    )
-    nce_real = info["nce"]
-    nce_perm = info_perm["nce"]
-    gap = nce_perm - nce_real
-    loss_order = order_gap_hinge(gap)
-    loss = nce_real + loss_order
-    loss_pit = loss.new_zeros(())
-    lam = 0.0
-    if mix_mel is not None:
-        if model.sep_heads is None or mix_frame_valid is None:
-            raise ValueError("mixture loss needs separation heads and a validity mask")
-        lam = lambda_mix_at(step)
-        valid_time = time_valid_from_frames(frame_valid)
-        mix_visible = visible_from_frames(mix_frame_valid)
-        mix_time = time_valid_from_frames(mix_frame_valid)
-        mix_grid, _mix_summary = model.encoder(mix_mel, mix_visible)
+    logits_pos = model.order_head(z_student)
+    logits_neg = model.order_head(frequency_pool(student_perm))
+    loss_order = order_bce(logits_pos, logits_neg)
+    mixed, selected, _frame_take = mix_maximum_frames(mel, generator)
+    loss_pit = z_student.new_zeros(())
+    rows = selected.nonzero(as_tuple=False).flatten()
+    if int(rows.numel()) > 0:
+        mix_grid, _mix_summary = model.encoder(mixed[rows], visible[rows])
         mix_pool = frequency_pool(mix_grid)
-        pred1 = l2_normalize(model.sep_heads[0](mix_pool))
-        pred2 = l2_normalize(model.sep_heads[1](mix_pool))
+        pred1 = l2_normalize(model.head_1(mix_pool))
+        pred2 = l2_normalize(model.head_2(mix_pool))
         target = teacher_target(teacher_grid).detach()
-        other = torch.roll(target, shifts=1, dims=0)
-        other_valid = torch.roll(valid_time, shifts=1, dims=0)
-        pit_valid = mix_time & valid_time & other_valid
-        loss_pit = pit_cosine_loss(pred1, pred2, target, other, pit_valid)
-        loss = loss + float(lam) * loss_pit
+        partner = torch.roll(target, shifts=1, dims=0)
+        valid_time = time_valid_from_frames(frame_valid)
+        partner_valid = torch.roll(valid_time, shifts=1, dims=0)
+        pit_valid = (valid_time & partner_valid)[rows]
+        loss_pit = pit_cosine_loss(pred1, pred2, target[rows], partner[rows], pit_valid)
+    nce_real = info["nce"]
+    loss = nce_real + 0.5 * loss_order + 0.5 * loss_pit
     b, t, _d = z_student.shape
     out = {
         "loss": loss,
         "loss_pred": nce_real,
-        "loss_perm": nce_perm,
-        "gap": gap,
         "loss_order": loss_order,
         "loss_within": info["nce_within"],
         "loss_concat": info["nce_concat"],
         "loss_var": info["var"],
         "loss_pit": loss_pit,
-        "lambda_mix": loss.new_tensor(float(lam)),
+        "lambda_pit": loss.new_tensor(0.5),
+        "n_mixed": loss.new_tensor(float(rows.numel())),
     }
     for delta in horizons:
         n_h = 0 if int(delta) >= t - 2 else b * (t - int(delta))
