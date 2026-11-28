@@ -1,0 +1,12 @@
+{
+  "accuracy": 0.5384615384615384,
+  "n_correct": 21,
+  "n_pairs": 39,
+  "payload_sha256": "5f237dcd3e18553f8d5d2fb8a52a1fcb0228dc89319843be617f0d56574c0930",
+  "reversed_audio": {
+    "accuracy": 0.5641025641025641,
+    "n_correct": 22,
+    "n_pairs": 39
+  },
+  "written_utc": "2026-11-28T06:35:39.881530+00:00"
+}

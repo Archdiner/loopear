@@ -1,0 +1,20 @@
+{
+  "config": {
+    "batch": 64,
+    "k": 1,
+    "lambda_local": 1.0,
+    "lambda_time": 0.8774499635938284,
+    "model": "loopear-pltc",
+    "objective": "global_plus_local_plus_time",
+    "seed": 42,
+    "snapshot_every": 1000,
+    "steps": 5000,
+    "subset": "h20",
+    "tau_time": 0.1,
+    "time_alpha": 0.0027896127554686775,
+    "time_neighborhood": 1
+  },
+  "config_sha256": "7b43c6bc20fd8324a0a9b3ec40830043cdb3948c4cd071460a966c516ef6cad4",
+  "created_utc": "2026-11-27T18:43:40.184961+00:00",
+  "run_id": "loopear_pltc_h20_global_5000"
+}
