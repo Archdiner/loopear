@@ -5,12 +5,16 @@ import torch.nn.functional as F
 from torch import nn
 
 from loopear.d.causal import (
+    ATTENTION_ENCODER_PARAMS,
     CAUSAL_ENCODER_PARAMS,
     HORIZONS,
     TAU,
     VAR_WEIGHT,
+    CausalAttentionEncoder,
+    CausalConvGLU,
     CausalLoopEarD,
     CausalLoopEarDEncoder,
+    OrderHead,
     batch_variance_hinge,
     causal_step_loss,
     chance_nce,
@@ -23,7 +27,7 @@ from loopear.d.causal import (
     make_order_negative,
     mix_at_snr,
     MultiHorizonPredictor,
-    order_gap_hinge,
+    order_bce,
     pit_cosine_loss,
     sample_snr,
     sample_splice_plan,
@@ -34,6 +38,7 @@ from loopear.d.causal import (
     zero_mel_init_nce,
 )
 from loopear.d.frontend import build_mel, waveform_logmel
+from loopear.d.model import Block
 from loopear.d.spec import D_MODEL, ENCODER_PARAMS, GRID_F, GRID_T, N_FRAMES, N_MELS, PATCH_FRAMES, SR
 from loopear.losses import set_seed
 
@@ -86,11 +91,19 @@ def test_waveform_slice_matches_the_mel_crop():
 def test_causal_encoder_drops_the_class_token_and_keeps_the_grid():
     encoder = CausalLoopEarDEncoder()
     n_params = sum(p.numel() for p in encoder.parameters())
-    assert n_params == CAUSAL_ENCODER_PARAMS == ENCODER_PARAMS - D_MODEL - GRID_T * D_MODEL
+    reference = ENCODER_PARAMS - D_MODEL - GRID_T * D_MODEL
+    assert reference == ATTENTION_ENCODER_PARAMS == 677856
+    assert n_params == CAUSAL_ENCODER_PARAMS == 678144
+    assert abs(n_params - reference) / reference <= 0.05
     named = dict(encoder.named_parameters())
     assert "cls" not in named
     assert "pos_time" not in named
     assert "pos_freq" in named
+    assert not any(isinstance(module, Block) for module in encoder.modules())
+    assert not any("qkv" in name or "rope" in name for name in named)
+    attention = CausalAttentionEncoder()
+    assert sum(p.numel() for p in attention.parameters()) == reference
+    assert any(isinstance(module, Block) for module in attention.modules())
     mel, frame_valid = _mel(2)
     visible = visible_from_frames(frame_valid)
     grid, summary = encoder(mel, visible)
@@ -99,7 +112,7 @@ def test_causal_encoder_drops_the_class_token_and_keeps_the_grid():
     assert torch.allclose(summary, grid.mean(dim=(1, 2)))
 
 
-def test_attention_is_block_causal_and_keeps_every_patch():
+def test_conv_glu_is_strictly_causal_and_keeps_every_patch():
     set_seed(3)
     encoder = CausalLoopEarDEncoder()
     encoder.eval()
@@ -111,11 +124,18 @@ def test_attention_is_block_causal_and_keeps_every_patch():
     future_out, _summary = encoder(future, visible)
     assert torch.allclose(base[:, :25], future_out[:, :25], atol=1e-5)
     assert not torch.allclose(base[:, 30], future_out[:, 30], atol=1e-4)
+    attention = CausalAttentionEncoder()
+    attention.eval()
+    attn_base, _summary = attention(mel, visible)
+    attn_future, _summary = attention(future, visible)
+    assert torch.allclose(attn_base[:, :25], attn_future[:, :25], atol=1e-5)
+    assert not torch.allclose(attn_base[:, 30], attn_future[:, 30], atol=1e-4)
     same = mel.clone()
     same[:, 40:44, 16:32] += 3.0
     same_out, _summary = encoder(same, visible)
     assert torch.allclose(base[:, :10], same_out[:, :10], atol=1e-5)
-    assert not torch.allclose(base[:, 10, 0], same_out[:, 10, 0], atol=1e-4)
+    assert torch.allclose(base[:, 10, 0], same_out[:, 10, 0], atol=1e-5)
+    assert not torch.allclose(base[:, 10, 1], same_out[:, 10, 1], atol=1e-4)
     assert not torch.allclose(base[:, 11], same_out[:, 11], atol=1e-4)
     holed = visible.clone()
     holed[:, 5, :] = False
@@ -142,7 +162,9 @@ def test_pos_time_is_not_in_the_residual():
     mel = torch.zeros(1, N_FRAMES, N_MELS)
     visible = torch.ones(1, GRID_T, GRID_F, dtype=torch.bool)
     grid, _summary = encoder(mel, visible)
-    assert torch.allclose(grid, grid[:, :1].expand_as(grid), atol=1e-4)
+    steady = grid[:, 18:]
+    assert torch.allclose(steady, steady[:, :1].expand_as(steady), atol=1e-4)
+    assert not torch.allclose(grid[:, 0], grid[:, 18], atol=1e-4)
 
 
 class _Identity(nn.Module):
@@ -284,40 +306,85 @@ def test_order_negative_is_half_flip_and_half_patch_permutation():
     assert abs(perms / rows - 0.5) < 0.15
 
 
-def test_order_gap_hinge_is_zero_at_one_nat_and_positive_at_a_third():
-    assert float(order_gap_hinge(torch.tensor(1.0))) == 0.0
-    assert float(order_gap_hinge(torch.tensor(1.4))) == 0.0
-    short = order_gap_hinge(torch.tensor(0.3))
-    assert float(short) > 0.0
-    assert abs(float(short) - 0.7) < 1e-6
-    gap = torch.tensor(0.3, requires_grad=True)
-    order_gap_hinge(gap).backward()
-    assert gap.grad is not None
-    assert float(gap.grad) == -1.0
-    closed = torch.tensor(1.0, requires_grad=True)
-    order_gap_hinge(closed).backward()
-    assert closed.grad is not None
-    assert float(closed.grad) == 0.0
+def test_conv_block_ignores_the_future_and_a_masked_step():
+    torch.manual_seed(5)
+    block = CausalConvGLU()
+    block.eval()
+    x = torch.randn(1, 8, GRID_F, D_MODEL)
+    visible = torch.ones(1, 8, GRID_F, dtype=torch.bool)
+    base = block(x, visible)
+    future = x.clone()
+    future[:, 5:] = torch.randn_like(future[:, 5:])
+    later = block(future, visible)
+    assert torch.allclose(base[:, :5], later[:, :5], atol=1e-5)
+    assert not torch.allclose(base[:, 5], later[:, 5], atol=1e-4)
+    width = int(block.out_proj.in_features)
+    with torch.no_grad():
+        block.ln.weight.fill_(1.0)
+        block.ln.bias.zero_()
+        block.in_proj.weight.zero_()
+        block.in_proj.bias.zero_()
+        block.in_proj.weight[0, 0] = 1.0
+        block.in_proj.bias[width:] = 8.0
+        block.dw.weight.zero_()
+        block.dw.weight[:, 0, 0] = 1.0
+        block.dw.bias.zero_()
+        block.out_proj.weight.zero_()
+        block.out_proj.bias.zero_()
+        block.out_proj.weight[:, 0] = 1.0
+    oldest = block(x, visible)
+    touched = x.clone()
+    touched[:, 3, :, 0] += 3.0
+    shifted = block(touched, visible)
+    assert torch.allclose(oldest[:, :3], shifted[:, :3], atol=1e-5)
+    assert not torch.allclose(oldest[:, 3], shifted[:, 3], atol=1e-4)
+    assert torch.allclose(oldest[:, 4:6], shifted[:, 4:6], atol=1e-5)
+    assert not torch.allclose(oldest[:, 6], shifted[:, 6], atol=1e-4)
+    holed = visible.clone()
+    holed[:, 2] = False
+    masked = block(x, holed)
+    edited = x.clone()
+    edited[:, 2] += 5.0
+    assert torch.allclose(masked, block(edited, holed), atol=1e-5)
+    assert torch.count_nonzero(masked[:, 2]) == 0
 
 
-def test_step_loss_is_the_real_nce_plus_the_order_hinge():
+def test_order_bce_targets_forward_as_one_and_negative_as_zero():
+    forward = torch.tensor([0.2, -0.4])
+    negative = torch.tensor([1.5, -0.3])
+    loss_order, bce_forward, bce_negative = order_bce(forward, negative)
+    expect_forward = F.binary_cross_entropy_with_logits(forward, torch.ones_like(forward))
+    expect_negative = F.binary_cross_entropy_with_logits(negative, torch.zeros_like(negative))
+    assert torch.allclose(bce_forward, expect_forward)
+    assert torch.allclose(bce_negative, expect_negative)
+    assert torch.allclose(loss_order, 0.5 * (expect_forward + expect_negative))
+    head = OrderHead()
+    z = torch.randn(2, 6, D_MODEL)
+    manual = head.fc2(F.gelu(head.fc1(head.ln(z)))).mean(dim=1).squeeze(-1)
+    assert torch.allclose(head(z), manual)
+    modules = [module for module in head.modules() if module is not head]
+    assert [type(module) for module in modules] == [nn.LayerNorm, nn.Linear, nn.Linear]
+
+
+def test_step_loss_is_predictive_nce_plus_half_the_order_bce():
     set_seed(3)
     torch.manual_seed(3)
     model = CausalLoopEarD()
     mel, frame_valid = _mel(2, seed=3)
     out = causal_step_loss(model, mel, frame_valid)
-    gap = out["loss_perm"] - out["loss_pred"]
-    assert torch.allclose(out["gap"], gap)
-    assert torch.allclose(out["loss_order"], F.relu(1.0 - gap))
-    assert torch.allclose(out["loss"], out["loss_pred"] + out["loss_order"])
+    assert torch.allclose(out["loss_order"], 0.5 * (out["bce_forward"] + out["bce_negative"]))
+    assert torch.allclose(out["loss"], out["loss_pred"] + 0.5 * out["loss_order"])
     assert torch.allclose(out["loss_pred"], 0.5 * out["loss_within"] + 0.5 * out["loss_concat"])
     if float(out["loss_var"]) > 1e-6:
-        with_var = out["loss_pred"] + 0.1 * out["loss_var"] + out["loss_order"]
+        with_var = out["loss_pred"] + 0.1 * out["loss_var"] + 0.5 * out["loss_order"]
         assert not torch.allclose(out["loss"], with_var)
     out["loss"].backward()
     assert model.encoder.patch.weight.grad is not None
+    assert model.order_head.fc2.weight.grad is not None
     assert model.predictor.heads[0].fc1.weight.grad is not None
     assert all(param.grad is None for param in model.teacher_encoder.parameters())
+    scored = causal_step_loss(model, mel, frame_valid, score_gap=True)
+    assert torch.allclose(scored["gap"], scored["loss_perm"] - scored["loss_pred"])
 
 
 def test_zero_mel_at_init_is_near_chance():
@@ -403,7 +470,9 @@ def test_step_isolates_the_teacher_and_has_no_global_head():
     assert float(out["n_h4"]) == 4 * 46
     assert float(out["n_h10"]) == 4 * 40
     assert float(out["n_h20"]) == 4 * 30
-    assert not hasattr(model, "order_head")
+    assert isinstance(model.order_head, OrderHead)
+    assert all(param.requires_grad for param in model.order_head.parameters())
+    assert not any(param.requires_grad for param in model.teacher_encoder.parameters())
     out["loss"].backward()
     assert model.encoder.patch.weight.grad is not None
     assert all(p.grad is None for p in model.teacher_encoder.parameters())

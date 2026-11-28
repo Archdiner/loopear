@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from loopear.d.model import Block, _trunc, patchify
+from loopear.d.model import Block, _trunc
 from loopear.d.objective import broadcast_time_valid, patch_valid_from_frames
 from loopear.d.spec import (
     CROP_SAMPLES,
@@ -21,6 +21,7 @@ from loopear.d.spec import (
     N_HEADS,
     N_LAYERS,
     N_MELS,
+    PATCH_BINS,
     PATCH_DIM,
     PATCH_FRAMES,
     SR,
@@ -36,7 +37,10 @@ MIX_SNR_LOW: float = -5.0
 MIX_SNR_HIGH: float = 5.0
 LAMBDA_MIX_MAX: float = 0.5
 LAMBDA_MIX_RAMP: int = 1000
-CAUSAL_ENCODER_PARAMS: int = ENCODER_PARAMS - D_MODEL - GRID_T * D_MODEL
+ATTENTION_ENCODER_PARAMS: int = ENCODER_PARAMS - D_MODEL - GRID_T * D_MODEL
+GATED_HIDDEN: int = 372
+GATED_KERNEL: int = 4
+CAUSAL_ENCODER_PARAMS: int = 678144
 
 
 def lambda_mix_at(step: int, ramp_steps: int = LAMBDA_MIX_RAMP, maximum: float = LAMBDA_MIX_MAX) -> float:
@@ -46,12 +50,56 @@ def lambda_mix_at(step: int, ramp_steps: int = LAMBDA_MIX_RAMP, maximum: float =
     return float(maximum) * progress
 
 
-def _future_disallow(device: torch.device) -> torch.Tensor:
-    time_id = torch.arange(GRID_T, device=device).repeat_interleave(GRID_F)
+def _future_disallow(time_steps: int, device: torch.device) -> torch.Tensor:
+    time_id = torch.arange(int(time_steps), device=device).repeat_interleave(GRID_F)
     return time_id.view(1, -1) > time_id.view(-1, 1)
 
 
-class CausalLoopEarDEncoder(nn.Module):
+def _patchify(mel: torch.Tensor) -> torch.Tensor:
+    if mel.ndim != 3:
+        raise ValueError(f"mel must be [B, frames, bins], got {tuple(mel.shape)}")
+    b, frames, bins = mel.shape
+    if bins != N_MELS or frames < PATCH_FRAMES or frames % PATCH_FRAMES != 0:
+        raise ValueError(f"mel shape {tuple(mel.shape)} is not a patch grid")
+    t = frames // PATCH_FRAMES
+    x = mel.view(b, t, PATCH_FRAMES, GRID_F, PATCH_BINS)
+    x = x.permute(0, 1, 3, 2, 4).contiguous()
+    return x.view(b, t, GRID_F, PATCH_DIM)
+
+
+def _check_visible(mel: torch.Tensor, visible: torch.Tensor) -> int:
+    if mel.ndim != 3 or mel.shape[-1] != N_MELS:
+        raise ValueError(f"mel must be [B, frames, bins], got {tuple(mel.shape)}")
+    if int(mel.shape[1]) % PATCH_FRAMES != 0:
+        raise ValueError(f"mel frames {mel.shape[1]} are not a multiple of {PATCH_FRAMES}")
+    time_steps = int(mel.shape[1]) // PATCH_FRAMES
+    if visible.shape[:3] != (mel.shape[0], time_steps, GRID_F):
+        raise ValueError(
+            f"visible {tuple(visible.shape)} does not match mel {tuple(mel.shape)}"
+        )
+    if visible.dtype != torch.bool:
+        raise ValueError("visible must be boolean")
+    if not bool(visible.flatten(1).any(dim=1).all()):
+        raise ValueError("a crop has no visible patches")
+    return time_steps
+
+
+def _reset_owned(module: nn.Module) -> None:
+    for mod in module.modules():
+        if isinstance(mod, nn.Linear):
+            _trunc(mod.weight)
+            if mod.bias is not None:
+                nn.init.zeros_(mod.bias)
+        elif isinstance(mod, nn.Conv1d):
+            _trunc(mod.weight)
+            if mod.bias is not None:
+                nn.init.zeros_(mod.bias)
+        elif isinstance(mod, nn.LayerNorm):
+            nn.init.ones_(mod.weight)
+            nn.init.zeros_(mod.bias)
+
+
+class CausalAttentionEncoder(nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.patch = nn.Linear(PATCH_DIM, D_MODEL)
@@ -66,39 +114,87 @@ class CausalLoopEarDEncoder(nn.Module):
         _trunc(self.patch.weight)
         nn.init.zeros_(self.patch.bias)
         _trunc(self.pos_freq)
-        for block in self.blocks:
-            for mod in block.modules():
-                if isinstance(mod, nn.Linear):
-                    _trunc(mod.weight)
-                    if mod.bias is not None:
-                        nn.init.zeros_(mod.bias)
-                elif isinstance(mod, nn.LayerNorm):
-                    nn.init.ones_(mod.weight)
-                    nn.init.zeros_(mod.bias)
+        _reset_owned(self.blocks)
         nn.init.ones_(self.norm.weight)
         nn.init.zeros_(self.norm.bias)
 
     def forward(self, mel: torch.Tensor, visible: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        if visible.shape[:3] != (mel.shape[0], GRID_T, GRID_F):
-            raise ValueError(
-                f"visible {tuple(visible.shape)} does not match mel {tuple(mel.shape)}"
-            )
-        if visible.dtype != torch.bool:
-            raise ValueError("visible must be boolean")
-        if not bool(visible.flatten(1).any(dim=1).all()):
-            raise ValueError("a crop has no visible patches")
-        tokens = self._add_positions(self.patch(patchify(mel)))
+        time_steps = _check_visible(mel, visible)
+        tokens = self._add_positions(self.patch(_patchify(mel)))
         b, t, f, d = tokens.shape
+        if t != time_steps:
+            raise ValueError(f"token time {t} does not match visible time {time_steps}")
         flat = tokens.reshape(b, t * f, d)
         vis = visible.reshape(b, t * f)
-        key_pad = ~vis
-        disallow = _future_disallow(flat.device)
+        disallow = _future_disallow(t, flat.device)
         for block in self.blocks:
-            flat = block(flat, key_pad, disallow=disallow)
+            flat = block(flat, ~vis, disallow=disallow)
         flat = self.norm(flat)
         flat = flat.masked_fill(~vis.unsqueeze(-1), 0.0)
         grid = flat.view(b, t, f, d)
         return grid, clip_summary(grid, visible)
+
+    def _add_positions(self, tokens: torch.Tensor) -> torch.Tensor:
+        return tokens + self.pos_freq[None, None, :, :]
+
+
+class CausalConvGLU(nn.Module):
+    def __init__(self, d_model: int = D_MODEL, hidden: int = GATED_HIDDEN, kernel: int = GATED_KERNEL) -> None:
+        super().__init__()
+        if int(kernel) < 2:
+            raise ValueError("the causal kernel has to include the current step and a past step")
+        self.kernel = int(kernel)
+        self.ln = nn.LayerNorm(d_model)
+        self.in_proj = nn.Linear(d_model, 2 * int(hidden))
+        self.dw = nn.Conv1d(2 * int(hidden), 2 * int(hidden), self.kernel, groups=2 * int(hidden))
+        self.out_proj = nn.Linear(int(hidden), d_model)
+
+    def forward(self, x: torch.Tensor, visible: torch.Tensor) -> torch.Tensor:
+        b, t, f, _d = x.shape
+        mask = visible.to(dtype=x.dtype).unsqueeze(-1)
+        u = self.ln(x) * mask
+        z = self.in_proj(u)
+        channels = int(z.shape[-1])
+        z = z.permute(0, 2, 3, 1).reshape(b * f, channels, t)
+        z = F.pad(z, (self.kernel - 1, 0))
+        z = self.dw(z)
+        z = z.reshape(b, f, channels, t).permute(0, 3, 1, 2).contiguous()
+        value, gate = z.chunk(2, dim=-1)
+        y = x + self.out_proj(value * torch.sigmoid(gate))
+        return y * mask
+
+
+class CausalLoopEarDEncoder(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.patch = nn.Linear(PATCH_DIM, D_MODEL)
+        self.pos_freq = nn.Parameter(torch.empty(GRID_F, D_MODEL))
+        self.blocks = nn.ModuleList(
+            [CausalConvGLU() for _ in range(N_LAYERS)]
+        )
+        self.norm = nn.LayerNorm(D_MODEL)
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        _trunc(self.patch.weight)
+        nn.init.zeros_(self.patch.bias)
+        _trunc(self.pos_freq)
+        _reset_owned(self.blocks)
+        nn.init.ones_(self.norm.weight)
+        nn.init.zeros_(self.norm.bias)
+
+    def forward(self, mel: torch.Tensor, visible: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        time_steps = _check_visible(mel, visible)
+        tokens = self._add_positions(self.patch(_patchify(mel)))
+        b, t, f, _d = tokens.shape
+        if t != time_steps:
+            raise ValueError(f"token time {t} does not match visible time {time_steps}")
+        mask = visible.to(dtype=tokens.dtype).unsqueeze(-1)
+        tokens = tokens * mask
+        for block in self.blocks:
+            tokens = block(tokens, visible)
+        tokens = self.norm(tokens) * mask
+        return tokens, clip_summary(tokens, visible)
 
     def _add_positions(self, tokens: torch.Tensor) -> torch.Tensor:
         return tokens + self.pos_freq[None, None, :, :]
@@ -152,13 +248,45 @@ class MultiHorizonPredictor(nn.Module):
         return self.heads[index]
 
 
+class OrderHead(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+        self.ln = nn.LayerNorm(D_MODEL)
+        self.fc1 = nn.Linear(D_MODEL, D_MODEL)
+        self.fc2 = nn.Linear(D_MODEL, 1)
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        nn.init.ones_(self.ln.weight)
+        nn.init.zeros_(self.ln.bias)
+        _trunc(self.fc1.weight)
+        nn.init.zeros_(self.fc1.bias)
+        _trunc(self.fc2.weight)
+        nn.init.zeros_(self.fc2.bias)
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        if z.ndim != 3:
+            raise ValueError(f"order head expects [B, T, D], got {tuple(z.shape)}")
+        score = self.fc2(F.gelu(self.fc1(self.ln(z))))
+        return score.mean(dim=1).squeeze(-1)
+
+
+def order_bce(logits_forward: torch.Tensor, logits_negative: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    forward = F.binary_cross_entropy_with_logits(logits_forward, torch.ones_like(logits_forward))
+    negative = F.binary_cross_entropy_with_logits(logits_negative, torch.zeros_like(logits_negative))
+    return 0.5 * (forward + negative), forward, negative
+
+
 class CausalLoopEarD(nn.Module):
-    def __init__(self, separation: bool = False) -> None:
+    def __init__(self, separation: bool = False, attention: bool = False) -> None:
         super().__init__()
         self.separation = bool(separation)
-        self.encoder = CausalLoopEarDEncoder()
-        self.teacher_encoder = CausalLoopEarDEncoder()
+        self.attention = bool(attention)
+        encoder_cls = CausalAttentionEncoder if attention else CausalLoopEarDEncoder
+        self.encoder = encoder_cls()
+        self.teacher_encoder = encoder_cls()
         self.predictor = MultiHorizonPredictor(HORIZONS)
+        self.order_head = OrderHead()
         self.sep_heads = nn.ModuleList([HorizonMLP(), HorizonMLP()]) if separation else None
         self.reset_teacher()
 
@@ -174,7 +302,7 @@ class CausalLoopEarD(nn.Module):
             param.requires_grad_(False)
 
     def student_parameters(self) -> list[nn.Parameter]:
-        modules: list[nn.Module] = [self.encoder, self.predictor]
+        modules: list[nn.Module] = [self.encoder, self.predictor, self.order_head]
         if self.sep_heads is not None:
             modules.append(self.sep_heads)
         params: list[nn.Parameter] = []
@@ -540,6 +668,7 @@ def causal_step_loss(
     mix_mel: torch.Tensor | None = None,
     mix_frame_valid: torch.Tensor | None = None,
     step: int = 0,
+    score_gap: bool = False,
 ) -> dict[str, torch.Tensor]:
     visible = visible_from_frames(frame_valid)
     student_grid, _summary = model.encoder(mel, visible)
@@ -555,19 +684,26 @@ def causal_step_loss(
     mel_perm, valid_perm = scrambled
     visible_perm = visible_from_frames(valid_perm)
     student_perm, _perm_summary = model.encoder(mel_perm, visible_perm)
-    with torch.no_grad():
-        teacher_perm, _teacher_perm_summary = model.teacher_encoder(mel_perm, visible_perm)
-    _perm_total, info_perm = exp1_loss(
-        frequency_pool(student_perm),
-        frequency_pool(teacher_perm),
-        model.predictor.heads,
-        horizons=horizons,
-    )
+    z_perm = frequency_pool(student_perm)
+    logits_forward = model.order_head(z_student)
+    logits_negative = model.order_head(z_perm)
+    loss_order, bce_forward, bce_negative = order_bce(logits_forward, logits_negative)
     nce_real = info["nce"]
-    nce_perm = info_perm["nce"]
-    gap = nce_perm - nce_real
-    loss_order = order_gap_hinge(gap)
-    loss = nce_real + loss_order
+    loss = nce_real + 0.5 * loss_order
+    if score_gap:
+        with torch.no_grad():
+            teacher_perm, _teacher_perm_summary = model.teacher_encoder(mel_perm, visible_perm)
+            _perm_total, info_perm = exp1_loss(
+                z_perm.detach(),
+                frequency_pool(teacher_perm),
+                model.predictor.heads,
+                horizons=horizons,
+            )
+        nce_perm = info_perm["nce"]
+        gap = nce_perm - nce_real.detach()
+    else:
+        nce_perm = None
+        gap = None
     loss_pit = loss.new_zeros(())
     lam = 0.0
     if mix_mel is not None:
@@ -591,9 +727,9 @@ def causal_step_loss(
     out = {
         "loss": loss,
         "loss_pred": nce_real,
-        "loss_perm": nce_perm,
-        "gap": gap,
         "loss_order": loss_order,
+        "bce_forward": bce_forward,
+        "bce_negative": bce_negative,
         "loss_within": info["nce_within"],
         "loss_concat": info["nce_concat"],
         "loss_var": info["var"],
@@ -605,4 +741,7 @@ def causal_step_loss(
         out[f"n_h{int(delta)}"] = loss.new_tensor(float(n_h))
         key = f"loss_h{int(delta)}"
         out[key] = info[key] if key in info else loss.new_zeros(())
+    if nce_perm is not None and gap is not None:
+        out["loss_perm"] = nce_perm
+        out["gap"] = gap
     return out

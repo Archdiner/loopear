@@ -1,0 +1,34 @@
+{
+  "attention": {
+    "backbone": "attention",
+    "duration_s": 10.015,
+    "frames": 1000,
+    "params": 677856,
+    "peak_rss_gb": 0.6097068786621094,
+    "peak_rss_mb": 624.33984375,
+    "samples": 160240,
+    "time_steps": 250,
+    "wall_ms": 60.91421100063599,
+    "wall_s": 0.06091421100063599
+  },
+  "attention_params": 677856,
+  "gated": {
+    "backbone": "gated",
+    "duration_s": 10.015,
+    "frames": 1000,
+    "params": 678144,
+    "peak_rss_gb": 0.5479202270507812,
+    "peak_rss_mb": 561.0703125,
+    "samples": 160240,
+    "time_steps": 250,
+    "wall_ms": 18.091014000674477,
+    "wall_s": 0.018091014000674477
+  },
+  "gated_params": 678144,
+  "gpu_usd": 0.0,
+  "machine": "paired sequential subprocesses, 4 CPU threads, one warmup forward excluded from the timer",
+  "payload_sha256": "34fe9af16aa88464e2b6739f8f328bdaac20fb13bb60332fde9c677e3e684207",
+  "stream_s": 10.015,
+  "task": "loopear_dgated_stream10s",
+  "written_utc": "2026-11-28T07:20:34.888864+00:00"
+}

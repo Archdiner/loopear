@@ -44,7 +44,7 @@ def main() -> None:
         raise SystemExit("checkpoint still has pos_time")
     if int(blob["step"]) != 1000:
         raise SystemExit(f"checkpoint step is {blob['step']}")
-    model = CausalLoopEarD(separation=False)
+    model = CausalLoopEarD(separation=False, attention=True)
     model.encoder.load_state_dict(blob["student_encoder"])
     model.teacher_encoder.load_state_dict(blob["teacher_encoder"])
     model.predictor.heads.load_state_dict(blob["horizons"])

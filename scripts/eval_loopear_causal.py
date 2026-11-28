@@ -11,7 +11,7 @@ from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
 
 from loopear.data import STARSS23_CLASSES, rasterize_starss_frames_50hz
-from loopear.d.causal import CausalLoopEarDEncoder, frequency_pool
+from loopear.d.causal import CausalAttentionEncoder, frequency_pool
 from loopear.d.causal_probe import score_event_order
 from loopear.d.diagnostics import cpu_seconds, hours, peak_rss_gb
 from loopear.d.frontend import build_mel, load_frontend_config, waveform_logmel
@@ -46,8 +46,8 @@ def _protocol():
     return module
 
 
-def _load_causal(path: Path) -> CausalLoopEarDEncoder:
-    model = CausalLoopEarDEncoder()
+def _load_causal(path: Path) -> CausalAttentionEncoder:
+    model = CausalAttentionEncoder()
     model.load_state_dict(load_file(str(path)))
     model.eval()
     for param in model.parameters():

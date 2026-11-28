@@ -169,3 +169,10 @@ The order-gap run drops the splice and the one-step horizon. Horizons are 4, 10,
 ```bash
 .venv/bin/python scripts/train_loopear_causal.py --steps 5000 --batch 64 --seed 42 --only dc --stem loopear_dc_ordergap_h20_5000
 ```
+
+Experiment 3 replaces the six self-attention blocks with a strictly causal depthwise convolution and a gated linear unit. The kernel is 4 and the expanded width is 372, so the deployed grid is 678,144 parameters, 0.04 percent above the 677,856-parameter attention encoder. There is no attention, no RoPE, and no learned time position. Frequency position stays because each frequency is its own causal stream. The left pad is the only temporal context, and a masked step is zeroed before the convolution. The predictive term is unchanged: half within-clip InfoNCE and half the concatenated time-plus-same-time-batch term, temperature 0.1, horizons 4, 10, and 20. The variance hinge is not in the total. A training-only order head is LayerNorm, Linear, GELU, Linear to one logit, then a mean over time. Half of the negatives are a full time flip and half are a permutation of the 40 ms patches. The order term is half the sum of BCE-with-logits on the forward clip toward 1 and the negative toward 0, and the total adds half of that term to the predictive NCE. There is no splice and no PIT. The run is `loopear_dgated_orderhead_h20_20000`, from scratch, batch 64, seed 42, 20,000 steps on the same 20.003 h prefix.
+
+```bash
+.venv/bin/python scripts/bench_causal_stream.py
+.venv/bin/python scripts/train_loopear_causal.py --steps 20000 --batch 64 --seed 42 --only dc --stem loopear_dgated_orderhead_h20_20000
+```
