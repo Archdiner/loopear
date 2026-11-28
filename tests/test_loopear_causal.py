@@ -20,7 +20,10 @@ from loopear.d.causal import (
     exp1_loss,
     horizon_logits,
     lambda_mix_at,
+    make_order_negative,
     mix_at_snr,
+    MultiHorizonPredictor,
+    order_gap_hinge,
     pit_cosine_loss,
     sample_snr,
     sample_splice_plan,
@@ -241,6 +244,82 @@ def test_loss_is_an_equal_mix_of_within_and_concat():
     assert torch.allclose(info["var"], var, atol=1e-5)
 
 
+def test_predictor_horizons_drop_the_one_step_offset():
+    predictor = MultiHorizonPredictor()
+    assert predictor.horizons == (4, 10, 20)
+    assert 1 not in predictor.horizons
+    model = CausalLoopEarD()
+    assert model.predictor.horizons == predictor.horizons
+    assert len(model.predictor.heads) == 3
+
+
+def test_order_negative_is_half_flip_and_half_patch_permutation():
+    patch_frames = PATCH_FRAMES
+    frames = 40
+    patches = frames // patch_frames
+    rows = 200
+    mel = torch.zeros(rows, frames, 2)
+    for patch in range(patches):
+        mel[:, patch * patch_frames : (patch + 1) * patch_frames, 0] = float(patch)
+        mel[:, patch * patch_frames : (patch + 1) * patch_frames, 1] = torch.arange(patch_frames)
+    torch.manual_seed(42)
+    out = make_order_negative(mel, patch_frames)
+    assert isinstance(out, torch.Tensor)
+    flips = 0
+    perms = 0
+    for row in range(rows):
+        flipped = torch.flip(mel[row], dims=[0])
+        if torch.equal(out[row], flipped):
+            flips += 1
+            continue
+        chunks = out[row].view(patches, patch_frames, 2)
+        within = torch.arange(patch_frames, dtype=mel.dtype).view(1, patch_frames).expand(patches, patch_frames)
+        assert torch.equal(chunks[:, :, 1], within)
+        ids = [int(chunks[patch, 0, 0]) for patch in range(patches)]
+        assert sorted(ids) == list(range(patches))
+        perms += 1
+    assert flips + perms == rows
+    assert flips > 0 and perms > 0
+    assert abs(flips / rows - 0.5) < 0.15
+    assert abs(perms / rows - 0.5) < 0.15
+
+
+def test_order_gap_hinge_is_zero_at_one_nat_and_positive_at_a_third():
+    assert float(order_gap_hinge(torch.tensor(1.0))) == 0.0
+    assert float(order_gap_hinge(torch.tensor(1.4))) == 0.0
+    short = order_gap_hinge(torch.tensor(0.3))
+    assert float(short) > 0.0
+    assert abs(float(short) - 0.7) < 1e-6
+    gap = torch.tensor(0.3, requires_grad=True)
+    order_gap_hinge(gap).backward()
+    assert gap.grad is not None
+    assert float(gap.grad) == -1.0
+    closed = torch.tensor(1.0, requires_grad=True)
+    order_gap_hinge(closed).backward()
+    assert closed.grad is not None
+    assert float(closed.grad) == 0.0
+
+
+def test_step_loss_is_the_real_nce_plus_the_order_hinge():
+    set_seed(3)
+    torch.manual_seed(3)
+    model = CausalLoopEarD()
+    mel, frame_valid = _mel(2, seed=3)
+    out = causal_step_loss(model, mel, frame_valid)
+    gap = out["loss_perm"] - out["loss_pred"]
+    assert torch.allclose(out["gap"], gap)
+    assert torch.allclose(out["loss_order"], F.relu(1.0 - gap))
+    assert torch.allclose(out["loss"], out["loss_pred"] + out["loss_order"])
+    assert torch.allclose(out["loss_pred"], 0.5 * out["loss_within"] + 0.5 * out["loss_concat"])
+    if float(out["loss_var"]) > 1e-6:
+        with_var = out["loss_pred"] + 0.1 * out["loss_var"] + out["loss_order"]
+        assert not torch.allclose(out["loss"], with_var)
+    out["loss"].backward()
+    assert model.encoder.patch.weight.grad is not None
+    assert model.predictor.heads[0].fc1.weight.grad is not None
+    assert all(param.grad is None for param in model.teacher_encoder.parameters())
+
+
 def test_zero_mel_at_init_is_near_chance():
     nce = zero_mel_init_nce(64, 42)
     concat = chance_nce(64, GRID_T)
@@ -306,7 +385,7 @@ def test_variance_hinge_and_pit_and_snr_and_ramp():
     assert lambda_mix_at(1000) == 0.5
     assert lambda_mix_at(4000) == 0.5
     assert VAR_WEIGHT == 0.1
-    assert HORIZONS == (1, 4, 12)
+    assert HORIZONS == (4, 10, 20)
 
 
 def test_step_isolates_the_teacher_and_has_no_global_head():
@@ -321,9 +400,10 @@ def test_step_isolates_the_teacher_and_has_no_global_head():
     out = causal_step_loss(model, mel, frame_valid)
     assert torch.isfinite(out["loss"])
     assert float(out["lambda_mix"]) == 0.0
-    assert float(out["n_h1"]) == 4 * 49
     assert float(out["n_h4"]) == 4 * 46
-    assert float(out["n_h12"]) == 4 * 38
+    assert float(out["n_h10"]) == 4 * 40
+    assert float(out["n_h20"]) == 4 * 30
+    assert not hasattr(model, "order_head")
     out["loss"].backward()
     assert model.encoder.patch.weight.grad is not None
     assert all(p.grad is None for p in model.teacher_encoder.parameters())

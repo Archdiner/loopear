@@ -27,7 +27,7 @@ from loopear.d.spec import (
 )
 from loopear.losses import set_seed
 
-HORIZONS: tuple[int, ...] = (1, 4, 12)
+HORIZONS: tuple[int, ...] = (4, 10, 20)
 TAU: float = 0.1
 VAR_WEIGHT: float = 0.1
 NEIGHBOR: int = 1
@@ -142,13 +142,23 @@ class HorizonMLP(nn.Module):
         return self.fc2(F.gelu(self.fc1(self.ln(x))))
 
 
+class MultiHorizonPredictor(nn.Module):
+    def __init__(self, horizons: tuple[int, ...] = HORIZONS) -> None:
+        super().__init__()
+        self.horizons = tuple(int(h) for h in horizons)
+        self.heads = nn.ModuleList([HorizonMLP() for _ in self.horizons])
+
+    def __getitem__(self, index: int) -> nn.Module:
+        return self.heads[index]
+
+
 class CausalLoopEarD(nn.Module):
     def __init__(self, separation: bool = False) -> None:
         super().__init__()
         self.separation = bool(separation)
         self.encoder = CausalLoopEarDEncoder()
         self.teacher_encoder = CausalLoopEarDEncoder()
-        self.horizons = nn.ModuleList([HorizonMLP() for _ in HORIZONS])
+        self.predictor = MultiHorizonPredictor(HORIZONS)
         self.sep_heads = nn.ModuleList([HorizonMLP(), HorizonMLP()]) if separation else None
         self.reset_teacher()
 
@@ -164,7 +174,7 @@ class CausalLoopEarD(nn.Module):
             param.requires_grad_(False)
 
     def student_parameters(self) -> list[nn.Parameter]:
-        modules: list[nn.Module] = [self.encoder, self.horizons]
+        modules: list[nn.Module] = [self.encoder, self.predictor]
         if self.sep_heads is not None:
             modules.append(self.sep_heads)
         params: list[nn.Parameter] = []
@@ -317,6 +327,42 @@ def chance_nce_within(length: int = GRID_T) -> float:
 
 def chance_nce_combined(batch: int, length: int = GRID_T) -> float:
     return 0.5 * chance_nce_within(length) + 0.5 * chance_nce(batch, length)
+
+
+def order_gap_hinge(gap: torch.Tensor) -> torch.Tensor:
+    return F.relu(1.0 - gap)
+
+
+def make_order_negative(
+    mel: torch.Tensor,
+    patch_frames: int,
+    frame_valid: torch.Tensor | None = None,
+) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+    if mel.ndim != 3:
+        raise ValueError("mel must be [B, frames, bins]")
+    batch, frames, mels = mel.shape
+    if int(patch_frames) < 1 or frames % int(patch_frames) != 0:
+        raise ValueError("mel frames must divide the patch length")
+    patches = frames // int(patch_frames)
+    if frame_valid is not None and frame_valid.shape != (batch, frames):
+        raise ValueError("frame validity must match the mel time axis")
+    out = mel.clone()
+    valid_out = None if frame_valid is None else frame_valid.clone()
+    width = int(patch_frames)
+    for row in range(batch):
+        if torch.rand(1).item() < 0.5:
+            out[row] = torch.flip(mel[row], dims=[0])
+            if valid_out is not None and frame_valid is not None:
+                valid_out[row] = torch.flip(frame_valid[row], dims=[0])
+        else:
+            perm = torch.randperm(patches, device=mel.device)
+            chunks = mel[row].view(patches, width, mels)
+            out[row] = chunks[perm].reshape(frames, mels)
+            if valid_out is not None and frame_valid is not None:
+                valid_out[row] = frame_valid[row].view(patches, width)[perm].reshape(frames)
+    if valid_out is None:
+        return out
+    return out, valid_out
 
 
 def splice_cut_bounds(length: int, low: float = 0.25, high: float = 0.75) -> tuple[int, int]:
@@ -501,7 +547,27 @@ def causal_step_loss(
         teacher_grid, _teacher_summary = model.teacher_encoder(mel, visible)
     z_student = frequency_pool(student_grid)
     y_teacher = frequency_pool(teacher_grid)
-    loss, info = exp1_loss(z_student, y_teacher, model.horizons)
+    horizons = model.predictor.horizons
+    _real_total, info = exp1_loss(z_student, y_teacher, model.predictor.heads, horizons=horizons)
+    scrambled = make_order_negative(mel, PATCH_FRAMES, frame_valid)
+    if not isinstance(scrambled, tuple):
+        raise RuntimeError("order negative did not return the validity mask")
+    mel_perm, valid_perm = scrambled
+    visible_perm = visible_from_frames(valid_perm)
+    student_perm, _perm_summary = model.encoder(mel_perm, visible_perm)
+    with torch.no_grad():
+        teacher_perm, _teacher_perm_summary = model.teacher_encoder(mel_perm, visible_perm)
+    _perm_total, info_perm = exp1_loss(
+        frequency_pool(student_perm),
+        frequency_pool(teacher_perm),
+        model.predictor.heads,
+        horizons=horizons,
+    )
+    nce_real = info["nce"]
+    nce_perm = info_perm["nce"]
+    gap = nce_perm - nce_real
+    loss_order = order_gap_hinge(gap)
+    loss = nce_real + loss_order
     loss_pit = loss.new_zeros(())
     lam = 0.0
     if mix_mel is not None:
@@ -524,14 +590,17 @@ def causal_step_loss(
     b, t, _d = z_student.shape
     out = {
         "loss": loss,
-        "loss_pred": info["nce"],
+        "loss_pred": nce_real,
+        "loss_perm": nce_perm,
+        "gap": gap,
+        "loss_order": loss_order,
         "loss_within": info["nce_within"],
         "loss_concat": info["nce_concat"],
         "loss_var": info["var"],
         "loss_pit": loss_pit,
         "lambda_mix": loss.new_tensor(float(lam)),
     }
-    for delta in HORIZONS:
+    for delta in horizons:
         n_h = 0 if int(delta) >= t - 2 else b * (t - int(delta))
         out[f"n_h{int(delta)}"] = loss.new_tensor(float(n_h))
         key = f"loss_h{int(delta)}"
