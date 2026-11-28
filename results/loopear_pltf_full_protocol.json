@@ -1,0 +1,993 @@
+{
+  "acoustic_fidelity": {
+    "dsp": {
+      "mean_r": 0.06212964591572012,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "linear_96_to_10"
+    },
+    "efficientat_mn04_as": {
+      "mean_r": 0.1899422738490322,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "linear_96_to_10"
+    },
+    "efficientat_mn04_as_time": {
+      "mean_r": 0.4978913909038888,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "shared_linear_on_10_time_bins"
+    },
+    "fit": "250 steps, AdamW lr 1e-2, seed 42, mean per-window Pearson r on validation crops",
+    "loopear_d_global_cls": {
+      "mean_r": 0.2126319928440722,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "linear_96_to_10"
+    },
+    "loopear_d_global_time": {
+      "mean_r": 0.9137772069429059,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "shared_linear_on_10_time_bins"
+    },
+    "loopear_p_latents": {
+      "mean_r": 0.41908109556225315,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "linear_96_to_10"
+    },
+    "loopear_p_summary": {
+      "mean_r": 0.34269667650938546,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "linear_96_to_10"
+    },
+    "n_train_full_crops": 1424,
+    "n_val_full_crops": 567,
+    "profile_identity": {
+      "mean_r": 0.9992893453414066,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "linear_10_to_10"
+    },
+    "target": "10-bin mean log-mel energy of one full 2.015 s crop, centered inside the crop",
+    "usad2_small": {
+      "mean_r": 0.39663927730149073,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "linear_96_to_10"
+    },
+    "usad2_small_time": {
+      "mean_r": 0.8089695079080498,
+      "n": 566,
+      "n_skipped_flat": 1,
+      "readout": "shared_linear_on_10_time_bins"
+    }
+  },
+  "coordinate_readout": {
+    "coordinate": "fixed Fourier features of the bin index, then a parameter-free attention pool over the 32 latents",
+    "equal_compute_extension": false,
+    "models": {
+      "loopear_d_time_bins": {
+        "per_bin_linear": {
+          "mean_r": 0.8445938983403437,
+          "n": 566,
+          "n_skipped_flat": 1,
+          "params": 970
+        },
+        "shared_linear": {
+          "mean_r": 0.9137772069429059,
+          "n": 566,
+          "n_skipped_flat": 1,
+          "params": 97
+        }
+      },
+      "perceiver_ltf": {
+        "per_bin_linear": {
+          "mean_r": 0.32962090622137935,
+          "n": 566,
+          "n_skipped_flat": 1,
+          "params": 970
+        },
+        "shared_linear": {
+          "mean_r": 0.1647666065513668,
+          "n": 566,
+          "n_skipped_flat": 1,
+          "params": 97
+        }
+      },
+      "random_init_perceiver": {
+        "per_bin_linear": {
+          "mean_r": 0.07451789397604992,
+          "n": 566,
+          "n_skipped_flat": 1,
+          "params": 970
+        },
+        "shared_linear": {
+          "mean_r": 0.11031820577522612,
+          "n": 566,
+          "n_skipped_flat": 1,
+          "params": 97
+        }
+      },
+      "trained_perceiver": {
+        "per_bin_linear": {
+          "mean_r": 0.3236383148330564,
+          "n": 566,
+          "n_skipped_flat": 1,
+          "params": 970
+        },
+        "shared_linear": {
+          "mean_r": 0.13972283259474017,
+          "n": 566,
+          "n_skipped_flat": 1,
+          "params": 97
+        }
+      }
+    },
+    "per_bin_linear_params": 970,
+    "question": "Can a frozen coordinate-conditioned readout recover the 10-bin log-mel profile from Perceiver latents?",
+    "random_init": "LoopEar-P encoder at seed 42 before any optimizer step",
+    "reading": {
+      "evaluated_minus_random_per_bin": 0.25510301224532944,
+      "evaluated_minus_random_shared": 0.054448400776140674,
+      "evaluated_minus_trained_perceiver_per_bin": 0.0059825913883229664,
+      "evaluated_minus_trained_perceiver_shared": 0.02504377395662663,
+      "evaluated_name": "perceiver_ltf",
+      "explicit_minus_evaluated_per_bin": 0.5149729921189643,
+      "explicit_minus_evaluated_shared": 0.7490106003915391,
+      "per_bin_budget": 970,
+      "shared_budget_matches_the_time_bin_head": true
+    },
+    "shared_linear_params": 97,
+    "time_explicit_control": "the same two heads on LoopEar-D time bins, which already index time",
+    "trained_steps": null
+  },
+  "cpu_hours": 0.2019562891666667,
+  "development": {
+    "clips": 1680,
+    "hours": 5.0007959164265126,
+    "role": "probe training and few-example support"
+  },
+  "encoders": {
+    "coordinate_name": "perceiver_ltf",
+    "coordinate_random_init": true,
+    "d_global": "results/loopear_d_h20_global_5000_encoder.safetensors",
+    "d_k1": null,
+    "p": "results/loopear_pltf_full_5000_encoder.safetensors",
+    "p_reference": "results/loopear_plt_h20_global_5000_encoder.safetensors",
+    "p_reference_time_alpha": 0.0027896127554686775,
+    "p_time_alpha": 0.0027896127554686775
+  },
+  "equal_compute_extension": false,
+  "few_example": {
+    "k_negative": 4,
+    "k_positive": 4,
+    "labels": [
+      "Accelerating_and_revving_and_vroom",
+      "Acoustic_guitar",
+      "Aircraft",
+      "Alarm",
+      "Animal",
+      "Applause",
+      "Bark",
+      "Bass_drum",
+      "Bass_guitar",
+      "Bathtub_(filling_or_washing)",
+      "Bell",
+      "Bicycle",
+      "Bicycle_bell",
+      "Bird",
+      "Bird_vocalization_and_bird_call_and_bird_song",
+      "Buzz",
+      "Car",
+      "Car_passing_by",
+      "Cat",
+      "Cheering",
+      "Chicken_and_rooster",
+      "Chime",
+      "Chirp_and_tweet",
+      "Church_bell",
+      "Clapping",
+      "Clock",
+      "Cricket",
+      "Crow",
+      "Crowd",
+      "Dog",
+      "Domestic_animals_and_pets",
+      "Domestic_sounds_and_home_sounds",
+      "Door",
+      "Doorbell",
+      "Drum",
+      "Engine",
+      "Fixed-wing_aircraft_and_airplane",
+      "Fowl",
+      "Frog",
+      "Glass",
+      "Growling",
+      "Guitar",
+      "Gull_and_seagull",
+      "Hands",
+      "Human_group_actions",
+      "Human_voice",
+      "Insect",
+      "Keyboard_(musical)",
+      "Liquid",
+      "Livestock_and_farm_animals_and_working_animals",
+      "Mechanisms",
+      "Meow",
+      "Motor_vehicle_(road)",
+      "Motorcycle",
+      "Music",
+      "Musical_instrument",
+      "Percussion",
+      "Plucked_string_instrument",
+      "Purr",
+      "Rail_transport",
+      "Ringtone",
+      "Siren",
+      "Snare_drum",
+      "Speech",
+      "Squeak",
+      "Telephone",
+      "Thunder",
+      "Thunderstorm",
+      "Traffic_noise_and_roadway_noise",
+      "Train",
+      "Vehicle",
+      "Vehicle_horn_and_car_horn_and_honking",
+      "Walk_and_footsteps",
+      "Water",
+      "Water_tap_and_faucet",
+      "Wild_animals",
+      "Wind_chime"
+    ],
+    "models": {
+      "dsp": {
+        "macro_ap": 0.07530155272258134,
+        "mean_val_prevalence": 0.04760551955792811,
+        "n_classes_scored": 77,
+        "shuffled_support_macro_ap": 0.06108109978550981
+      },
+      "efficientat_mn04_as": {
+        "macro_ap": 0.2351629646958003,
+        "mean_val_prevalence": 0.04760551955792811,
+        "n_classes_scored": 77,
+        "shuffled_support_macro_ap": 0.06816501272207587
+      },
+      "loopear_d_global_cls": {
+        "macro_ap": 0.10970325685259592,
+        "mean_val_prevalence": 0.04760551955792811,
+        "n_classes_scored": 77,
+        "shuffled_support_macro_ap": 0.05766503800325042
+      },
+      "loopear_d_global_patch_mean": {
+        "macro_ap": 0.11589087730008878,
+        "mean_val_prevalence": 0.04760551955792811,
+        "n_classes_scored": 77,
+        "shuffled_support_macro_ap": 0.062146712229810774
+      },
+      "loopear_p_latents": {
+        "macro_ap": 0.1134986719175294,
+        "mean_val_prevalence": 0.04760551955792811,
+        "n_classes_scored": 77,
+        "shuffled_support_macro_ap": 0.06965662042933674
+      },
+      "loopear_p_summary": {
+        "macro_ap": 0.10094156827936965,
+        "mean_val_prevalence": 0.04760551955792811,
+        "n_classes_scored": 77,
+        "shuffled_support_macro_ap": 0.06927882001501957
+      },
+      "usad2_small": {
+        "macro_ap": 0.11012611982641737,
+        "mean_val_prevalence": 0.04760551955792811,
+        "n_classes_scored": 77,
+        "shuffled_support_macro_ap": 0.06190689970788911
+      }
+    },
+    "n_classes": 77,
+    "query": "official FSD50K validation clips in this probe",
+    "rule": "a class needs 4 development positives, 4 development negatives, and 4 validation positives",
+    "status": "measured",
+    "support": "development clips in the 5.001 h subset"
+  },
+  "fsd50k_test_audio_read": false,
+  "gpu_usd": 0.0,
+  "h20_5000_step_runs_finished": true,
+  "h20_plan_file_rewritten": false,
+  "manifest_rewritten": false,
+  "payload_sha256": "30a9fa84a9c6e86a9bc221056413b362ed00adaca6443a801af7c7dc23a8e4fa",
+  "peak_rss_gb": 1.6123924255371094,
+  "representation_notes": {
+    "efficientat_fmap_time_full_crop": 7,
+    "efficientat_mel_frames_full_crop": 202,
+    "efficientat_native_stride_s": 0.2885714285714286,
+    "efficientat_params": 983599,
+    "old_160_clip_probe_is_not_usad_parity": true,
+    "old_single_seed_probe_is_not_a_local_learning_verdict": true,
+    "usad_frames_full_crop": 100
+  },
+  "sealed_realdesed_test_read": false,
+  "starss23": {
+    "classes": [
+      {
+        "class": "female_speech",
+        "class_index": 0,
+        "scored": true,
+        "train_positive_files": 16,
+        "train_positive_frames": 1714,
+        "val_positive_files": 7,
+        "val_positive_frames": 909
+      },
+      {
+        "class": "male_speech",
+        "class_index": 1,
+        "scored": true,
+        "train_positive_files": 18,
+        "train_positive_frames": 1892,
+        "val_positive_files": 12,
+        "val_positive_frames": 1444
+      },
+      {
+        "class": "clapping",
+        "class_index": 2,
+        "scored": true,
+        "train_positive_files": 3,
+        "train_positive_frames": 123,
+        "val_positive_files": 2,
+        "val_positive_frames": 45
+      },
+      {
+        "class": "telephone",
+        "class_index": 3,
+        "scored": true,
+        "train_positive_files": 7,
+        "train_positive_frames": 336,
+        "val_positive_files": 2,
+        "val_positive_frames": 69
+      },
+      {
+        "class": "laughter",
+        "class_index": 4,
+        "scored": true,
+        "train_positive_files": 18,
+        "train_positive_frames": 654,
+        "val_positive_files": 12,
+        "val_positive_frames": 475
+      },
+      {
+        "class": "domestic_sounds",
+        "class_index": 5,
+        "scored": true,
+        "train_positive_files": 2,
+        "train_positive_frames": 350,
+        "val_positive_files": 3,
+        "val_positive_frames": 888
+      },
+      {
+        "class": "walk_footsteps",
+        "class_index": 6,
+        "scored": true,
+        "train_positive_files": 13,
+        "train_positive_frames": 754,
+        "val_positive_files": 3,
+        "val_positive_frames": 151
+      },
+      {
+        "class": "door_open_close",
+        "class_index": 7,
+        "scored": false,
+        "train_positive_files": 7,
+        "train_positive_frames": 293,
+        "val_positive_files": 0,
+        "val_positive_frames": 0
+      },
+      {
+        "class": "music",
+        "class_index": 8,
+        "scored": false,
+        "train_positive_files": 1,
+        "train_positive_frames": 288,
+        "val_positive_files": 7,
+        "val_positive_frames": 1726
+      },
+      {
+        "class": "musical_instrument",
+        "class_index": 9,
+        "scored": true,
+        "train_positive_files": 3,
+        "train_positive_frames": 255,
+        "val_positive_files": 3,
+        "val_positive_frames": 608
+      },
+      {
+        "class": "water_tap",
+        "class_index": 10,
+        "scored": false,
+        "train_positive_files": 2,
+        "train_positive_frames": 93,
+        "val_positive_files": 1,
+        "val_positive_frames": 50
+      },
+      {
+        "class": "bell",
+        "class_index": 11,
+        "scored": false,
+        "train_positive_files": 0,
+        "train_positive_frames": 0,
+        "val_positive_files": 1,
+        "val_positive_frames": 109
+      },
+      {
+        "class": "knock",
+        "class_index": 12,
+        "scored": false,
+        "train_positive_files": 1,
+        "train_positive_frames": 20,
+        "val_positive_files": 0,
+        "val_positive_frames": 0
+      }
+    ],
+    "frame_axis": "50 patch steps of 40 ms inside each 2.015 s window; LoopEar-P has no time axis, so its summary is repeated on every step",
+    "manifest_rewritten": false,
+    "models": {
+      "d_global_cls": {
+        "label_sensitive": true,
+        "onset_within_windows": {
+          "mean_lift": 0.3827453145023285,
+          "n_above_background": 91,
+          "n_onsets": 130
+        },
+        "probe_params": 776,
+        "shuffled_label_probe": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.19305005046654938
+        },
+        "status": "measured",
+        "val": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.3368069137266131
+        }
+      },
+      "d_global_time": {
+        "label_sensitive": true,
+        "onset_within_windows": {
+          "mean_lift": 0.43738889532351793,
+          "n_above_background": 111,
+          "n_onsets": 130
+        },
+        "probe_params": 776,
+        "shuffled_label_probe": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.1683883417352127
+        },
+        "status": "measured",
+        "val": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.3453159696408184
+        }
+      },
+      "dsp": {
+        "label_sensitive": true,
+        "onset_within_windows": {
+          "mean_lift": 0.260457608060768,
+          "n_above_background": 104,
+          "n_onsets": 130
+        },
+        "probe_params": 776,
+        "shuffled_label_probe": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.1437049203118274
+        },
+        "status": "measured",
+        "val": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.2387988384279709
+        }
+      },
+      "efficientat": {
+        "label_sensitive": true,
+        "onset_within_windows": {
+          "mean_lift": 0.25709810980344905,
+          "n_above_background": 101,
+          "n_onsets": 130
+        },
+        "probe_params": 776,
+        "shuffled_label_probe": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.14788259692929573
+        },
+        "status": "measured",
+        "val": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.3251360009803814
+        }
+      },
+      "p_summary": {
+        "label_sensitive": true,
+        "onset_within_windows": {
+          "mean_lift": 0.2700807612682603,
+          "n_above_background": 103,
+          "n_onsets": 130
+        },
+        "probe_params": 776,
+        "shuffled_label_probe": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.15127746858201496
+        },
+        "status": "measured",
+        "val": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.34772302025467783
+        }
+      },
+      "usad": {
+        "label_sensitive": true,
+        "onset_within_windows": {
+          "mean_lift": 0.2610531518808924,
+          "n_above_background": 124,
+          "n_onsets": 130
+        },
+        "probe_params": 776,
+        "shuffled_label_probe": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.15732483778142853
+        },
+        "status": "measured",
+        "val": {
+          "classes_scored": 8,
+          "classes_skipped": 0,
+          "macro_ap": 0.3335830733084533
+        }
+      }
+    },
+    "n_classes_scored": 8,
+    "n_train_frames": 7200,
+    "n_train_windows": 144,
+    "n_val_frames": 4200,
+    "n_val_windows": 84,
+    "support_rule": "at least 2 recordings and 40 positive 40 ms frames on both the fold3 probe-train side and the fold4 eval side",
+    "train_files": [
+      "fold3_room12_mix001",
+      "fold3_room13_mix001",
+      "fold3_room14_mix001",
+      "fold3_room21_mix001",
+      "fold3_room22_mix001",
+      "fold3_room4_mix001",
+      "fold3_room6_mix001",
+      "fold3_room7_mix001",
+      "fold3_room9_mix001",
+      "fold3_room12_mix002",
+      "fold3_room13_mix002",
+      "fold3_room14_mix002",
+      "fold3_room21_mix002",
+      "fold3_room22_mix002",
+      "fold3_room4_mix004",
+      "fold3_room6_mix002",
+      "fold3_room7_mix002",
+      "fold3_room9_mix002",
+      "fold3_room12_mix003",
+      "fold3_room13_mix003",
+      "fold3_room14_mix003",
+      "fold3_room21_mix003",
+      "fold3_room22_mix003",
+      "fold3_room4_mix005"
+    ],
+    "val_files": [
+      "fold4_room10_mix001",
+      "fold4_room15_mix001",
+      "fold4_room16_mix001",
+      "fold4_room2_mix001",
+      "fold4_room23_mix001",
+      "fold4_room24_mix001",
+      "fold4_room8_mix001",
+      "fold4_room10_mix002",
+      "fold4_room15_mix002",
+      "fold4_room16_mix002",
+      "fold4_room2_mix002",
+      "fold4_room23_mix002",
+      "fold4_room24_mix002",
+      "fold4_room8_mix002"
+    ]
+  },
+  "tag_probe": {
+    "classes": [
+      "Accelerating_and_revving_and_vroom",
+      "Accordion",
+      "Acoustic_guitar",
+      "Aircraft",
+      "Alarm",
+      "Animal",
+      "Applause",
+      "Bark",
+      "Bass_drum",
+      "Bass_guitar",
+      "Bathtub_(filling_or_washing)",
+      "Bell",
+      "Bicycle",
+      "Bicycle_bell",
+      "Bird",
+      "Bird_vocalization_and_bird_call_and_bird_song",
+      "Boat_and_Water_vehicle",
+      "Breathing",
+      "Buzz",
+      "Car",
+      "Car_passing_by",
+      "Cat",
+      "Chatter",
+      "Cheering",
+      "Chicken_and_rooster",
+      "Child_speech_and_kid_speaking",
+      "Chime",
+      "Chirp_and_tweet",
+      "Church_bell",
+      "Clapping",
+      "Clock",
+      "Cowbell",
+      "Cricket",
+      "Crow",
+      "Crowd",
+      "Dog",
+      "Domestic_animals_and_pets",
+      "Domestic_sounds_and_home_sounds",
+      "Door",
+      "Doorbell",
+      "Drip",
+      "Drum",
+      "Drum_kit",
+      "Engine",
+      "Engine_starting",
+      "Fixed-wing_aircraft_and_airplane",
+      "Fowl",
+      "Frog",
+      "Glass",
+      "Growling",
+      "Guitar",
+      "Gull_and_seagull",
+      "Hands",
+      "Hiss",
+      "Human_group_actions",
+      "Human_voice",
+      "Insect",
+      "Keyboard_(musical)",
+      "Laughter",
+      "Liquid",
+      "Livestock_and_farm_animals_and_working_animals",
+      "Male_speech_and_man_speaking",
+      "Mechanisms",
+      "Meow",
+      "Motor_vehicle_(road)",
+      "Motorcycle",
+      "Music",
+      "Musical_instrument",
+      "Ocean",
+      "Percussion",
+      "Plucked_string_instrument",
+      "Purr",
+      "Race_car_and_auto_racing",
+      "Rail_transport",
+      "Rain",
+      "Respiratory_sounds",
+      "Ringtone",
+      "Shout",
+      "Siren",
+      "Slam",
+      "Snare_drum",
+      "Speech",
+      "Splash_and_splatter",
+      "Squeak",
+      "Subway_and_metro_and_underground",
+      "Tap",
+      "Telephone",
+      "Thunder",
+      "Thunderstorm",
+      "Tick-tock",
+      "Traffic_noise_and_roadway_noise",
+      "Train",
+      "Typing",
+      "Vehicle",
+      "Vehicle_horn_and_car_horn_and_honking",
+      "Walk_and_footsteps",
+      "Water",
+      "Water_tap_and_faucet",
+      "Wild_animals",
+      "Wind",
+      "Wind_chime"
+    ],
+    "models": {
+      "dsp": {
+        "input_dim": 128,
+        "probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.11207332090026716
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.10274229665910936
+          }
+        },
+        "projected_dim": 96,
+        "shuffled_label_probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.05578039030244284
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.0498279424534768
+          }
+        }
+      },
+      "efficientat_mn04_as": {
+        "input_dim": 384,
+        "probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.35857137169041003
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.3194224620627398
+          }
+        },
+        "projected_dim": 96,
+        "shuffled_label_probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.06455219516271198
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.05043792346305222
+          }
+        }
+      },
+      "loopear_d_global_cls": {
+        "input_dim": 96,
+        "probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.27783159506400473
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.18973271919844303
+          }
+        },
+        "projected_dim": 96,
+        "shuffled_label_probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.07895095470738443
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.046171554625748894
+          }
+        }
+      },
+      "loopear_d_global_patch_mean": {
+        "input_dim": 96,
+        "probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.22279300558306328
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.16182801371818514
+          }
+        },
+        "projected_dim": 96,
+        "shuffled_label_probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.07470808298023823
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.04747262312798202
+          }
+        }
+      },
+      "loopear_p_latents": {
+        "input_dim": 3072,
+        "probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.2363702117876484
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.17201974641296108
+          }
+        },
+        "projected_dim": 96,
+        "shuffled_label_probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.09295770321049392
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.0453153893597406
+          }
+        }
+      },
+      "loopear_p_summary": {
+        "input_dim": 96,
+        "probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.18982953271452743
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.15454060639819062
+          }
+        },
+        "projected_dim": 96,
+        "shuffled_label_probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.06501287519750619
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.04596383850250085
+          }
+        }
+      },
+      "usad2_small": {
+        "input_dim": 384,
+        "probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.1234000196678321
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.1277247986458499
+          }
+        },
+        "projected_dim": 96,
+        "shuffled_label_probe": {
+          "lr": 0.01,
+          "probe_params": 9797,
+          "seed": 42,
+          "steps": 250,
+          "train": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.04216548400311296
+          },
+          "val": {
+            "classes_scored": 101,
+            "classes_skipped": 0,
+            "macro_ap": 0.061497095159113245
+          }
+        }
+      }
+    },
+    "n_classes": 101,
+    "n_empty_clips": 0,
+    "n_short_windows": 329,
+    "n_train": 1680,
+    "n_val": 640,
+    "n_windows": 6676,
+    "readout": "fixed Gaussian project to 96, Linear, AdamW lr 1e-2, 250 steps, seed 42",
+    "val_prevalence_mean": 0.03797958046197891,
+    "windows_per_clip": 4
+  },
+  "task": "loopear_repaired_protocol",
+  "unseen_primary_six_clip_rule": {
+    "on_all_official_val_metadata": {
+      "n_unfamiliar_primaries": 104,
+      "n_with_at_least_6_clips": 91
+    },
+    "on_this_validation_probe": {
+      "n_unfamiliar_primaries": 29,
+      "n_with_at_least_6_clips": 6
+    },
+    "reason": "This protocol does not require 6 clips of a primary that is absent from the 5-hour subset.",
+    "scored": false
+  },
+  "validation": {
+    "clips": 640,
+    "first_160_are_the_previous_probe": true,
+    "selection": "same rank_eligible order as the 160-clip probe, extended to 640 official val clips"
+  },
+  "written_utc": "2026-11-27T19:57:39.349856+00:00"
+}

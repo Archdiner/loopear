@@ -1,0 +1,324 @@
+{
+  "before_train": {
+    "cpu_hours": 0.00019177194444444448,
+    "cpu_s": 0.6903750000000004,
+    "extract": {
+      "n": 0,
+      "reused": 0,
+      "written": 0
+    },
+    "frontend_unchanged": true,
+    "logmel": {
+      "frontend_rewritten": false,
+      "n": 36736,
+      "reused": 36736,
+      "written": 0
+    },
+    "wall_s": 0.6903850369999418
+  },
+  "dataset_clips": 36162,
+  "dataset_hours": 69.19982598717841,
+  "dataset_id_sha256": "a09b8d00dccb831c12e207c5da33288109e0ed1056f7c577b6cca48909231914",
+  "encountered_audio": {
+    "available_hours": 69.19982598717841,
+    "available_recordings": 36162.0,
+    "distinct_hours": 69.19982598717841,
+    "distinct_recordings": 36162.0,
+    "draws": 3200000.0,
+    "never_sampled": 0.0,
+    "windows": 6400000.0
+  },
+  "equal_compute_extension": false,
+  "fsd50k_test_audio_read": false,
+  "full_train_prepare": {
+    "cpu_hours": 0.00019177194444444448,
+    "cpu_s": 0.6903750000000004,
+    "extract": {
+      "n": 0,
+      "reused": 0,
+      "written": 0
+    },
+    "frontend_unchanged": true,
+    "logmel": {
+      "frontend_rewritten": false,
+      "n": 36736,
+      "reused": 36736,
+      "written": 0
+    },
+    "wall_s": 0.6903850369999418
+  },
+  "gpu_usd": 0.0,
+  "identity": "P-LT-50k is the full-corpus P-LT recipe for 50,000 steps. Calibrated anchored Perceiver. Global NT-Xent plus masked local only. No L_time. Random init, not a resume of the 5,000-step P-LT-F checkpoint. The learning-rate schedule is built for 50,000 steps. A small fixed slice of the train split is withheld for pretraining loss only.",
+  "lambda_check": {
+    "chosen_lambda": 1.0,
+    "lambda_time": 0.0,
+    "scaled": false
+  },
+  "lambda_local": 1.0,
+  "lambda_time_lock": null,
+  "mixture_prepare": null,
+  "model": "loopear-plt-50k",
+  "objective": "global_plus_local",
+  "offset_crops": null,
+  "payload_sha256": "a9347cd6a8e29a6e7fd2543662fcec75a748a0dd514a1a7cc72c674c26a823f0",
+  "penalty_versus_logits": null,
+  "preserved_encoder_files": 45,
+  "run": {
+    "anchored": true,
+    "batch_recordings": 64,
+    "collapsed": false,
+    "cpu_hours": 11.507439534444444,
+    "cpu_s": 41426.782324,
+    "crop_presentations": 3200000,
+    "denominator_terms_per_anchor": 127,
+    "diagnostics": {
+      "n_crops": 32,
+      "summary": {
+        "collapsed": false,
+        "dim": 96,
+        "effective_rank": 22.47509765625,
+        "finite": true,
+        "n": 32,
+        "offdiag_cosine_mean": 0.23720519244670868,
+        "singular_max": 7.039912223815918,
+        "singular_min": 6.086289658924215e-07,
+        "variance_mean": 0.07796411961317062,
+        "variance_min": 0.015705054625868797
+      },
+      "within_crop_latent_effective_rank_mean": 14.83744540810585,
+      "within_crop_latent_offdiag_cosine_mean": 0.19540331489406526
+    },
+    "encoder_params": 685728,
+    "encoder_path": "results/loopear_plt50k_full_50000_encoder.safetensors",
+    "encountered_audio": {
+      "available_hours": 69.19982598717841,
+      "available_recordings": 36162.0,
+      "distinct_hours": 69.19982598717841,
+      "distinct_recordings": 36162.0,
+      "draws": 3200000.0,
+      "never_sampled": 0.0,
+      "windows": 6400000.0
+    },
+    "flops": {
+      "batch": 1.0,
+      "cross_layers": 3.0,
+      "cross_score_bytes_one_layer": 102400.0,
+      "gemm_flops_mul_add": 72056832.0,
+      "gemm_gflops": 0.072056832,
+      "gemm_macs": 36028416.0,
+      "input_tokens": 200.0,
+      "latents": 32.0,
+      "self_layers": 3.0,
+      "self_score_bytes_one_layer": 16384.0
+    },
+    "flops_batch": {
+      "batch": 64.0,
+      "cross_layers": 3.0,
+      "cross_score_bytes_one_layer": 6553600.0,
+      "gemm_flops_mul_add": 4611637248.0,
+      "gemm_gflops": 4.611637248,
+      "gemm_macs": 2305818624.0,
+      "input_tokens": 200.0,
+      "latents": 32.0,
+      "self_layers": 3.0,
+      "self_score_bytes_one_layer": 1048576.0
+    },
+    "heldout_checks": [
+      {
+        "step": 0,
+        "teacher_targets": {
+          "mean_effective_rank": 19.640908360481262,
+          "mean_offdiag_cosine": 0.9999033622443676,
+          "n_recordings": 16.0
+        },
+        "train_loss": null,
+        "train_loss_mean_last_100": null,
+        "withheld_loss": {
+          "batches": 8.0,
+          "clips_scored": 512.0,
+          "loss": 7.326287508010864,
+          "loss_g": 4.405200004577637,
+          "loss_l": 2.9210874438285828
+        }
+      },
+      {
+        "step": 10000,
+        "teacher_targets": {
+          "mean_effective_rank": 5.040067225694656,
+          "mean_offdiag_cosine": 0.9989031925797462,
+          "n_recordings": 16.0
+        },
+        "train_loss": 1.2377430200576782,
+        "train_loss_mean_last_100": 0.8450366491079331,
+        "withheld_loss": {
+          "batches": 8.0,
+          "clips_scored": 512.0,
+          "loss": 0.8801446482539177,
+          "loss_g": 0.7620793133974075,
+          "loss_l": 0.11806533113121986
+        }
+      },
+      {
+        "step": 25000,
+        "teacher_targets": {
+          "mean_effective_rank": 5.393033117055893,
+          "mean_offdiag_cosine": 0.9988478869199753,
+          "n_recordings": 16.0
+        },
+        "train_loss": 0.6350135803222656,
+        "train_loss_mean_last_100": 0.579900493323803,
+        "withheld_loss": {
+          "batches": 8.0,
+          "clips_scored": 512.0,
+          "loss": 0.611874159425497,
+          "loss_g": 0.537043109536171,
+          "loss_l": 0.07483104383572936
+        }
+      },
+      {
+        "step": 50000,
+        "teacher_targets": {
+          "mean_effective_rank": 5.004690170288086,
+          "mean_offdiag_cosine": 0.998870775103569,
+          "n_recordings": 16.0
+        },
+        "train_loss": 0.9142680764198303,
+        "train_loss_mean_last_100": 0.44882637307047846,
+        "withheld_loss": {
+          "batches": 8.0,
+          "clips_scored": 512.0,
+          "loss": 0.49541937187314034,
+          "loss_g": 0.4456742759793997,
+          "loss_l": 0.04974510450847447
+        }
+      }
+    ],
+    "k": 1,
+    "lambda_local": 1.0,
+    "lambda_time": 0.0,
+    "loopear_d_flops": {
+      "batch": 1.0,
+      "gemm_flops_mul_add": 362289408.0,
+      "gemm_gflops": 0.362289408,
+      "gemm_macs": 181144704.0,
+      "tokens_with_cls": 201.0
+    },
+    "loss_end": 0.9142680764198303,
+    "loss_g_end": 0.8406969308853149,
+    "loss_l_end": 0.07357116043567657,
+    "loss_min": 0.15001337230205536,
+    "loss_start": 7.129923343658447,
+    "loss_t_end": 0.0,
+    "negatives_per_anchor": 126,
+    "objective": "global_plus_local",
+    "peak_rss_gb": 1.6176681518554688,
+    "predictor": "position queries cross-attend to the 32 latents; acoustic patches are not an input",
+    "presented_crop_hours": 1791.111111111111,
+    "profile_step": {
+      "batch": 64,
+      "loss": 6.808588027954102,
+      "peak_rss_gb": 1.1919898986816406,
+      "sec_per_step": 0.3932319070008816
+    },
+    "schedule": {
+      "base_lr": 0.0003,
+      "formula": "Warmup is max(1, T // 20) steps. Step t in warmup uses base_lr * (t + 1) / warmup. After warmup, cosine decay runs from base_lr to min_lr with progress (t - warmup) / (T - warmup), so the decay is built for this T and reaches the end of the run.",
+      "lr_by_step": {
+        "0": 1.2e-07,
+        "10000": 0.0002819813258053701,
+        "2499": 0.0003,
+        "2500": 0.0003,
+        "25000": 0.00016284561214811367,
+        "49999": 1.000000326981915e-06
+      },
+      "min_lr": 1e-06,
+      "total_steps": 50000,
+      "warmup_steps": 2500,
+      "weight_decay": 0.05
+    },
+    "sec_per_step": 0.20791782818725987,
+    "snapshots": [
+      "results/loopear_plt50k_full_50000_step10000_encoder.safetensors",
+      "checkpoints/loopear_plt50k_full_50000_step10000.pt",
+      "results/loopear_plt50k_full_50000_step25000_encoder.safetensors",
+      "checkpoints/loopear_plt50k_full_50000_step25000.pt"
+    ],
+    "steps": 50000,
+    "steps_requested": 50000,
+    "stopped_collapse": false,
+    "tau_time": 0.1,
+    "teacher": "stop-grad EMA of the encoder, the latent predictor, and the local head",
+    "time_alpha": 0.0027896127554686775,
+    "time_neighborhood": 1,
+    "two_crop_exposure": {
+      "crop_presentations": 6400000.0,
+      "recording_draws": 3200000.0,
+      "sampled_window_hours": 3582.222222222222
+    },
+    "views_per_recording": 2,
+    "wall_hours": 2.8877476137119427,
+    "wall_s": 10395.891409362994,
+    "weights_l2_change": 32.349124908447266,
+    "weights_moved": true,
+    "withhold": {
+      "fsd50k_test_used": false,
+      "fsd50k_val_used": false,
+      "full_train_clips": 36736,
+      "full_train_hours": 70.29982425009212,
+      "full_train_id_sha256": "1191eb8964745b9ccc089ef10c14ed424e37a46b0dfce730fe2f506a1fa3cd9f",
+      "realdesed_test_used": false,
+      "rule": "Sort the eligible train split by freesound id. Withhold every index divisible by 64. Those recordings are not sampled for training.",
+      "stride": 64,
+      "train_clips": 36162,
+      "train_hours": 69.19982598717841,
+      "train_id_sha256": "a09b8d00dccb831c12e207c5da33288109e0ed1056f7c577b6cca48909231914",
+      "withheld_clips": 574,
+      "withheld_hours": 1.0999982629136906,
+      "withheld_id_sha256": "f1b7d5f6ae5aaf4f7d17394c47b8f1552b804d5a7ce19845da286b573344be74"
+    }
+  },
+  "schedule": {
+    "base_lr": 0.0003,
+    "formula": "Warmup is max(1, T // 20) steps. Step t in warmup uses base_lr * (t + 1) / warmup. After warmup, cosine decay runs from base_lr to min_lr with progress (t - warmup) / (T - warmup), so the decay is built for this T and reaches the end of the run.",
+    "lr_by_step": {
+      "0": 1.2e-07,
+      "10000": 0.0002819813258053701,
+      "2499": 0.0003,
+      "2500": 0.0003,
+      "25000": 0.00016284561214811367,
+      "49999": 1.000000326981915e-06
+    },
+    "min_lr": 1e-06,
+    "total_steps": 50000,
+    "warmup_steps": 2500,
+    "weight_decay": 0.05
+  },
+  "sealed_realdesed_test_read": false,
+  "smoke_ema": null,
+  "softmax_alpha": null,
+  "task": "loopear_h20_train",
+  "time_alpha_sweep": null,
+  "two_crop_exposure": {
+    "crop_presentations": 6400000.0,
+    "recording_draws": 3200000.0,
+    "sampled_window_hours": 3582.222222222222
+  },
+  "withhold": {
+    "fsd50k_test_used": false,
+    "fsd50k_val_used": false,
+    "full_train_clips": 36736,
+    "full_train_hours": 70.29982425009212,
+    "full_train_id_sha256": "1191eb8964745b9ccc089ef10c14ed424e37a46b0dfce730fe2f506a1fa3cd9f",
+    "realdesed_test_used": false,
+    "rule": "Sort the eligible train split by freesound id. Withhold every index divisible by 64. Those recordings are not sampled for training.",
+    "stride": 64,
+    "train_clips": 36162,
+    "train_hours": 69.19982598717841,
+    "train_id_sha256": "a09b8d00dccb831c12e207c5da33288109e0ed1056f7c577b6cca48909231914",
+    "withheld_clips": 574,
+    "withheld_hours": 1.0999982629136906,
+    "withheld_id_sha256": "f1b7d5f6ae5aaf4f7d17394c47b8f1552b804d5a7ce19845da286b573344be74"
+  },
+  "within_recording_time_rank": null,
+  "written_utc": "2026-11-28T01:59:57.303668+00:00"
+}

@@ -62,3 +62,94 @@ python3 -m venv .venv
 .venv/bin/python scripts/train_stage3.py --epochs 8 --steps-per-epoch 28 --batch-size 16 --seed 42
 .venv/bin/python -m loopear.demo --ckpt checkpoints/stage2_best.pt --adaptive --host 127.0.0.1 --port 8765
 ```
+
+## LoopEar-D
+
+Separate from the frozen USAD2 stack above. `loopear/d` is a 682,752-parameter encoder trained from scratch on the official FSD50K training split. The deployed file is the encoder. The predictor, the projection heads, and the EMA teacher are training-only. The 1,000-step comparison in this section used the nested 5.001-hour prefix (1,680 clips). A later matched run trains this encoder for 5,000 steps on the 20.003-hour prefix and writes `results/loopear_d_h20_global_5000_encoder.safetensors`. CPU only. Cloud GPU spend `$0.00`.
+
+```bash
+.venv/bin/python scripts/prepare_loopear_d.py
+.venv/bin/python scripts/train_loopear_d.py --stage auto
+.venv/bin/python scripts/eval_loopear_d.py --encoder results/loopear_d_k1_encoder.safetensors --report results/loopear_d_eval_k1.json
+```
+
+After 1,000 steps of global contrastive loss plus masked latent discrimination (`K=1`, batch 64, seed 42), validation class tokens are not collapsed (effective rank 29.3, mean off-diagonal cosine 0.327). A frozen 2,716-parameter probe on mean patch tokens scores macro AP 0.316 on 160 official validation clips and 28 classes. Random initialization scores 0.262 and log-mel mean/std scores 0.246. Shuffled labels sit near 0.17. Global-only is slightly higher (0.328). The same budget does not beat a mel baseline on a four-file STARSS23 onset check. `results/loopear_d_train.json` and `results/loopear_d_eval_k1.json` hold the raw numbers.
+
+```bash
+.venv/bin/python scripts/eval_loopear_d_baselines.py
+```
+
+That command does not train. It scores frozen USAD2-Small and EfficientAT mn04_as with the same 2,716-parameter readout, the same 256/160 clips, and the same four STARSS23 files. USAD2-Small scores macro AP 0.312. EfficientAT mn04_as, AudioSet-pretrained and using its own 32 kHz frontend, scores 0.526. Shuffled labels for both sit near 0.16. On the STARSS23 frame grid both raw scores sit above global-only and match their shuffled-label controls, because the scored validation classes have no positive training frames. `results/loopear_d_baselines.json` holds those numbers. AudioSet audio is not downloaded.
+
+## LoopEar-P
+
+Same frontend and the same global contrastive loss as LoopEar-D. The encoder keeps 32 learned latents of width 96, with three input cross-attention blocks and three latent self-attention blocks. The deployed encoder has 685,728 parameters, 2,976 above LoopEar-D. The local masked loss remains in `loopear/d/objective.py` and this comparison leaves it off. CPU only. Cloud GPU spend `$0.00`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py
+.venv/bin/python scripts/eval_loopear_protocol.py
+```
+
+The training command is the existing 5.001-hour subset, 1,000 steps, batch 64, seed 42. It writes `results/loopear_p_encoder.safetensors` and `results/loopear_matched_h20_plan.json`. That plan file still records the 20-hour runs as unlaunched. The runs that followed keep every 1,000-step file and write new ones:
+
+```bash
+.venv/bin/python scripts/cache_loopear_h20.py
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-d
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-p
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_p_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --report results/loopear_h20_protocol.json
+```
+
+The 5,000-step weights are `results/loopear_d_h20_global_5000_encoder.safetensors` and `results/loopear_p_h20_global_5000_encoder.safetensors`. `results/loopear_h20_protocol.json` holds that probe, including the coordinate readout. The 1,000-step eval command fits one readout on 1,680 development clips and 640 official validation clips, scores STARSS23 only where both sides have enough positives, runs a 4-example probe, and checks a 10-bin log-mel profile. `results/loopear_protocol.json` holds those 1,000-step numbers. The 160-clip scores above are a different probe.
+
+The equal-wall-clock scores use the existing LoopEar-D snapshots at 2,000 and 3,000 steps: `results/loopear_h20_equal_time_d2000.json` and `results/loopear_h20_equal_time_d3000.json`. P-T keeps the same 32 latents and the same global loss, and changes only the input cross-attention logits to `q·k/sqrt(d) − α(t−μ)^2`. Alpha 0 is ordinary cross-attention. The locked alpha is in `results/loopear_pt_h20_train.json`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-pt
+```
+
+`results/loopear_pt_h20_protocol.json` holds the P-T probe. GPU spend `$0.00`.
+
+P-L is that same unanchored encoder, 32 latents and 685,728 parameters, trained with the global loss plus the existing masked local loss at λ = 1. The local predictor queries the latent bank and does not take the acoustic patches. Teacher targets are stop-grad. The locked P-T penalty, measured on the trained logits before this run and left unchanged, is in `results/loopear_pt_penalty_scale.json`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-pl
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_pl_h20_global_5000_encoder.safetensors --time-alpha 0 --p-reference results/loopear_p_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_l --report results/loopear_pl_h20_protocol.json
+```
+
+`results/loopear_pl_h20_protocol.json` holds the P-L probe. Four-example recognition is the primary score. The energy profile is a diagnostic.
+
+P-LT keeps that local objective and adds the temporal penalty on the input cross-attention logits. Alpha is the centered content-logit RMS of the trained P-L encoder divided by the centered `(t − μ)^2` RMS. The initialization's own centered RMS is recorded and is not the scale. There is no loss sweep. The locked alpha is in `results/loopear_plt_alpha.json`. The within-recording ranking of the saved P-L student is in `results/loopear_pl_time_rank.json`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-plt
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_plt_h20_global_5000_encoder.safetensors --time-alpha 0.0027896127554686775 --p-reference results/loopear_pl_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_lt --report results/loopear_plt_h20_protocol.json
+```
+
+`results/loopear_plt_h20_protocol.json` holds the P-LT probe. Four-example recognition stays the primary score. The energy profile stays a diagnostic.
+
+P-LTC keeps that model, including the locked alpha `0.0027896127554686775`, and adds one correspondence term. The positive pair is the same absolute time in two crops whose offsets differ. The denominator is the other aligned moments in that recording, excluding one patch (0.04 s) on each side of the positive. Temperature stays 0.1. The locked weight is `λ_t = 0.8774499635938284`, from one initialization batch, in `results/loopear_pltc_before.json`. The run saves the EMA teacher.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-pltc
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_pltc_h20_global_5000_encoder.safetensors --time-alpha 0.0027896127554686775 --p-reference results/loopear_plt_h20_global_5000_encoder.safetensors --p-reference-time-alpha 0.0027896127554686775 --skip-k1 --coordinate --coordinate-name perceiver_ltc --report results/loopear_pltc_h20_protocol.json
+```
+
+`results/loopear_pltc_h20_protocol.json` holds the probe. `results/loopear_pltc_time_rank.json` holds the EMA retrieval. `results/loopear_pltc_event_order.json` holds the STARSS event-order counts. Four-example recognition, onset localization, and event order are the primary scores. The energy profile and the 970-parameter readout stay diagnostics.
+
+P-LT-F is the P-LT recipe again, not a new loss. It is the calibrated anchored Perceiver before temporal correspondence: global NT-Xent plus the masked local loss, λ = 1, K = 1, priors 0.1/0.8/0.1, locked alpha `0.0027896127554686775`. No `L_time`. Random initialization. 5,000 steps, batch 64, seed 42, 640,000 windows. The corpus is the full eligible official FSD50K train split. The run records how many of those recordings the sampler actually drew. It saves the EMA teacher.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-plt-f
+.venv/bin/python scripts/eval_loopear_protocol.py --p results/loopear_pltf_full_5000_encoder.safetensors --time-alpha 0.0027896127554686775 --p-reference results/loopear_plt_h20_global_5000_encoder.safetensors --p-reference-time-alpha 0.0027896127554686775 --d-global results/loopear_d_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_ltf --report results/loopear_pltf_full_protocol.json
+```
+
+`results/loopear_pltf_full_train.json` holds the run, including the recordings actually drawn. `results/loopear_pltf_full_protocol.json` holds the same probe as P-LT. `results/loopear_pltf_event_order.json` holds the STARSS event-order counts against the saved P-LT EMA. In that file the `pltc` block is P-LT-F.
+
+P-LT-50k is that same P-LT recipe for 50,000 steps, from a fresh seed-42 initialization. It is not a resume of the 5,000-step P-LT-F checkpoint. The learning-rate schedule uses this run's 50,000 steps: 2,500 steps of warmup, then cosine decay from `3e-4` to `1e-6` that reaches the last step. No new loss and no architecture change. A fixed slice of the train split, every freesound id at an index divisible by 64 after sorting, is withheld from sampling and used only for the pretraining loss. FSD50K validation, FSD50K test, and RealDESED test stay closed. Encoder checkpoints are saved at 10,000, 25,000, and 50,000 steps, and the final checkpoint keeps the EMA teacher. The saved P-LT-F result is the 5,000-step point of the curve and is not overwritten. The 10,000, 25,000, and 50,000 scores are a new trajectory with the longer schedule.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-plt-50k
+.venv/bin/python scripts/eval_loopear_protocol.py --p results/loopear_plt50k_full_50000_encoder.safetensors --time-alpha 0.0027896127554686775 --d-global results/loopear_d_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_lt50k_50k --report results/loopear_plt50k_step50000_protocol.json
+```
+
+`results/loopear_plt50k_full_train.json` holds the schedule, the withheld slice, and the recordings actually drawn. The same probe at the three checkpoints is `results/loopear_plt50k_step10000_protocol.json`, `results/loopear_plt50k_step25000_protocol.json`, and `results/loopear_plt50k_step50000_protocol.json`. In the matching event-order files the `pltc` block is that checkpoint and the `plt` block is the saved P-LT-F EMA.
