@@ -1,0 +1,270 @@
+{
+  "audio_sha256_spotcheck": {
+    "n": 3,
+    "sha256": [
+      "f918044c0858d2e0bf33b839d95ee6c65e04271d05cbe0624ea6bfc1ff695386",
+      "d286c55971e3b2b56a61774c622244fee009d30ba7deebe4c2cce63a7316ac9e",
+      "73f40f07b6074625996cf583953723892d39b461360ead6841464d658a48eb8c"
+    ]
+  },
+  "cpu_hours": 0.007085741111111111,
+  "crop_s": 2.015,
+  "efficientat": {
+    "reason": "no local EfficientAT checkpoint; a mismatched frontend would not be a fair readout",
+    "status": "not_run"
+  },
+  "encoder": "results/loopear_d_random_encoder.safetensors",
+  "few_shot_unfamiliar": {
+    "n_unfamiliar_primaries": 24,
+    "reason": "no primary val label is absent from the 5h subset with at least 6 clips",
+    "status": "null"
+  },
+  "fsd50k_test_audio_read": false,
+  "gpu_usd": 0.0,
+  "linear_probe": {
+    "cls": {
+      "input_dim": 96,
+      "probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.4242614942761964
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.25725282453260206
+        }
+      },
+      "shuffled_label_probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.34175664795986876
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.18397390448115322
+        }
+      }
+    },
+    "dsp": {
+      "input_dim": 128,
+      "probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.4387742531683681
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.245893822107859
+        }
+      },
+      "shuffled_label_probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.3368228171347466
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.15835269916994535
+        }
+      }
+    },
+    "patch_mean": {
+      "input_dim": 96,
+      "probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.3216641156060182
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.26185460536488253
+        }
+      },
+      "shuffled_label_probe": {
+        "lr": 0.01,
+        "probe_params": 2716,
+        "seed": 42,
+        "steps": 250,
+        "train": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.2472398369570687
+        },
+        "val": {
+          "classes_scored": 28,
+          "classes_skipped": 0,
+          "macro_ap": 0.17733939541081054
+        }
+      }
+    }
+  },
+  "max_windows": 4,
+  "n_classes": 28,
+  "n_train_clips": 256,
+  "n_val_clips": 160,
+  "overlap": {
+    "classes": 28,
+    "definition": "a leaf is any label that is the first label of some val clip; overlap means two such labels on one clip",
+    "limit": "weak clip labels, not time-aligned polyphony",
+    "multi": {
+      "classes_scored": 26,
+      "classes_skipped": 2,
+      "macro_ap": 0.30345169504021935
+    },
+    "n_multi": 101,
+    "n_single": 59,
+    "single": {
+      "classes_scored": 15,
+      "classes_skipped": 13,
+      "macro_ap": 0.33655345601979497
+    }
+  },
+  "payload_sha256": "8db72d169e36c64fe7a54180d90efb90ee2ea5b0588ee06c1b593a013279de64",
+  "representation": {
+    "cls": {
+      "collapsed": false,
+      "dim": 96,
+      "effective_rank": 18.354808807373047,
+      "finite": true,
+      "n": 160,
+      "offdiag_cosine_mean": 0.33693408966064453,
+      "singular_max": 86.38653564453125,
+      "singular_min": 1.3442477211356163e-06,
+      "variance_mean": 0.6160664558410645,
+      "variance_min": 0.031565774232149124
+    },
+    "patch_mean": {
+      "collapsed": false,
+      "dim": 96,
+      "effective_rank": 14.157928466796875,
+      "finite": true,
+      "n": 160,
+      "offdiag_cosine_mean": 0.09261999279260635,
+      "singular_max": 78.91595458984375,
+      "singular_min": 6.164192427604576e-07,
+      "variance_mean": 0.44735899567604065,
+      "variance_min": 0.014437297359108925
+    }
+  },
+  "sealed_realdesed_test_read": false,
+  "similar_sounds": {
+    "accuracy": 0.4,
+    "chance": 0.5,
+    "jaccard_ancestors": 0.4,
+    "n_val": 10,
+    "pair": [
+      "Fixed-wing_aircraft_and_airplane",
+      "Motor_vehicle_(road)"
+    ],
+    "probe_params": 97.0,
+    "status": "measured"
+  },
+  "starss": {
+    "different_room_cosine_mean": 0.9937165081501007,
+    "files": [
+      "fold4_room10_mix001",
+      "fold4_room15_mix001",
+      "fold4_room16_mix001",
+      "fold4_room2_mix001"
+    ],
+    "frame_macro_ap": {
+      "dsp": {
+        "classes_scored": 3,
+        "classes_skipped": 10,
+        "macro_ap": 0.3624344590083978
+      },
+      "encoder": {
+        "classes_scored": 3,
+        "classes_skipped": 10,
+        "macro_ap": 0.37201058030136935
+      }
+    },
+    "limit": "four fold4 files, at most six non-overlapping 2.015 s windows each; frame hop is the 40 ms patch; labels are 100 ms STARSS frames rasterized onto that hop; an onset is a 0-to-1 class change inside a window, so a window boundary can split an event; the committed STARSS sha256 is not checked because this render is a fresh channel-0 16 kHz copy",
+    "manifest_rewritten": false,
+    "n_diff_pairs": 6,
+    "n_same_pairs": 0,
+    "n_train_frames": 600,
+    "n_val_frames": 600,
+    "onset": {
+      "dsp": {
+        "background_mean": 0.04141513630747795,
+        "fraction_above_background": 0.3333333333333333,
+        "mean_peak_minus_background": 0.07359581112218115,
+        "n_onsets": 9,
+        "tolerance_frames": 2,
+        "tolerance_s": 0.08
+      },
+      "encoder": {
+        "background_mean": 0.041270893067121506,
+        "fraction_above_background": 0.2222222222222222,
+        "mean_peak_minus_background": -0.029813678267398953,
+        "n_onsets": 9,
+        "tolerance_frames": 2,
+        "tolerance_s": 0.08
+      }
+    },
+    "rooms": [
+      "room10",
+      "room15",
+      "room16",
+      "room2"
+    ],
+    "same_room_cosine_mean": null,
+    "same_room_extra": {
+      "cosine": 0.9999788999557495,
+      "ids": [
+        "fold4_room10_mix001",
+        "fold4_room10_mix003"
+      ],
+      "same_group": true
+    },
+    "status": "measured",
+    "train_files": [
+      "fold4_room10_mix001",
+      "fold4_room15_mix001"
+    ],
+    "val_files": [
+      "fold4_room16_mix001",
+      "fold4_room2_mix001"
+    ]
+  },
+  "task": "loopear_d_dev_eval",
+  "usad": {
+    "reason": "skipped",
+    "status": "not_run"
+  },
+  "val_label_prevalence": 0.12678571045398712,
+  "wall_hours": 0.0021277471688889212,
+  "window_limit": "at most 4 non-overlapping 200-frame crops, mean pooled",
+  "written_utc": "2026-11-26T09:44:21.951573+00:00"
+}

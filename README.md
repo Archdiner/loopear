@@ -62,3 +62,117 @@ python3 -m venv .venv
 .venv/bin/python scripts/train_stage3.py --epochs 8 --steps-per-epoch 28 --batch-size 16 --seed 42
 .venv/bin/python -m loopear.demo --ckpt checkpoints/stage2_best.pt --adaptive --host 127.0.0.1 --port 8765
 ```
+
+## LoopEar-D
+
+Separate from the frozen USAD2 stack above. `loopear/d` is a 682,752-parameter encoder trained from scratch on the official FSD50K training split. The deployed file is the encoder. The predictor, the projection heads, and the EMA teacher are training-only. The 1,000-step comparison in this section used the nested 5.001-hour prefix (1,680 clips). A later matched run trains this encoder for 5,000 steps on the 20.003-hour prefix and writes `results/loopear_d_h20_global_5000_encoder.safetensors`. CPU only. Cloud GPU spend `$0.00`.
+
+```bash
+.venv/bin/python scripts/prepare_loopear_d.py
+.venv/bin/python scripts/train_loopear_d.py --stage auto
+.venv/bin/python scripts/eval_loopear_d.py --encoder results/loopear_d_k1_encoder.safetensors --report results/loopear_d_eval_k1.json
+```
+
+After 1,000 steps of global contrastive loss plus masked latent discrimination (`K=1`, batch 64, seed 42), validation class tokens are not collapsed (effective rank 29.3, mean off-diagonal cosine 0.327). A frozen 2,716-parameter probe on mean patch tokens scores macro AP 0.316 on 160 official validation clips and 28 classes. Random initialization scores 0.262 and log-mel mean/std scores 0.246. Shuffled labels sit near 0.17. Global-only is slightly higher (0.328). The same budget does not beat a mel baseline on a four-file STARSS23 onset check. `results/loopear_d_train.json` and `results/loopear_d_eval_k1.json` hold the raw numbers.
+
+```bash
+.venv/bin/python scripts/eval_loopear_d_baselines.py
+```
+
+That command does not train. It scores frozen USAD2-Small and EfficientAT mn04_as with the same 2,716-parameter readout, the same 256/160 clips, and the same four STARSS23 files. USAD2-Small scores macro AP 0.312. EfficientAT mn04_as, AudioSet-pretrained and using its own 32 kHz frontend, scores 0.526. Shuffled labels for both sit near 0.16. On the STARSS23 frame grid both raw scores sit above global-only and match their shuffled-label controls, because the scored validation classes have no positive training frames. `results/loopear_d_baselines.json` holds those numbers. AudioSet audio is not downloaded.
+
+## LoopEar-P
+
+Same frontend and the same global contrastive loss as LoopEar-D. The encoder keeps 32 learned latents of width 96, with three input cross-attention blocks and three latent self-attention blocks. The deployed encoder has 685,728 parameters, 2,976 above LoopEar-D. The local masked loss remains in `loopear/d/objective.py` and this comparison leaves it off. CPU only. Cloud GPU spend `$0.00`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py
+.venv/bin/python scripts/eval_loopear_protocol.py
+```
+
+The training command is the existing 5.001-hour subset, 1,000 steps, batch 64, seed 42. It writes `results/loopear_p_encoder.safetensors` and `results/loopear_matched_h20_plan.json`. That plan file still records the 20-hour runs as unlaunched. The runs that followed keep every 1,000-step file and write new ones:
+
+```bash
+.venv/bin/python scripts/cache_loopear_h20.py
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-d
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-p
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_p_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --report results/loopear_h20_protocol.json
+```
+
+The 5,000-step weights are `results/loopear_d_h20_global_5000_encoder.safetensors` and `results/loopear_p_h20_global_5000_encoder.safetensors`. `results/loopear_h20_protocol.json` holds that probe, including the coordinate readout. The 1,000-step eval command fits one readout on 1,680 development clips and 640 official validation clips, scores STARSS23 only where both sides have enough positives, runs a 4-example probe, and checks a 10-bin log-mel profile. `results/loopear_protocol.json` holds those 1,000-step numbers. The 160-clip scores above are a different probe.
+
+The equal-wall-clock scores use the existing LoopEar-D snapshots at 2,000 and 3,000 steps: `results/loopear_h20_equal_time_d2000.json` and `results/loopear_h20_equal_time_d3000.json`. P-T keeps the same 32 latents and the same global loss, and changes only the input cross-attention logits to `q·k/sqrt(d) − α(t−μ)^2`. Alpha 0 is ordinary cross-attention. The locked alpha is in `results/loopear_pt_h20_train.json`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-pt
+```
+
+`results/loopear_pt_h20_protocol.json` holds the P-T probe. GPU spend `$0.00`.
+
+P-L is that same unanchored encoder, 32 latents and 685,728 parameters, trained with the global loss plus the existing masked local loss at λ = 1. The local predictor queries the latent bank and does not take the acoustic patches. Teacher targets are stop-grad. The locked P-T penalty, measured on the trained logits before this run and left unchanged, is in `results/loopear_pt_penalty_scale.json`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-pl
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_pl_h20_global_5000_encoder.safetensors --time-alpha 0 --p-reference results/loopear_p_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_l --report results/loopear_pl_h20_protocol.json
+```
+
+`results/loopear_pl_h20_protocol.json` holds the P-L probe. Four-example recognition is the primary score. The energy profile is a diagnostic.
+
+P-LT keeps that local objective and adds the temporal penalty on the input cross-attention logits. Alpha is the centered content-logit RMS of the trained P-L encoder divided by the centered `(t − μ)^2` RMS. The initialization's own centered RMS is recorded and is not the scale. There is no loss sweep. The locked alpha is in `results/loopear_plt_alpha.json`. The within-recording ranking of the saved P-L student is in `results/loopear_pl_time_rank.json`.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-plt
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_plt_h20_global_5000_encoder.safetensors --time-alpha 0.0027896127554686775 --p-reference results/loopear_pl_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_lt --report results/loopear_plt_h20_protocol.json
+```
+
+`results/loopear_plt_h20_protocol.json` holds the P-LT probe. Four-example recognition stays the primary score. The energy profile stays a diagnostic.
+
+P-LTC keeps that model, including the locked alpha `0.0027896127554686775`, and adds one correspondence term. The positive pair is the same absolute time in two crops whose offsets differ. The denominator is the other aligned moments in that recording, excluding one patch (0.04 s) on each side of the positive. Temperature stays 0.1. The locked weight is `λ_t = 0.8774499635938284`, from one initialization batch, in `results/loopear_pltc_before.json`. The run saves the EMA teacher.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-pltc
+.venv/bin/python scripts/eval_loopear_protocol.py --d-global results/loopear_d_h20_global_5000_encoder.safetensors --p results/loopear_pltc_h20_global_5000_encoder.safetensors --time-alpha 0.0027896127554686775 --p-reference results/loopear_plt_h20_global_5000_encoder.safetensors --p-reference-time-alpha 0.0027896127554686775 --skip-k1 --coordinate --coordinate-name perceiver_ltc --report results/loopear_pltc_h20_protocol.json
+```
+
+`results/loopear_pltc_h20_protocol.json` holds the probe. `results/loopear_pltc_time_rank.json` holds the EMA retrieval. `results/loopear_pltc_event_order.json` holds the STARSS event-order counts. Four-example recognition, onset localization, and event order are the primary scores. The energy profile and the 970-parameter readout stay diagnostics.
+
+P-LT-F is the P-LT recipe again, not a new loss. It is the calibrated anchored Perceiver before temporal correspondence: global NT-Xent plus the masked local loss, λ = 1, K = 1, priors 0.1/0.8/0.1, locked alpha `0.0027896127554686775`. No `L_time`. Random initialization. 5,000 steps, batch 64, seed 42, 640,000 windows. The corpus is the full eligible official FSD50K train split. The run records how many of those recordings the sampler actually drew. It saves the EMA teacher.
+
+```bash
+.venv/bin/python scripts/train_loopear_p.py --launch-prepared loopear-plt-f
+.venv/bin/python scripts/eval_loopear_protocol.py --p results/loopear_pltf_full_5000_encoder.safetensors --time-alpha 0.0027896127554686775 --p-reference results/loopear_plt_h20_global_5000_encoder.safetensors --p-reference-time-alpha 0.0027896127554686775 --d-global results/loopear_d_h20_global_5000_encoder.safetensors --skip-k1 --coordinate --coordinate-name perceiver_ltf --report results/loopear_pltf_full_protocol.json
+```
+
+`results/loopear_pltf_full_train.json` holds the run, including the recordings actually drawn. `results/loopear_pltf_full_protocol.json` holds the same probe as P-LT. `results/loopear_pltf_event_order.json` holds the STARSS event-order counts against the saved P-LT EMA. In that file the `pltc` block is P-LT-F.
+
+## Causal LoopEar-D
+
+The block-causal encoder drops the class token and the learned time position. Frequency position stays. A query at time t attends to every frequency at times t' ≤ t, and that mask is the only time order. The grid has 677,856 parameters. Clip summaries are the mean of the grid. Training predicts the EMA teacher's frequency-pooled states with InfoNCE at horizons 1, 4, and 12. The denominator holds other times in the clip, except distance-1 neighbors, and the same future time from the other clips. There is no global NT-Xent. CPU only. Cloud GPU spend `$0.00`.
+
+```bash
+.venv/bin/python scripts/train_loopear_causal.py --steps 1000 --batch 64 --seed 42 --only dc --stem loopear_dc_notime_h20_1000
+.venv/bin/python scripts/probe_causal_position.py --checkpoint checkpoints/loopear_dc_notime_h20_1000_step1000.pt --report results/loopear_dc_notime_h20_1000_position.json
+```
+
+The first 20.003-hour run kept a learned time position and was stopped after step 1979. On that step-1,000 checkpoint the predictive loss was 0.003943 on real crops, 0.003825 on zeros, and 0.003948 after a within-clip time shuffle. Those three losses stay in `results/loopear_dc_h20_step1000_position_shortcut.json`.
+
+The follow-up removes the time position. At initialization, zero-mel predictive loss is 4.7097 against chance log(64+50−3) = 4.7095. It trained for 1,000 steps and stopped. On the new step-1,000 checkpoint, eight batches of 64 give predictive loss 3.301 on real crops, 4.784 when the mel is zeros, and 3.674 when each clip's valid time patches are permuted. Zero-mel stays near chance. The shuffled loss falls with the real loss, so a shortcut remains and the mixture run was not started. `results/loopear_dc_notime_h20_1000_position.json` holds those three losses. The step-1,000 teacher cosine, rank, and the 39-pair STARSS event order are in `results/loopear_dc_notime_h20_1000_step1000_gate.json`.
+
+The next run splices the normalized log-mel, not the waveform. On half of each batch, a cut in the middle half of the 50 time patches joins clip A before the cut to a different clip in the batch after the cut. The loss is an equal mix of a within-clip term and the concatenated term above. The variance hinge stays at 0.1 once. It trained 5,000 steps on the same prefix and stopped. The real-minus-shuffle gap on the fixed eight-batch probe was 0.436, 0.342, 0.295, 0.288, 0.278, 0.293, 0.294, 0.303, 0.297, and 0.299 nats at steps 500 through 5,000. At 5,000 the teacher off-diagonal cosine is 0.4417, mean within-crop rank is 34.35, and STARSS event order is 21/39 = 0.5385 forward and 23/39 = 0.5897 reversed. The gap stays below 1.0 nat, so Experiment 2 was not started. `results/loopear_dc_splice_h20_5000_probes.jsonl` holds the curve.
+
+```bash
+.venv/bin/python scripts/train_loopear_causal.py --steps 5000 --batch 64 --seed 42 --only dc --stem loopear_dc_splice_h20_5000
+```
+
+The order-gap run drops the splice and the one-step horizon. Horizons are 4, 10, and 20. There is no order-classification head. Half the negatives are a full time flip and half are a permutation of the 40 ms patches. The student and the stop-gradient teacher both score that scrambled mel with the same predictive loss. The extra term is relu(1 − gap), where the gap is scrambled NCE minus real NCE, and the total is the real predictive term plus that hinge. It trained 5,000 steps on the same prefix. On the fixed probe the gap was 1.028, 1.110, 1.047, 1.377, 1.407, 1.420, 1.145, 1.292, 1.320, and 1.440 nats at steps 500 through 5,000. Silent-clip loss stayed near 4.37 against chance 4.290. At 5,000, STARSS event order is 21/39 forward and 22/39 reversed. Reversed is above 0.5 and above forward, so Experiment 2 was not started. `results/loopear_dc_ordergap_h20_5000_probes.jsonl` holds the curve.
+
+```bash
+.venv/bin/python scripts/train_loopear_causal.py --steps 5000 --batch 64 --seed 42 --only dc --stem loopear_dc_ordergap_h20_5000
+```
+
+Experiment 3 replaces the six self-attention blocks with a strictly causal depthwise convolution and a gated linear unit. The kernel is 4 and the expanded width is 372, so the deployed grid is 678,144 parameters, 0.04 percent above the 677,856-parameter attention encoder. There is no attention, no RoPE, and no learned time position. Frequency position stays because each frequency is its own causal stream. The left pad is the only temporal context, and a masked step is zeroed before the convolution. The predictive term is unchanged: half within-clip InfoNCE and half the concatenated time-plus-same-time-batch term, temperature 0.1, horizons 4, 10, and 20. The variance hinge is not in the total. A training-only order head is LayerNorm, Linear, GELU, Linear to one logit, then a mean over time. Half of the negatives are a full time flip and half are a permutation of the 40 ms patches. The order term is half the sum of BCE-with-logits on the forward clip toward 1 and the negative toward 0, and the total adds half of that term to the predictive NCE. There is no splice and no PIT. The run is `loopear_dgated_orderhead_h20_20000`, from scratch, batch 64, seed 42, 20,000 steps on the same 20.003 h prefix.
+
+```bash
+.venv/bin/python scripts/bench_causal_stream.py
+.venv/bin/python scripts/train_loopear_causal.py --steps 20000 --batch 64 --seed 42 --only dc --stem loopear_dgated_orderhead_h20_20000
+```

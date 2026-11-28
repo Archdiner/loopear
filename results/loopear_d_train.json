@@ -1,0 +1,381 @@
+{
+  "audioset_waveforms_in_repo": 0,
+  "chosen_batch": 64,
+  "compare": [
+    {
+      "collapsed": false,
+      "cpu_s": 0.0,
+      "diagnostics": {
+        "cls": {
+          "collapsed": false,
+          "dim": 96,
+          "effective_rank": 7.672141075134277,
+          "finite": true,
+          "n": 32,
+          "offdiag_cosine_mean": 0.6357353925704956,
+          "singular_max": 29.74036407470703,
+          "singular_min": 1.939286448759958e-06,
+          "variance_mean": 0.35264191031455994,
+          "variance_min": 0.013382576406002045
+        },
+        "patch_mean": {
+          "collapsed": false,
+          "dim": 96,
+          "effective_rank": 7.307468891143799,
+          "finite": true,
+          "n": 32,
+          "offdiag_cosine_mean": 0.5359922647476196,
+          "singular_max": 27.910968780517578,
+          "singular_min": 1.8694746586334077e-06,
+          "variance_mean": 0.29666128754615784,
+          "variance_min": 0.011311321519315243
+        }
+      },
+      "objective": "random",
+      "steps": 0,
+      "wall_s": 0.0
+    },
+    {
+      "batch": 64,
+      "checkpoint": "checkpoints/loopear_d_k1.pt",
+      "collapsed": false,
+      "cpu_s": 4166.956047000001,
+      "diagnostics": {
+        "cls": {
+          "collapsed": false,
+          "dim": 96,
+          "effective_rank": 16.712968826293945,
+          "finite": true,
+          "n": 32,
+          "offdiag_cosine_mean": 0.5577768087387085,
+          "singular_max": 21.480716705322266,
+          "singular_min": 1.880266040643619e-06,
+          "variance_mean": 0.42414531111717224,
+          "variance_min": 0.1112939640879631
+        },
+        "patch_mean": {
+          "collapsed": false,
+          "dim": 96,
+          "effective_rank": 13.849035263061523,
+          "finite": true,
+          "n": 32,
+          "offdiag_cosine_mean": 0.5770188570022583,
+          "singular_max": 18.791175842285156,
+          "singular_min": 1.6760657217673725e-06,
+          "variance_mean": 0.29485610127449036,
+          "variance_min": 0.06252005696296692
+        }
+      },
+      "encoder_l2_delta": 5.286287784576416,
+      "encoder_weights": "results/loopear_d_k1_encoder.safetensors",
+      "log": "results/loopear_d_k1.jsonl",
+      "loss_first": 8.892983436584473,
+      "loss_last": 3.2316877841949463,
+      "loss_min": 2.732028007507324,
+      "objective": "k1",
+      "peak_rss_gb": 2.0845985412597656,
+      "reused_stage1": true,
+      "sec_per_step": 1.050217818648,
+      "seed": 42,
+      "steps": 1000,
+      "steps_requested": 1000,
+      "stopped_early": false,
+      "wall_s": 1050.217818648,
+      "weights_moved": true
+    },
+    {
+      "batch": 64,
+      "checkpoint": "checkpoints/loopear_d_cmp_global.pt",
+      "collapsed": false,
+      "cpu_s": 1092.4902520000005,
+      "diagnostics": {
+        "cls": {
+          "collapsed": false,
+          "dim": 96,
+          "effective_rank": 16.654630661010742,
+          "finite": true,
+          "n": 32,
+          "offdiag_cosine_mean": 0.5974789261817932,
+          "singular_max": 19.05507469177246,
+          "singular_min": 2.0248462533345446e-06,
+          "variance_mean": 0.3829723298549652,
+          "variance_min": 0.06365492194890976
+        },
+        "patch_mean": {
+          "collapsed": false,
+          "dim": 96,
+          "effective_rank": 13.645554542541504,
+          "finite": true,
+          "n": 32,
+          "offdiag_cosine_mean": 0.6444594264030457,
+          "singular_max": 16.11250114440918,
+          "singular_min": 1.5800299024704145e-06,
+          "variance_mean": 0.23510491847991943,
+          "variance_min": 0.020427808165550232
+        }
+      },
+      "encoder_l2_delta": 5.500311851501465,
+      "encoder_weights": "results/loopear_d_cmp_global_encoder.safetensors",
+      "log": "results/loopear_d_cmp_global.jsonl",
+      "loss_first": 3.9247934818267822,
+      "loss_last": 1.20119047164917,
+      "loss_min": 0.7600997090339661,
+      "objective": "global",
+      "peak_rss_gb": 2.0845985412597656,
+      "sec_per_step": 0.27396028956499957,
+      "seed": 42,
+      "steps": 1000,
+      "steps_requested": 1000,
+      "stopped_early": false,
+      "wall_s": 273.9602895649996,
+      "weights_moved": true
+    },
+    {
+      "batch": 64,
+      "checkpoint": "checkpoints/loopear_d_cmp_center.pt",
+      "collapsed": false,
+      "cpu_s": 3737.2567100000006,
+      "diagnostics": {
+        "cls": {
+          "collapsed": false,
+          "dim": 96,
+          "effective_rank": 16.687835693359375,
+          "finite": true,
+          "n": 32,
+          "offdiag_cosine_mean": 0.5678530931472778,
+          "singular_max": 21.173290252685547,
+          "singular_min": 2.260268502141116e-06,
+          "variance_mean": 0.41448748111724854,
+          "variance_min": 0.0957331508398056
+        },
+        "patch_mean": {
+          "collapsed": false,
+          "dim": 96,
+          "effective_rank": 13.823149681091309,
+          "finite": true,
+          "n": 32,
+          "offdiag_cosine_mean": 0.5758066773414612,
+          "singular_max": 19.224695205688477,
+          "singular_min": 2.153229843315785e-06,
+          "variance_mean": 0.297346830368042,
+          "variance_min": 0.0507563091814518
+        }
+      },
+      "encoder_l2_delta": 5.287686347961426,
+      "encoder_weights": "results/loopear_d_cmp_center_encoder.safetensors",
+      "log": "results/loopear_d_cmp_center.jsonl",
+      "loss_first": 8.893630027770996,
+      "loss_last": 3.2573986053466797,
+      "loss_min": 2.739346981048584,
+      "objective": "center",
+      "peak_rss_gb": 2.0845985412597656,
+      "sec_per_step": 0.9418320495790004,
+      "seed": 42,
+      "steps": 1000,
+      "steps_requested": 1000,
+      "stopped_early": false,
+      "wall_s": 941.8320495790003,
+      "weights_moved": true
+    }
+  ],
+  "compare_steps": 1000,
+  "cpu_hours": 2.5248953538888887,
+  "deadline_utc": "2026-11-26T15:30:00+00:00",
+  "deviations": [
+    {
+      "detail": "LoopEar-D is a 96-d 6-block encoder, not AudioFM's ViT-Base.",
+      "id": "scale"
+    },
+    {
+      "detail": "16 kHz mono, 64-bin HTK log-mel, 25 ms window, 10 ms hop, n_fft 400, uncentered STFT, natural log with floor 1e-6. Crop is 32240 samples (2.015 s) so the mel has exactly 200 frames.",
+      "id": "frontend"
+    },
+    {
+      "detail": "Non-overlapping 4-frame by 16-bin patches, grid 50 by 4, not 16 by 16.",
+      "id": "patches"
+    },
+    {
+      "detail": "Encoder positions are learned factorized time plus frequency embeddings, crop-relative.",
+      "id": "positions"
+    },
+    {
+      "detail": "Training-only predictor has 2 pre-norm blocks at dim 48, not 4 blocks at 384.",
+      "id": "predictor"
+    },
+    {
+      "detail": "Global MLP is 96-128-64 and local MLP is 96-96-64, then L2 norm.",
+      "id": "heads"
+    },
+    {
+      "detail": "Both temperatures are 0.1. AudioFM uses 0.1 global and 0.2 local.",
+      "id": "temperature"
+    },
+    {
+      "detail": "AdamW lr 3e-4, not 6e-4. Batch is profiled, not 6144. No drop-path.",
+      "id": "optim"
+    },
+    {
+      "detail": "Each view is an independent random crop. Short clips are left-aligned and padded.",
+      "id": "augmentation"
+    },
+    {
+      "detail": "Time mask is 60 percent of valid time patches. Frequency mask is 2 of 4 bands because round(0.4 * 4) is 2, so 50 percent of frequency patches.",
+      "id": "masks"
+    },
+    {
+      "detail": "Padded patches are excluded from attention, pooling, and contrastive denominators.",
+      "id": "padding"
+    },
+    {
+      "detail": "Pretraining audio is the official FSD50K train split only, not AudioSet.",
+      "id": "data"
+    },
+    {
+      "detail": "Log-mel mean and std are fit on the downloaded training subset, not AudioSet constants.",
+      "id": "norm_stats"
+    },
+    {
+      "detail": "The encoder is bidirectional inside one 2.015 s window. It is not strictly causal.",
+      "id": "context"
+    },
+    {
+      "detail": "Kept from AudioFM: complementary time and frequency masks, symmetric NT-Xent with both views as negatives, EMA teacher on the encoder and local head, masked latent discrimination against same-coordinate cross-recording targets, and K=1 prior weights 0.1, 0.8, 0.1 renormalized on eligible offsets.",
+      "id": "kept"
+    }
+  ],
+  "device": {
+    "cuda_available": false,
+    "device": "cpu",
+    "gpu_usd": 0.0,
+    "mps_available": false,
+    "threads": 4
+  },
+  "encoder_params": 682752,
+  "feasible_steps": 1000,
+  "gpu_usd": 0.0,
+  "hard_stop_utc": "2026-11-26T15:10:00+00:00",
+  "payload_sha256": "c4c5ac0e606a4e7878f8ca71826bf3b5dc74d94399a00a37274c6e1a287ea491",
+  "profile": [
+    {
+      "batch": 16.0,
+      "loss": 5.3622918128967285,
+      "peak_rss_gb": 1.0715904235839844,
+      "sec_per_step": 0.2415944319996015
+    },
+    {
+      "batch": 32.0,
+      "loss": 7.565951347351074,
+      "peak_rss_gb": 1.4114341735839844,
+      "sec_per_step": 0.39938160099973175
+    },
+    {
+      "batch": 64.0,
+      "loss": 8.629693031311035,
+      "peak_rss_gb": 2.015918731689453,
+      "sec_per_step": 1.218219195999609
+    }
+  ],
+  "profile_sec_per_step": 1.218219195999609,
+  "remain_s_before_stage1": 22764.508642,
+  "requested_steps": 1000,
+  "smoke": {
+    "batch": 8,
+    "checkpoint": "checkpoints/loopear_d_smoke.pt",
+    "collapsed": false,
+    "cpu_s": 72.734438,
+    "diagnostics": {
+      "cls": {
+        "collapsed": false,
+        "dim": 96,
+        "effective_rank": 5.264998435974121,
+        "finite": true,
+        "n": 32,
+        "offdiag_cosine_mean": 0.7248884439468384,
+        "singular_max": 24.40238380432129,
+        "singular_min": 2.5181166165566538e-06,
+        "variance_mean": 0.267119437456131,
+        "variance_min": 0.011827892623841763
+      },
+      "patch_mean": {
+        "collapsed": false,
+        "dim": 96,
+        "effective_rank": 6.248935222625732,
+        "finite": true,
+        "n": 32,
+        "offdiag_cosine_mean": 0.6135496497154236,
+        "singular_max": 26.67776107788086,
+        "singular_min": 2.092944896503468e-06,
+        "variance_mean": 0.3394053876399994,
+        "variance_min": 0.028068948537111282
+      }
+    },
+    "encoder_l2_delta": 1.716902732849121,
+    "encoder_weights": "results/loopear_d_smoke_encoder.safetensors",
+    "log": "results/loopear_d_smoke.jsonl",
+    "loss_first": 5.352218151092529,
+    "loss_last": 4.161688327789307,
+    "loss_min": 2.4181056022644043,
+    "objective": "k1",
+    "peak_rss_gb": 0.9033775329589844,
+    "sec_per_step": 0.12180692202666554,
+    "seed": 42,
+    "steps": 150,
+    "steps_requested": 150,
+    "stopped_early": false,
+    "wall_s": 18.27103830399983,
+    "weights_moved": true
+  },
+  "stage": "auto",
+  "stage1": {
+    "batch": 64,
+    "checkpoint": "checkpoints/loopear_d_k1.pt",
+    "collapsed": false,
+    "cpu_s": 4166.956047000001,
+    "diagnostics": {
+      "cls": {
+        "collapsed": false,
+        "dim": 96,
+        "effective_rank": 16.712968826293945,
+        "finite": true,
+        "n": 32,
+        "offdiag_cosine_mean": 0.5577768087387085,
+        "singular_max": 21.480716705322266,
+        "singular_min": 1.880266040643619e-06,
+        "variance_mean": 0.42414531111717224,
+        "variance_min": 0.1112939640879631
+      },
+      "patch_mean": {
+        "collapsed": false,
+        "dim": 96,
+        "effective_rank": 13.849035263061523,
+        "finite": true,
+        "n": 32,
+        "offdiag_cosine_mean": 0.5770188570022583,
+        "singular_max": 18.791175842285156,
+        "singular_min": 1.6760657217673725e-06,
+        "variance_mean": 0.29485610127449036,
+        "variance_min": 0.06252005696296692
+      }
+    },
+    "encoder_l2_delta": 5.286287784576416,
+    "encoder_weights": "results/loopear_d_k1_encoder.safetensors",
+    "log": "results/loopear_d_k1.jsonl",
+    "loss_first": 8.892983436584473,
+    "loss_last": 3.2316877841949463,
+    "loss_min": 2.732028007507324,
+    "objective": "k1",
+    "peak_rss_gb": 2.0845985412597656,
+    "sec_per_step": 1.050217818648,
+    "seed": 42,
+    "steps": 1000,
+    "steps_requested": 1000,
+    "stopped_early": false,
+    "wall_s": 1050.217818648,
+    "weights_moved": true
+  },
+  "student_params": 785520,
+  "task": "loopear_d_train",
+  "train_only_params": 102768,
+  "wall_hours": 0.6361936690461111,
+  "written_utc": "2026-11-26T09:33:11.961560+00:00"
+}
