@@ -1,0 +1,62 @@
+{
+  "before_train": {
+    "cpu_hours": 0.0009273222222222221,
+    "cpu_s": 3.3383510000000003,
+    "wall_s": 1.3104183680006827
+  },
+  "gpu_usd": 0.0,
+  "lambda_time": {
+    "check_loss": 10.260987281799316,
+    "check_loss_g": 4.268182754516602,
+    "check_loss_l": 2.9964022636413574,
+    "check_loss_t": 3.414898157119751,
+    "chosen_lambda": 1.0,
+    "encoder_params": 685728,
+    "gpu_usd": 0.0,
+    "grad_norm": 34.838814467747206,
+    "lambda_local": 1.0,
+    "lambda_time": 0.8774499635938284,
+    "lock_batch_index": 0,
+    "loss_l": 2.9964022636413574,
+    "loss_sweep": false,
+    "loss_t_at_unit_weight": 3.414898157119751,
+    "n_queries": 1504.0,
+    "neighborhood_patches": 1,
+    "task": "loopear_pltc_lambda_time",
+    "tau": 0.1,
+    "tau_changed": false,
+    "time_alpha": 0.0027896127554686775
+  },
+  "offset_crops": {
+    "alignment": "absolute frame start, exact multiples of 4 frames",
+    "batch_recordings": 64,
+    "batches": 4,
+    "gpu_usd": 0.0,
+    "n_aligned_recordings": 63.0,
+    "n_distinct_embedding_pairs": 1261.0,
+    "n_index_pairs": 1261.0,
+    "n_recordings": 256.0,
+    "n_same_offset": 52.0,
+    "n_shared_embedding_pairs": 0.0,
+    "n_unaligned": 141.0,
+    "neighborhood_patches": 1,
+    "neighborhood_seconds": 0.04,
+    "patch_frames": 4,
+    "seed": 42,
+    "task": "loopear_pltc_offset_crops"
+  },
+  "payload_sha256": "3d1a2dc1e90449380f6f231d60551d7694cff994dc319fc4e588eab39c100e3e",
+  "smoke_ema": {
+    "gpu_usd": 0.0,
+    "path": "checkpoints/loopear_pltc_smoke_ema.pt",
+    "steps": 2,
+    "teacher_keys": [
+      "teacher_encoder",
+      "teacher_local",
+      "teacher_predictor"
+    ],
+    "teacher_student_l1": 297.075927734375,
+    "teacher_tensors_present": true
+  },
+  "written_utc": "2026-11-27T18:43:40.167289+00:00"
+}

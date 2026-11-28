@@ -1,0 +1,136 @@
+{
+  "alpha": 3.1816019504258156e-06,
+  "alpha_changed": false,
+  "batch_recordings": 64,
+  "batches": 8,
+  "comparison": "content logits are qk/sqrt(d_head) before the additive penalty, on the visible keys of each real training view, at the latents that reach that block",
+  "cross_blocks": 3,
+  "gpu_usd": 0.0,
+  "layers": [
+    {
+      "anchor_penalty_mean_abs": 0.0013389804723337342,
+      "anchor_penalty_rms": 0.0020735961106436423,
+      "content_logit_mean_abs": 1.3210755641804188,
+      "content_logit_rms": 2.0136521338865316,
+      "count": 10773504.0,
+      "fraction_abs_penalty_exceeds_abs_logit": 0.0011584903110445775,
+      "penalty_rms_over_logit_rms": 0.0010297687846616353
+    },
+    {
+      "anchor_penalty_mean_abs": 0.0013389804723337342,
+      "anchor_penalty_rms": 0.0020735961106436423,
+      "content_logit_mean_abs": 2.520710079561858,
+      "content_logit_rms": 4.251125575691508,
+      "count": 10773504.0,
+      "fraction_abs_penalty_exceeds_abs_logit": 0.0007964910951905712,
+      "penalty_rms_over_logit_rms": 0.0004877757840184106
+    },
+    {
+      "anchor_penalty_mean_abs": 0.0013389804723337342,
+      "anchor_penalty_rms": 0.0020735961106436423,
+      "content_logit_mean_abs": 1.0312362248856082,
+      "content_logit_rms": 1.7614837021768959,
+      "count": 10773504.0,
+      "fraction_abs_penalty_exceeds_abs_logit": 0.001686452244320882,
+      "penalty_rms_over_logit_rms": 0.0011771872246567074
+    }
+  ],
+  "payload_sha256": "1891712828bbf8ac54d7d163c93ecf8b05bdfe953e9a777b1bc82320ed11e58d",
+  "pooled": {
+    "anchor_penalty_mean_abs": 0.0013389804723337342,
+    "anchor_penalty_rms": 0.0020735961106436423,
+    "content_logit_mean_abs": 1.6243406228759618,
+    "content_logit_rms": 2.899982092452702,
+    "count": 32320512.0,
+    "fraction_abs_penalty_exceeds_abs_logit": 0.0012138112168520103,
+    "penalty_rms_over_logit_rms": 0.0007150375569698323
+  },
+  "retrained": false,
+  "seed": 42,
+  "task": "loopear_pt_penalty_versus_logits",
+  "views": {
+    "freq_masked": {
+      "layers": [
+        {
+          "anchor_penalty_mean_abs": 0.001339681624387163,
+          "anchor_penalty_rms": 0.002074959146930676,
+          "content_logit_mean_abs": 1.3249924015433847,
+          "content_logit_rms": 2.0183425833146744,
+          "count": 5984768.0,
+          "fraction_abs_penalty_exceeds_abs_logit": 0.0011540965330652752,
+          "penalty_rms_over_logit_rms": 0.0010280510177429947
+        },
+        {
+          "anchor_penalty_mean_abs": 0.001339681624387163,
+          "anchor_penalty_rms": 0.002074959146930676,
+          "content_logit_mean_abs": 2.533916749153852,
+          "content_logit_rms": 4.255145681505105,
+          "count": 5984768.0,
+          "fraction_abs_penalty_exceeds_abs_logit": 0.0007859953802720507,
+          "penalty_rms_over_logit_rms": 0.00048763527790586324
+        },
+        {
+          "anchor_penalty_mean_abs": 0.001339681624387163,
+          "anchor_penalty_rms": 0.002074959146930676,
+          "content_logit_mean_abs": 1.0607613256687645,
+          "content_logit_rms": 1.8068266429104847,
+          "count": 5984768.0,
+          "fraction_abs_penalty_exceeds_abs_logit": 0.0016179407455727607,
+          "penalty_rms_over_logit_rms": 0.0011483996846472643
+        }
+      ],
+      "pooled": {
+        "anchor_penalty_mean_abs": 0.001339681624387163,
+        "anchor_penalty_rms": 0.002074959146930676,
+        "content_logit_mean_abs": 1.639890158788667,
+        "content_logit_rms": 2.9123068789755013,
+        "count": 17954304.0,
+        "fraction_abs_penalty_exceeds_abs_logit": 0.0011860108863033622,
+        "penalty_rms_over_logit_rms": 0.0007124795679707388
+      }
+    },
+    "time_masked": {
+      "layers": [
+        {
+          "anchor_penalty_mean_abs": 0.0013381042009392588,
+          "anchor_penalty_rms": 0.002071891382574531,
+          "content_logit_mean_abs": 1.3161804597288302,
+          "content_logit_rms": 2.0077747960579866,
+          "count": 4788736.0,
+          "fraction_abs_penalty_exceeds_abs_logit": 0.001163981476531594,
+          "penalty_rms_over_logit_rms": 0.0010319341524967986
+        },
+        {
+          "anchor_penalty_mean_abs": 0.0013381042009392588,
+          "anchor_penalty_rms": 0.002071891382574531,
+          "content_logit_mean_abs": 2.5042049196280605,
+          "content_logit_rms": 4.246096059735714,
+          "count": 4788736.0,
+          "fraction_abs_penalty_exceeds_abs_logit": 0.0008096082139420507,
+          "penalty_rms_over_logit_rms": 0.000487952074900418
+        },
+        {
+          "anchor_penalty_mean_abs": 0.0013381042009392588,
+          "anchor_penalty_rms": 0.002071891382574531,
+          "content_logit_mean_abs": 0.9943369515985011,
+          "content_logit_rms": 1.7031196817010434,
+          "count": 4788736.0,
+          "fraction_abs_penalty_exceeds_abs_logit": 0.0017720751363198973,
+          "penalty_rms_over_logit_rms": 0.0012165271794082992
+        }
+      ],
+      "pooled": {
+        "anchor_penalty_mean_abs": 0.0013381042009392588,
+        "anchor_penalty_rms": 0.002071891382574531,
+        "content_logit_mean_abs": 1.6049074436517974,
+        "content_logit_rms": 2.884505043064079,
+        "count": 14366208.0,
+        "fraction_abs_penalty_exceeds_abs_logit": 0.001248554942264514,
+        "penalty_rms_over_logit_rms": 0.0007182831548714002
+      }
+    }
+  },
+  "views_per_batch": 2,
+  "weights": "results/loopear_pt_h20_global_5000_encoder.safetensors",
+  "written_utc": "2026-11-27T08:16:31.934847+00:00"
+}
